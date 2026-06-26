@@ -1,16 +1,20 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 const ORDER_LINKS = [
-  { href: '/ordrar', label: 'Ordrar' },
-  { href: '/offerter', label: 'Offerter' },
+  { href: '/dashboard', label: 'Dashboard' },
+  { href: '/ordrar', label: 'Order' },
+  { href: '/offerter', label: 'Offert' },
   { href: '/kunder', label: 'Kunder' },
-  { href: '/artiklar', label: 'Artiklar' },
+  { href: '/leverantorer', label: 'Leverantör' },
   { href: '/kalender', label: 'Kalender' },
-  { href: '/fakturering', label: 'Fakturering' },
+  { href: '/statistik', label: 'Statistik' },
+  { href: '/fakturering', label: 'Fakturor' },
+  { href: '/artiklar', label: 'Artiklar' },
 ]
 
 const FASTIGHET_LINKS = [
@@ -22,10 +26,12 @@ const FASTIGHET_LINKS = [
 
 const S: Record<string, React.CSSProperties> = {
   nav: { background: '#141414', borderBottom: '1px solid #222', position: 'sticky', top: 0, zIndex: 100 },
-  inner: { display: 'flex', alignItems: 'center', gap: 0, padding: '0 16px', height: 52, overflowX: 'auto' },
-  logo: { fontWeight: 800, fontSize: 16, color: '#E8C96A', letterSpacing: 1, marginRight: 24, flexShrink: 0, textDecoration: 'none' },
-  divider: { width: 1, height: 20, background: '#2a2a2a', margin: '0 12px', flexShrink: 0 },
-  moduleLabel: { fontSize: 9, fontWeight: 700, letterSpacing: 1.5, color: '#555', marginRight: 8, flexShrink: 0 },
+  inner: { display: 'flex', alignItems: 'center', gap: 0, padding: '0 16px', height: 56, overflowX: 'auto' },
+  logoWrap: { display: 'flex', alignItems: 'center', gap: 10, marginRight: 20, flexShrink: 0, textDecoration: 'none' },
+  logoText: { display: 'flex', flexDirection: 'column' as const, lineHeight: 1.1 },
+  logoName: { fontWeight: 800, fontSize: 13, color: '#E8C96A', letterSpacing: 2 },
+  logoSub: { fontSize: 8, color: '#666', letterSpacing: 1.5, fontWeight: 600 },
+  divider: { width: 1, height: 20, background: '#2a2a2a', margin: '0 10px', flexShrink: 0 },
   link: { padding: '6px 10px', borderRadius: 6, fontSize: 12, fontWeight: 500, color: '#888', textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0, transition: 'all 0.1s' },
   linkActive: { color: '#E8C96A', background: 'rgba(232,201,106,0.08)' },
   spacer: { flex: 1 },
@@ -43,23 +49,29 @@ export default function Navbar() {
     router.refresh()
   }
 
+  const isActive = (href: string) => pathname === href || pathname.startsWith(href + '/')
+
   return (
     <nav style={S.nav}>
       <div style={S.inner}>
-        <Link href="/ordrar" style={S.logo}>WV</Link>
+        <Link href="/dashboard" style={S.logoWrap}>
+          <Image src="/logo.png" alt="Wisboverket" width={36} height={36} style={{ borderRadius: '50%' }} />
+          <div style={S.logoText}>
+            <span style={S.logoName}>WISBOVERKET</span>
+            <span style={S.logoSub}>FASTIGHETER & FÖRVALTNING</span>
+          </div>
+        </Link>
 
-        <span style={S.moduleLabel}>ORDER</span>
         {ORDER_LINKS.map(l => (
-          <Link key={l.href} href={l.href} style={{ ...S.link, ...(pathname.startsWith(l.href) ? S.linkActive : {}) }}>
+          <Link key={l.href} href={l.href} style={{ ...S.link, ...(isActive(l.href) ? S.linkActive : {}) }}>
             {l.label}
           </Link>
         ))}
 
         <div style={S.divider} />
 
-        <span style={S.moduleLabel}>FASTIGHETER</span>
         {FASTIGHET_LINKS.map(l => (
-          <Link key={l.href} href={l.href} style={{ ...S.link, ...(pathname.startsWith(l.href) ? S.linkActive : {}) }}>
+          <Link key={l.href} href={l.href} style={{ ...S.link, ...(isActive(l.href) ? S.linkActive : {}) }}>
             {l.label}
           </Link>
         ))}
