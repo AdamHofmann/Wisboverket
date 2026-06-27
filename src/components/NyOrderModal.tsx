@@ -40,11 +40,13 @@ type AdressSuggestion = { display_name: string; address: { road?: string; house_
 
 type MiniKalenderProps = {
   ordrar: { bokad_datum: string; titel: string; tilldelad: string[] | null }[]
-  valtDatum: string
+  datumFran: string
+  datumTill: string
+  aktivFalt: 'fran' | 'till'
   onPickDatum: (d: string) => void
 }
 
-function MiniKalender({ ordrar, valtDatum, onPickDatum }: MiniKalenderProps) {
+function MiniKalender({ ordrar, datumFran, datumTill, aktivFalt, onPickDatum }: MiniKalenderProps) {
   const [månOffset, setMånOffset] = useState(0)
   const idag = new Date()
   const år = new Date(idag.getFullYear(), idag.getMonth() + månOffset, 1)
@@ -53,12 +55,16 @@ function MiniKalender({ ordrar, valtDatum, onPickDatum }: MiniKalenderProps) {
   const förstaVeckodag = (new Date(månadsår, månad, 1).getDay() + 6) % 7
   const antalDagar = new Date(månadsår, månad + 1, 0).getDate()
   const månNamn = år.toLocaleString('sv-SE', { month: 'long', year: 'numeric' })
-
   const bokadeDatum = new Set(ordrar.map(o => o.bokad_datum))
   const dagar = Array.from({ length: förstaVeckodag }, () => null).concat(Array.from({ length: antalDagar }, (_, i) => i + 1))
 
+  const iRange = (ds: string) => datumFran && datumTill && ds >= datumFran && ds <= datumTill
+
   return (
     <div style={{ background: '#111', border: '1px solid #2a2a2a', borderRadius: 10, padding: 12 }}>
+      <div style={{ fontSize: 10, color: '#E8C96A', fontWeight: 700, marginBottom: 8, letterSpacing: 0.5 }}>
+        {aktivFalt === 'fran' ? '▸ Välj startdatum' : '▸ Välj slutdatum'}
+      </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
         <button onClick={() => setMånOffset(o => o - 1)} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: 16 }}>‹</button>
         <span style={{ fontSize: 12, fontWeight: 700, color: '#d0d0d0', textTransform: 'capitalize' }}>{månNamn}</span>
@@ -72,28 +78,28 @@ function MiniKalender({ ordrar, valtDatum, onPickDatum }: MiniKalenderProps) {
           if (!dag) return <div key={i} />
           const ds = `${månadsår}-${String(månad + 1).padStart(2, '0')}-${String(dag).padStart(2, '0')}`
           const belagd = bokadeDatum.has(ds)
-          const vald = valtDatum === ds
+          const ärFran = ds === datumFran
+          const ärTill = ds === datumTill
+          const inRange = iRange(ds)
           const past = new Date(ds) < new Date(new Date().toDateString())
           return (
             <div key={i} onClick={() => !past && onPickDatum(ds)}
               style={{
                 fontSize: 11, padding: '4px 2px', borderRadius: 5, cursor: past ? 'default' : 'pointer',
-                background: vald ? '#E8C96A' : belagd ? 'rgba(239,68,68,0.2)' : 'transparent',
-                color: vald ? '#000' : past ? '#333' : belagd ? '#ef4444' : '#ccc',
-                fontWeight: vald || belagd ? 700 : 400,
-                border: belagd && !vald ? '1px solid rgba(239,68,68,0.3)' : '1px solid transparent',
-                position: 'relative',
+                background: (ärFran || ärTill) ? '#E8C96A' : inRange ? 'rgba(232,201,106,0.15)' : belagd ? 'rgba(239,68,68,0.2)' : 'transparent',
+                color: (ärFran || ärTill) ? '#000' : past ? '#333' : belagd ? '#ef4444' : '#ccc',
+                fontWeight: (ärFran || ärTill) ? 800 : belagd ? 700 : 400,
+                border: belagd && !ärFran && !ärTill ? '1px solid rgba(239,68,68,0.3)' : '1px solid transparent',
               }}
               title={belagd ? ordrar.filter(o => o.bokad_datum === ds).map(o => o.titel).join(', ') : ''}>
               {dag}
-              {belagd && !vald && <span style={{ position: 'absolute', bottom: 1, left: '50%', transform: 'translateX(-50%)', width: 4, height: 4, borderRadius: '50%', background: '#ef4444', display: 'block' }} />}
             </div>
           )
         })}
       </div>
       <div style={{ marginTop: 8, display: 'flex', gap: 12, fontSize: 10, color: '#555' }}>
         <span><span style={{ color: '#ef4444' }}>●</span> Belagd</span>
-        <span><span style={{ color: '#E8C96A' }}>●</span> Valt datum</span>
+        <span><span style={{ color: '#E8C96A' }}>●</span> Valt intervall</span>
       </div>
     </div>
   )
@@ -107,27 +113,47 @@ export default function NyOrderModal({ onClose, onSaved }: Props) {
   const [showNyKund, setShowNyKund] = useState(false)
   const [adressSuggestions, setAdressSuggestions] = useState<AdressSuggestion[]>([])
   const adressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-
   const [showKalender, setShowKalender] = useState(false)
+  const [aktivFalt, setAktivFalt] = useState<'fran' | 'till'>('fran')
   const [kalenderOrdrar, setKalenderOrdrar] = useState<{ bokad_datum: string; titel: string; tilldelad: string[] | null }[]>([])
+
   const [form, setForm] = useState({
     titel: '', kategori: 'Rondering', status: 'aktiv', customer_id: '',
     fastighet: '', postnummer: '', ort: '',
-    bokad_datum: '', bokad_start: '', bokad_slut: '',
+    datum_fran: '', datum_till: '', bokad_start: '', bokad_slut: '',
     tilldelad: [] as string[],
-    arbetsinstruktion: '', pris: '',
+    arbetsinstruktion: '',
   })
 
   const [nyKund, setNyKund] = useState({ namn: '', telefon: '', epost: '', typ: 'företag' })
 
   const fetchKunder = () => createClient().from('customers').select('id,namn').order('namn').then(({ data }) => setKunder(data || []))
 
-  const openKalender = async () => {
-    if (!showKalender) {
-      const { data } = await createClient().from('orders').select('bokad_datum,titel,tilldelad').not('bokad_datum', 'is', null).eq('status', 'aktiv')
-      setKalenderOrdrar(data || [])
+  const loadKalender = async () => {
+    const { data } = await createClient().from('orders').select('bokad_datum,titel,tilldelad').not('bokad_datum', 'is', null).eq('status', 'aktiv')
+    setKalenderOrdrar(data || [])
+  }
+
+  const openKalenderFran = async () => {
+    setAktivFalt('fran')
+    if (!showKalender) await loadKalender()
+    setShowKalender(true)
+  }
+
+  const openKalenderTill = async () => {
+    setAktivFalt('till')
+    if (!showKalender) await loadKalender()
+    setShowKalender(true)
+  }
+
+  const onPickDatum = (d: string) => {
+    if (aktivFalt === 'fran') {
+      setForm(f => ({ ...f, datum_fran: d, datum_till: f.datum_till && f.datum_till < d ? d : f.datum_till }))
+      setAktivFalt('till')
+    } else {
+      setForm(f => ({ ...f, datum_till: d >= f.datum_fran ? d : f.datum_fran }))
+      setShowKalender(false)
     }
-    setShowKalender(v => !v)
   }
 
   useEffect(() => { fetchKunder() }, [])
@@ -150,9 +176,7 @@ export default function NyOrderModal({ onClose, onSaved }: Props) {
 
   const pickAdress = (s: AdressSuggestion) => {
     const a = s.address
-    // Behåll användarens inmatning (inkl. husnummer) men fyll på postnummer/ort
     const gata = [a.road, a.house_number].filter(Boolean).join(' ')
-    // Om Nominatim har husnummer, använd det — annars behåll vad användaren skrev
     set('fastighet', (a.house_number ? gata : form.fastighet) || gata)
     set('postnummer', a.postcode?.replace(' ', '') || '')
     set('ort', a.city || a.town || a.village || '')
@@ -181,10 +205,10 @@ export default function NyOrderModal({ onClose, onSaved }: Props) {
       titel: form.titel, kategori: form.kategori, status: form.status,
       customer_id: form.customer_id || null,
       fastighet: form.fastighet || null, postnummer: form.postnummer || null, ort: form.ort || null,
-      bokad_datum: form.bokad_datum || null, bokad_start: form.bokad_start || null, bokad_slut: form.bokad_slut || null,
+      bokad_datum: form.datum_fran || null,
+      bokad_start: form.bokad_start || null, bokad_slut: form.bokad_slut || null,
       tilldelad: form.tilldelad.length > 0 ? form.tilldelad : null,
       beskrivning: form.arbetsinstruktion || null,
-      pris: form.pris ? parseFloat(form.pris) : null,
     })
     setSaving(false)
     if (!error) { onSaved(); onClose() }
@@ -192,6 +216,12 @@ export default function NyOrderModal({ onClose, onSaved }: Props) {
 
   const fo = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => { e.target.style.borderColor = '#E8C96A' }
   const fb = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => { e.target.style.borderColor = '#2a2a2a' }
+
+  const datumInputStyle = (active: boolean): React.CSSProperties => ({
+    ...S.input,
+    borderColor: active ? '#E8C96A' : '#2a2a2a',
+    cursor: 'pointer',
+  })
 
   return (
     <div style={S.overlay} onClick={e => e.target === e.currentTarget && onClose()}>
@@ -303,18 +333,46 @@ export default function NyOrderModal({ onClose, onSaved }: Props) {
 
           <div style={{ ...S.section, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span>PLANERING</span>
-            <button onClick={openKalender} style={{ background: 'none', border: '1px solid #2a2a2a', borderRadius: 6, color: '#E8C96A', fontSize: 10, fontWeight: 700, padding: '3px 10px', cursor: 'pointer', letterSpacing: 0.5 }}>
+            <button onClick={() => { setShowKalender(v => !v); if (!showKalender) loadKalender() }}
+              style={{ background: 'none', border: '1px solid #2a2a2a', borderRadius: 6, color: '#E8C96A', fontSize: 10, fontWeight: 700, padding: '3px 10px', cursor: 'pointer', letterSpacing: 0.5 }}>
               {showKalender ? '− Stäng kalender' : '📅 Visa beläggning'}
             </button>
           </div>
 
-          {showKalender && <MiniKalender ordrar={kalenderOrdrar} valtDatum={form.bokad_datum} onPickDatum={d => set('bokad_datum', d)} />}
+          {showKalender && (
+            <MiniKalender
+              ordrar={kalenderOrdrar}
+              datumFran={form.datum_fran}
+              datumTill={form.datum_till}
+              aktivFalt={aktivFalt}
+              onPickDatum={onPickDatum}
+            />
+          )}
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+          <div style={S.row}>
             <div style={S.field}>
-              <label style={S.label}>DATUM</label>
-              <input type="date" style={S.input} value={form.bokad_datum} onChange={e => set('bokad_datum', e.target.value)} onFocus={fo} onBlur={fb} />
+              <label style={S.label}>DATUM FRÅN</label>
+              <input
+                type="date"
+                style={datumInputStyle(aktivFalt === 'fran' && showKalender)}
+                value={form.datum_fran}
+                onChange={e => set('datum_fran', e.target.value)}
+                onFocus={openKalenderFran}
+              />
             </div>
+            <div style={S.field}>
+              <label style={S.label}>DATUM TILL</label>
+              <input
+                type="date"
+                style={datumInputStyle(aktivFalt === 'till' && showKalender)}
+                value={form.datum_till}
+                onChange={e => set('datum_till', e.target.value)}
+                onFocus={openKalenderTill}
+              />
+            </div>
+          </div>
+
+          <div style={S.row}>
             <div style={S.field}>
               <label style={S.label}>STARTTID</label>
               <input type="time" style={S.input} value={form.bokad_start} onChange={e => set('bokad_start', e.target.value)} onFocus={fo} onBlur={fb} />
@@ -323,12 +381,6 @@ export default function NyOrderModal({ onClose, onSaved }: Props) {
               <label style={S.label}>SLUTTID</label>
               <input type="time" style={S.input} value={form.bokad_slut} onChange={e => set('bokad_slut', e.target.value)} onFocus={fo} onBlur={fb} />
             </div>
-          </div>
-
-          <div style={S.field}>
-            <label style={S.label}>PRIS (exkl. moms)</label>
-            <input type="number" style={S.input} value={form.pris} onChange={e => set('pris', e.target.value)}
-              placeholder="0" onFocus={fo} onBlur={fb} />
           </div>
 
           <div style={S.field}>
