@@ -123,6 +123,8 @@ export default function NyOrderModal({ onClose, onSaved }: Props) {
     datum_fran: '', datum_till: '', bokad_start: '', bokad_slut: '',
     tilldelad: [] as string[],
     arbetsinstruktion: '',
+    aterkommande: false,
+    aterkommande_intervall: 'veckovis',
   })
 
   const [nyKund, setNyKund] = useState({ namn: '', telefon: '', epost: '', typ: 'företag' })
@@ -198,9 +200,12 @@ export default function NyOrderModal({ onClose, onSaved }: Props) {
     }
   }
 
+  const [saveError, setSaveError] = useState('')
+
   const handleSave = async () => {
     if (!form.titel.trim()) return
     setSaving(true)
+    setSaveError('')
     const { error } = await createClient().from('orders').insert({
       titel: form.titel, kategori: form.kategori, status: form.status,
       customer_id: form.customer_id || null,
@@ -209,9 +214,10 @@ export default function NyOrderModal({ onClose, onSaved }: Props) {
       bokad_start: form.bokad_start || null, bokad_slut: form.bokad_slut || null,
       tilldelad: form.tilldelad.length > 0 ? form.tilldelad : null,
       beskrivning: form.arbetsinstruktion || null,
+      aterkommande: form.aterkommande ? form.aterkommande_intervall : null,
     })
     setSaving(false)
-    if (!error) { onSaved(); onClose() }
+    if (error) { setSaveError(error.message) } else { onSaved(); onClose() }
   }
 
   const fo = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => { e.target.style.borderColor = '#E8C96A' }
@@ -384,6 +390,27 @@ export default function NyOrderModal({ onClose, onSaved }: Props) {
           </div>
 
           <div style={S.field}>
+            <label style={S.label}>ÅTERKOMMANDE</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div onClick={() => setForm(f => ({ ...f, aterkommande: !f.aterkommande }))}
+                style={{ width: 36, height: 20, borderRadius: 10, background: form.aterkommande ? '#E8C96A' : '#2a2a2a', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
+                <div style={{ position: 'absolute', top: 2, left: form.aterkommande ? 18 : 2, width: 16, height: 16, borderRadius: '50%', background: form.aterkommande ? '#000' : '#555', transition: 'left 0.2s' }} />
+              </div>
+              {form.aterkommande && (
+                <select style={{ ...S.select, width: 'auto', flex: 1 }}
+                  value={form.aterkommande_intervall} onChange={e => setForm(f => ({ ...f, aterkommande_intervall: e.target.value }))}
+                  onFocus={fo} onBlur={fb}>
+                  <option value="dagligen">Dagligen</option>
+                  <option value="veckovis">Veckovis</option>
+                  <option value="varannan-vecka">Varannan vecka</option>
+                  <option value="månadsvis">Månadsvis</option>
+                  <option value="kvartalsvis">Kvartalsvis</option>
+                </select>
+              )}
+            </div>
+          </div>
+
+          <div style={S.field}>
             <label style={S.label}>TILLDELAD PERSONAL</label>
             <div style={S.chips}>
               {PERSONAL.map(p => (
@@ -405,6 +432,7 @@ export default function NyOrderModal({ onClose, onSaved }: Props) {
         </div>
 
         <div style={S.footer}>
+          {saveError && <div style={{ color: '#ef4444', fontSize: 12, flex: 1 }}>{saveError}</div>}
           <button style={S.cancelBtn} onClick={onClose}>Avbryt</button>
           <button style={{ ...S.saveBtn, opacity: saving ? 0.6 : 1 }} onClick={handleSave} disabled={saving}>
             {saving ? 'Sparar...' : 'Spara order'}
