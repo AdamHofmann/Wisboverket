@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Order, Customer } from '@/types'
+import { useRouter } from 'next/navigation'
 import NyOrderModal from '@/components/NyOrderModal'
 
 const KATEGORIER = ['Alla', 'Flytt', 'Städ', 'El', 'Rör', 'Bygg', 'Mark', 'Övrigt']
@@ -32,6 +33,7 @@ export default function OrdrarPage() {
   const [katFilter, setKatFilter] = useState('Alla')
   const [statusFilter, setStatusFilter] = useState('aktiv')
   const [showNyOrder, setShowNyOrder] = useState(false)
+  const router = useRouter()
 
   const fetchOrders = () => {
     const supabase = createClient()
@@ -111,6 +113,7 @@ export default function OrdrarPage() {
             <tbody>
               {filtered.map(o => (
                 <tr key={o.id} style={S.row}
+                  onClick={() => router.push(`/ordrar/${o.id}`)}
                   onMouseEnter={e => (e.currentTarget.style.background = '#1a1a1a')}
                   onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
                   <td style={S.td}>
