@@ -154,11 +154,10 @@ export default function OrdrarPage() {
           </table>
         )}
       </div>
-    </div>
 
-    {showNyOrder && (
-      <NyOrderModal onClose={() => setShowNyOrder(false)} onSaved={fetchOrders} />
-    )}
-  </div>
+      {showNyOrder && (
+        <NyOrderModal onClose={() => setShowNyOrder(false)} onSaved={fetchOrders} />
+      )}
+    </div>
   )
 }
