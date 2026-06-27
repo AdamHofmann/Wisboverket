@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Order, Customer } from '@/types'
+import NyOrderModal from '@/components/NyOrderModal'
 
 const KATEGORIER = ['Alla', 'Flytt', 'Städ', 'El', 'Rör', 'Bygg', 'Mark', 'Övrigt']
 const STATUSAR = ['Alla', 'aktiv', 'slutförd', 'inaktiv']
@@ -30,15 +31,18 @@ export default function OrdrarPage() {
   const [search, setSearch] = useState('')
   const [katFilter, setKatFilter] = useState('Alla')
   const [statusFilter, setStatusFilter] = useState('aktiv')
+  const [showNyOrder, setShowNyOrder] = useState(false)
 
-  useEffect(() => {
+  const fetchOrders = () => {
     const supabase = createClient()
     supabase
       .from('orders')
       .select('*, customer:customers(id, namn, telefon)')
       .order('created_at', { ascending: false })
       .then(({ data }) => { setOrders(data || []); setLoading(false) })
-  }, [])
+  }
+
+  useEffect(() => { fetchOrders() }, [])
 
   const filtered = useMemo(() => orders.filter(o => {
     if (statusFilter !== 'Alla' && o.status !== statusFilter) return false
@@ -57,7 +61,7 @@ export default function OrdrarPage() {
     <div>
       <div style={S.header}>
         <div style={S.title}>Ordrar <span style={{ fontSize: 14, color: '#555', fontWeight: 400 }}>({filtered.length})</span></div>
-        <button style={S.newBtn}>+ Ny order</button>
+        <button style={S.newBtn} onClick={() => setShowNyOrder(true)}>+ Ny order</button>
       </div>
 
       <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -151,5 +155,10 @@ export default function OrdrarPage() {
         )}
       </div>
     </div>
+
+    {showNyOrder && (
+      <NyOrderModal onClose={() => setShowNyOrder(false)} onSaved={fetchOrders} />
+    )}
+  </div>
   )
 }
