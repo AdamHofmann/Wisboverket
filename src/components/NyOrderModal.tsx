@@ -79,8 +79,10 @@ export default function NyOrderModal({ onClose, onSaved }: Props) {
 
   const pickAdress = (s: AdressSuggestion) => {
     const a = s.address
+    // Behåll användarens inmatning (inkl. husnummer) men fyll på postnummer/ort
     const gata = [a.road, a.house_number].filter(Boolean).join(' ')
-    set('fastighet', gata || s.display_name.split(',')[0])
+    // Om Nominatim har husnummer, använd det — annars behåll vad användaren skrev
+    set('fastighet', (a.house_number ? gata : form.fastighet) || gata)
     set('postnummer', a.postcode?.replace(' ', '') || '')
     set('ort', a.city || a.town || a.village || '')
     setAdressSuggestions([])
