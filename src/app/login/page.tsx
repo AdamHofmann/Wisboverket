@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
@@ -46,8 +47,7 @@ export default function LoginPage() {
         maxWidth: 380
       }}>
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <div style={{ fontSize: 28, fontWeight: 800, color: '#E8C96A', letterSpacing: 1 }}>WV</div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: '#e0e0e0', marginTop: 6 }}>Wisboverket</div>
+          <Image src="/logo.png" alt="Wisboverket" width={90} height={90} style={{ borderRadius: '50%', marginBottom: 12 }} />
           <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>Logga in för att fortsätta</div>
         </div>
 
