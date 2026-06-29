@@ -6,10 +6,10 @@ import type { Order, Customer } from '@/types'
 import { useRouter } from 'next/navigation'
 import NyOrderModal from '@/components/NyOrderModal'
 
-const KATEGORIER = ['Alla', 'Flytt', 'Städ', 'El', 'Rör', 'Bygg', 'Mark', 'Övrigt']
+const KATEGORIER = ['Alla', 'Rondering', 'Städning', 'El', 'Rör', 'Bygg', 'Mark', 'Övrigt']
 const STATUSAR = ['Alla', 'aktiv', 'slutförd', 'inaktiv']
 const STATUS_COLOR: Record<string, string> = { aktiv: '#4ade80', slutförd: '#60a5fa', inaktiv: '#555' }
-const KAT_ICON: Record<string, string> = { Flytt: '🚛', Städ: '🧹', El: '⚡', Rör: '🔧', Bygg: '🏗️', Mark: '⛏️', Övrigt: '📋' }
+const KAT_ICON: Record<string, string> = { Rondering: '🔑', Städning: '🧹', El: '⚡', Rör: '🔧', Bygg: '🏗️', Mark: '⛏️', Övrigt: '📋' }
 
 const S: Record<string, React.CSSProperties> = {
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },

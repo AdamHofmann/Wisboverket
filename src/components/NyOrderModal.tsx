@@ -56,7 +56,7 @@ function MiniKalender({ ordrar, datumFran, datumTill, aktivFalt, onPickDatum }: 
   const antalDagar = new Date(månadsår, månad + 1, 0).getDate()
   const månNamn = år.toLocaleString('sv-SE', { month: 'long', year: 'numeric' })
   const bokadeDatum = new Set(ordrar.map(o => o.bokad_datum))
-  const dagar = Array.from({ length: förstaVeckodag }, () => null).concat(Array.from({ length: antalDagar }, (_, i) => i + 1))
+  const dagar: (number | null)[] = [...Array.from({ length: förstaVeckodag }, (): null => null), ...Array.from({ length: antalDagar }, (_, i) => i + 1)]
 
   const iRange = (ds: string) => datumFran && datumTill && ds >= datumFran && ds <= datumTill
 
@@ -123,13 +123,16 @@ export default function NyOrderModal({ onClose, onSaved }: Props) {
     datum_fran: '', datum_till: '', bokad_start: '', bokad_slut: '',
     tilldelad: [] as string[],
     arbetsinstruktion: '',
+    intern_anteckning: '',
+    prioritet: 'normal',
+    fakturareferens: '',
     aterkommande: false,
     aterkommande_intervall: 'veckovis',
   })
 
   const [nyKund, setNyKund] = useState({ namn: '', telefon: '', epost: '', typ: 'företag' })
 
-  const fetchKunder = () => createClient().from('customers').select('id,namn').order('namn').then(({ data }) => setKunder(data || []))
+  const fetchKunder = () => createClient().from('customers').select('*').order('namn').then(({ data }) => setKunder((data as Customer[]) || []))
 
   const loadKalender = async () => {
     const { data } = await createClient().from('orders').select('bokad_datum,titel,tilldelad').not('bokad_datum', 'is', null).eq('status', 'aktiv')
@@ -214,6 +217,9 @@ export default function NyOrderModal({ onClose, onSaved }: Props) {
       bokad_start: form.bokad_start || null, bokad_slut: form.bokad_slut || null,
       tilldelad: form.tilldelad.length > 0 ? form.tilldelad : null,
       beskrivning: form.arbetsinstruktion || null,
+      intern_anteckning: form.intern_anteckning || null,
+      prioritet: form.prioritet,
+      fakturareferens: form.fakturareferens || null,
       aterkommande: form.aterkommande ? form.aterkommande_intervall : null,
     })
     setSaving(false)
@@ -428,6 +434,29 @@ export default function NyOrderModal({ onClose, onSaved }: Props) {
             <label style={S.label}>ARBETSINSTRUKTION</label>
             <textarea style={S.textarea} value={form.arbetsinstruktion} onChange={e => set('arbetsinstruktion', e.target.value)}
               placeholder="Beskriv vad som ska utföras..." onFocus={fo} onBlur={fb} />
+          </div>
+
+          <div style={S.field}>
+            <label style={S.label}>INTERN ANTECKNING</label>
+            <textarea style={{ ...S.textarea, borderColor: '#2a2200' }} value={form.intern_anteckning} onChange={e => set('intern_anteckning', e.target.value)}
+              placeholder="Syns ej för kund..." onFocus={fo} onBlur={fb} rows={2} />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div style={S.field}>
+              <label style={S.label}>PRIORITET</label>
+              <select style={S.select} value={form.prioritet} onChange={e => set('prioritet', e.target.value)} onFocus={fo} onBlur={fb}>
+                <option value="lag">Låg</option>
+                <option value="normal">Normal</option>
+                <option value="hog">Hög</option>
+                <option value="akut">Akut 🚨</option>
+              </select>
+            </div>
+            <div style={S.field}>
+              <label style={S.label}>KUNDREFERENS / PO</label>
+              <input style={S.input} value={form.fakturareferens} onChange={e => set('fakturareferens', e.target.value)}
+                placeholder="PO-12345..." onFocus={fo} onBlur={fb} />
+            </div>
           </div>
         </div>
 

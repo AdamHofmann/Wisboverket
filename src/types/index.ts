@@ -74,6 +74,12 @@ export type Order = {
   tilldelad: string[] | null
   beskrivning: string | null
   intern_anteckning: string | null
+  prioritet: string | null
+  fakturareferens: string | null
+  fakturerat: boolean
+  fakturerat_belopp: number | null
+  fakturadatum: string | null
+  aterkommande: string | null
   pris: number | null
   offert_id: string | null
   created_by: string | null
