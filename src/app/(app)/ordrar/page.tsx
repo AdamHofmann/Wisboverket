@@ -1,50 +1,67 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Order, Customer } from '@/types'
-import { useRouter } from 'next/navigation'
 import NyOrderModal from '@/components/NyOrderModal'
+import OrderPanel from '@/components/OrderPanel'
+import { STATUS_LABEL, STATUS_COLOR, KAT_ICON, KATEGORIER as KATEGORIER_BAS, fmtKr } from '@/components/order-tabs/shared'
 
-const KATEGORIER = ['Alla', 'Rondering', 'Städning', 'El', 'Rör', 'Bygg', 'Mark', 'Övrigt']
-const STATUSAR = ['Alla', 'aktiv', 'slutförd', 'inaktiv']
-const STATUS_COLOR: Record<string, string> = { aktiv: '#4ade80', slutförd: '#60a5fa', inaktiv: '#555' }
-const KAT_ICON: Record<string, string> = { Rondering: '🔑', Städning: '🧹', El: '⚡', Rör: '🔧', Bygg: '🏗️', Mark: '⛏️', Övrigt: '📋' }
-
-const S: Record<string, React.CSSProperties> = {
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  title: { fontSize: 22, fontWeight: 800, color: '#E8C96A' },
-  filters: { display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' },
-  chip: { padding: '5px 12px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: '1px solid #2a2a2a', background: '#1a1a1a', color: '#888', transition: 'all 0.1s' },
-  chipActive: { background: 'rgba(232,201,106,0.12)', borderColor: '#E8C96A', color: '#E8C96A' },
-  search: { background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 8, padding: '8px 14px', color: '#e0e0e0', fontSize: 13, width: 260, outline: 'none' },
-  newBtn: { background: '#E8C96A', color: '#000', border: 'none', borderRadius: 8, padding: '8px 18px', fontWeight: 700, fontSize: 13, cursor: 'pointer' },
-  table: { width: '100%', borderCollapse: 'collapse' },
-  th: { textAlign: 'left', padding: '8px 14px', fontSize: 10, fontWeight: 700, letterSpacing: 1, color: '#555', borderBottom: '1px solid #1e1e1e' },
-  td: { padding: '12px 14px', borderBottom: '1px solid #1a1a1a', fontSize: 13, color: '#d0d0d0', verticalAlign: 'middle' },
-  row: { cursor: 'pointer', transition: 'background 0.1s' },
-  empty: { textAlign: 'center', padding: 60, color: '#555', fontSize: 14 },
-}
+const KATEGORIER = ['Alla', ...KATEGORIER_BAS]
+const STATUSAR = ['Alla', 'ny', 'pågående', 'klar', 'inaktiv']
 
 export default function OrdrarPage() {
+  return <Suspense><OrdrarInner /></Suspense>
+}
+
+function OrdrarInner() {
+  const searchParams = useSearchParams()
   const [orders, setOrders] = useState<(Order & { customer?: Customer })[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [katFilter, setKatFilter] = useState('Alla')
-  const [statusFilter, setStatusFilter] = useState('aktiv')
+  const [statusFilter, setStatusFilter] = useState(() => {
+    const s = searchParams.get('status')
+    return s && ['ny', 'pågående', 'klar', 'inaktiv'].includes(s) ? s : 'Alla'
+  })
   const [showNyOrder, setShowNyOrder] = useState(false)
-  const router = useRouter()
+  const [selectedId, setSelectedId] = useState<string | null>(() => searchParams.get('order'))
+  // Map: order_id -> summerad kostnad (tid + inköp)
+  const [kostnadMap, setKostnadMap] = useState<Record<string, number>>({})
 
   const fetchOrders = () => {
-    const supabase = createClient()
-    supabase
-      .from('orders')
-      .select('*, customer:customers(id, namn, telefon)')
+    const sb = createClient()
+    sb.from('orders')
+      .select('*, customer:customers(id,namn,telefon)')
       .order('created_at', { ascending: false })
       .then(({ data }) => { setOrders(data || []); setLoading(false) })
+
+    // Hämta ALLA kostnadsrader i två queries och summera per order_id client-side (undviker N+1)
+    Promise.all([
+      sb.from('order_tid_rader').select('order_id,total_kostnad'),
+      sb.from('order_inkop').select('order_id,belopp'),
+    ]).then(([tidRes, inkopRes]) => {
+      const map: Record<string, number> = {}
+      for (const r of tidRes.data || []) {
+        if (!r.order_id) continue
+        map[r.order_id] = (map[r.order_id] || 0) + (r.total_kostnad || 0)
+      }
+      for (const i of inkopRes.data || []) {
+        if (!i.order_id) continue
+        map[i.order_id] = (map[i.order_id] || 0) + (i.belopp || 0)
+      }
+      setKostnadMap(map)
+    })
   }
 
   useEffect(() => { fetchOrders() }, [])
+
+  // Öppna panelen när man kommer hit via ?order=<id> (t.ex. från dashboarden)
+  useEffect(() => {
+    const id = searchParams.get('order')
+    if (id) setSelectedId(id)
+  }, [searchParams])
 
   const filtered = useMemo(() => orders.filter(o => {
     if (statusFilter !== 'Alla' && o.status !== statusFilter) return false
@@ -59,96 +76,113 @@ export default function OrdrarPage() {
     return true
   }), [orders, statusFilter, katFilter, search])
 
+  const chip = (active: boolean) => ({
+    padding: '5px 12px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+    border: `1px solid ${active ? '#E8C96A' : '#2a2a2a'}`,
+    background: active ? 'rgba(232,201,106,0.1)' : '#1a1a1a',
+    color: active ? '#E8C96A' : '#888',
+  })
+
   return (
     <div>
-      <div style={S.header}>
-        <div style={S.title}>Ordrar <span style={{ fontSize: 14, color: '#555', fontWeight: 400 }}>({filtered.length})</span></div>
-        <button style={S.newBtn} onClick={() => setShowNyOrder(true)}>+ Ny order</button>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <div style={{ fontSize: 22, fontWeight: 800, color: '#E8C96A' }}>
+          Ordrar <span style={{ fontSize: 14, color: '#555', fontWeight: 400 }}>({filtered.length})</span>
+        </div>
+        <button onClick={() => setShowNyOrder(true)}
+          style={{ background: '#E8C96A', color: '#000', border: 'none', borderRadius: 8, padding: '8px 18px', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+          + Ny order
+        </button>
       </div>
 
-      <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-        <input
-          placeholder="Sök order, kund, adress..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          style={S.search}
-          onFocus={e => e.target.style.borderColor = '#E8C96A'}
-          onBlur={e => e.target.style.borderColor = '#2a2a2a'}
-        />
+      {/* Sök */}
+      <div style={{ marginBottom: 14 }}>
+        <input placeholder="Sök order, kund, adress..." value={search} onChange={e => setSearch(e.target.value)}
+          style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 8, padding: '8px 14px', color: '#e0e0e0', fontSize: 13, width: 280, outline: 'none' }}
+          onFocus={e => e.currentTarget.style.borderColor = '#E8C96A'} onBlur={e => e.currentTarget.style.borderColor = '#2a2a2a'} />
       </div>
 
-      <div style={S.filters}>
+      {/* Filter */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
         {STATUSAR.map(s => (
-          <div key={s} onClick={() => setStatusFilter(s)}
-            style={{ ...S.chip, ...(statusFilter === s ? S.chipActive : {}) }}>
-            {s === 'Alla' ? 'Alla statusar' : s}
+          <div key={s} style={chip(statusFilter === s)} onClick={() => setStatusFilter(s)}>
+            {s === 'Alla' ? 'Alla statusar' : STATUS_LABEL[s] || s}
           </div>
         ))}
         <div style={{ width: 1, background: '#2a2a2a', margin: '0 4px' }} />
         {KATEGORIER.map(k => (
-          <div key={k} onClick={() => setKatFilter(k)}
-            style={{ ...S.chip, ...(katFilter === k ? S.chipActive : {}) }}>
+          <div key={k} style={chip(katFilter === k)} onClick={() => setKatFilter(k)}>
             {k !== 'Alla' ? (KAT_ICON[k] || '') + ' ' : ''}{k}
           </div>
         ))}
       </div>
 
+      {/* Tabell */}
       <div style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: 10, overflow: 'hidden' }}>
         {loading ? (
-          <div style={S.empty}>Laddar...</div>
+          <div style={{ textAlign: 'center', padding: 60, color: '#555' }}>Laddar...</div>
         ) : filtered.length === 0 ? (
-          <div style={S.empty}>Inga ordrar hittades</div>
+          <div style={{ textAlign: 'center', padding: 60, color: '#555' }}>Inga ordrar hittades</div>
         ) : (
-          <table style={S.table}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
-                <th style={S.th}>ORDER</th>
-                <th style={S.th}>KUND</th>
-                <th style={S.th}>FASTIGHET</th>
-                <th style={S.th}>DATUM</th>
-                <th style={S.th}>TILLDELAD</th>
-                <th style={S.th}>STATUS</th>
+                {(['ORDER', 'KUND', 'FASTIGHET', 'DATUM', 'TILLDELAD', 'INTÄKT', 'KOSTNAD', 'TB', 'STATUS'] as const).map(h => {
+                  const numeric = h === 'INTÄKT' || h === 'KOSTNAD' || h === 'TB'
+                  return (
+                    <th key={h} style={{ textAlign: numeric ? 'right' : 'left', padding: '8px 14px', fontSize: 10, fontWeight: 700, letterSpacing: 1, color: '#555', borderBottom: '1px solid #1e1e1e' }}>{h}</th>
+                  )
+                })}
               </tr>
             </thead>
             <tbody>
               {filtered.map(o => (
-                <tr key={o.id} style={S.row}
-                  onClick={() => router.push(`/ordrar/${o.id}`)}
-                  onMouseEnter={e => (e.currentTarget.style.background = '#1a1a1a')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                  <td style={S.td}>
-                    <div style={{ fontWeight: 600, color: '#e0e0e0' }}>
-                      {KAT_ICON[o.kategori || ''] || '📋'} {o.titel}
-                    </div>
+                <tr key={o.id}
+                  onClick={() => setSelectedId(o.id)}
+                  style={{ cursor: 'pointer' }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#1a1a1a'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                  <td style={{ padding: '12px 14px', borderBottom: '1px solid #1a1a1a', fontSize: 13, color: '#d0d0d0' }}>
+                    <div style={{ fontWeight: 600 }}>{KAT_ICON[o.kategori || ''] || '📋'} {o.titel}</div>
                     {o.order_number && <div style={{ fontSize: 11, color: '#555', marginTop: 2 }}>{o.order_number}</div>}
                   </td>
-                  <td style={S.td}>
+                  <td style={{ padding: '12px 14px', borderBottom: '1px solid #1a1a1a', fontSize: 13, color: '#d0d0d0' }}>
                     <div>{o.customer?.namn || <span style={{ color: '#555' }}>—</span>}</div>
                     {o.customer?.telefon && <div style={{ fontSize: 11, color: '#666' }}>{o.customer.telefon}</div>}
                   </td>
-                  <td style={S.td}>
+                  <td style={{ padding: '12px 14px', borderBottom: '1px solid #1a1a1a', fontSize: 13, color: '#d0d0d0' }}>
                     <div>{o.fastighet || <span style={{ color: '#555' }}>—</span>}</div>
                     {o.ort && <div style={{ fontSize: 11, color: '#666' }}>{o.postnummer} {o.ort}</div>}
                   </td>
-                  <td style={S.td}>
-                    {o.bokad_datum
-                      ? <div>{new Date(o.bokad_datum).toLocaleDateString('sv-SE')}</div>
-                      : <span style={{ color: '#555' }}>—</span>}
-                    {o.bokad_start && <div style={{ fontSize: 11, color: '#666' }}>{o.bokad_start}–{o.bokad_slut}</div>}
+                  <td style={{ padding: '12px 14px', borderBottom: '1px solid #1a1a1a', fontSize: 13, color: '#d0d0d0' }}>
+                    {o.bokad_datum ? <div>{new Date(o.bokad_datum).toLocaleDateString('sv-SE')}</div> : <span style={{ color: '#555' }}>—</span>}
+                    {o.bokad_start && <div style={{ fontSize: 11, color: '#666' }}>{o.bokad_start}{o.bokad_slut ? `–${o.bokad_slut}` : ''}</div>}
                   </td>
-                  <td style={S.td}>
-                    {o.tilldelad?.length
-                      ? o.tilldelad.map(p => p.split(' ')[0]).join(', ')
-                      : <span style={{ color: '#555' }}>—</span>}
+                  <td style={{ padding: '12px 14px', borderBottom: '1px solid #1a1a1a', fontSize: 13, color: '#d0d0d0' }}>
+                    {o.tilldelad?.length ? o.tilldelad.map(p => p.split(' ')[0]).join(', ') : <span style={{ color: '#555' }}>—</span>}
                   </td>
-                  <td style={S.td}>
-                    <span style={{
-                      fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 10,
-                      background: (STATUS_COLOR[o.status] || '#555') + '22',
-                      color: STATUS_COLOR[o.status] || '#555',
-                      border: `1px solid ${STATUS_COLOR[o.status] || '#555'}44`
-                    }}>
-                      {o.status}
+                  {(() => {
+                    const intakt = o.fakturerat_belopp || 0
+                    const kostnad = kostnadMap[o.id] || 0
+                    const tb = intakt - kostnad
+                    return (
+                      <>
+                        <td style={{ padding: '12px 14px', borderBottom: '1px solid #1a1a1a', fontSize: 13, textAlign: 'right', fontWeight: 600, color: intakt > 0 ? '#4ade80' : '#555' }}>
+                          {intakt > 0 ? fmtKr(intakt) : '—'}
+                        </td>
+                        <td style={{ padding: '12px 14px', borderBottom: '1px solid #1a1a1a', fontSize: 13, textAlign: 'right', fontWeight: 600, color: kostnad > 0 ? '#f87171' : '#555' }}>
+                          {kostnad > 0 ? fmtKr(kostnad) : '—'}
+                        </td>
+                        <td style={{ padding: '12px 14px', borderBottom: '1px solid #1a1a1a', fontSize: 13, textAlign: 'right', fontWeight: 700, color: (intakt === 0 && kostnad === 0) ? '#555' : (tb >= 0 ? '#4ade80' : '#f87171') }}>
+                          {(intakt === 0 && kostnad === 0) ? '—' : fmtKr(tb)}
+                        </td>
+                      </>
+                    )
+                  })()}
+                  <td style={{ padding: '12px 14px', borderBottom: '1px solid #1a1a1a' }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 10, background: (STATUS_COLOR[o.status] || '#555') + '22', color: STATUS_COLOR[o.status] || '#555', border: `1px solid ${STATUS_COLOR[o.status] || '#555'}44` }}>
+                      {STATUS_LABEL[o.status] || o.status}
                     </span>
                   </td>
                 </tr>
@@ -158,8 +192,14 @@ export default function OrdrarPage() {
         )}
       </div>
 
-      {showNyOrder && (
-        <NyOrderModal onClose={() => setShowNyOrder(false)} onSaved={fetchOrders} />
+      {showNyOrder && <NyOrderModal onClose={() => setShowNyOrder(false)} onSaved={fetchOrders} />}
+
+      {selectedId && (
+        <OrderPanel
+          orderId={selectedId}
+          onClose={() => setSelectedId(null)}
+          onUpdated={fetchOrders}
+        />
       )}
     </div>
   )

@@ -1,9 +1,569 @@
-export default function Page() {
+'use client'
+
+import { useEffect, useRef, useState, useMemo } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import DatumValjare from '@/components/DatumValjare'
+import { useKundPrisavtal } from '@/hooks/useKundPrisavtal'
+
+type OffertRad = { typ: 'artikel' | 'fritext'; artikel_id: string; text: string; antal: number; resurser: number; apris: number; enhet: string }
+type Artikel = { id: string; namn: string; enhet: string; a_pris: number }
+type Offert = {
+  id: string; offer_number: string | null; titel: string | null; status: string
+  customer_id: string | null; order_id: string | null
+  beskrivning: string | null; giltig_till: string | null
+  rader: OffertRad[]; subtotal: number; moms_belopp: number; totalt: number
+  kund_namn?: string; created_at: string
+}
+
+const STATUS_COLOR: Record<string, string> = { utkast: '#888', skickad: '#60a5fa', accepterad: '#4ade80', avvisad: '#f87171', expired: '#555' }
+const fmtKr = (n: number) => n.toLocaleString('sv-SE', { minimumFractionDigits: 0 }) + ' kr'
+const fmtDatum = (d: string) => new Date(d).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short', year: 'numeric' })
+
+export default function OfferterPage() {
+  const [offerter, setOfferter] = useState<Offert[]>([])
+  const [loading, setLoading] = useState(true)
+  const [statusFilter, setStatusFilter] = useState('Alla')
+  const [showModal, setShowModal] = useState(false)
+  const [editOffert, setEditOffert] = useState<Offert | null>(null)
+
+  const fetchOfferter = async () => {
+    const { data } = await createClient()
+      .from('offers')
+      .select('*, customer:customers(namn)')
+      .order('created_at', { ascending: false })
+    setOfferter((data || []).map((o: any) => ({ ...o, kund_namn: o.customer?.namn, rader: o.rader || [] })))
+    setLoading(false)
+  }
+
+  useEffect(() => { fetchOfferter() }, [])
+
+  const filtered = useMemo(() => offerter.filter(o =>
+    statusFilter === 'Alla' || o.status === statusFilter
+  ), [offerter, statusFilter])
+
+  const updateStatus = async (id: string, status: string) => {
+    await createClient().from('offers').update({ status }).eq('id', id)
+    fetchOfferter()
+  }
+
+  const chip = (active: boolean) => ({
+    padding: '5px 12px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+    border: `1px solid ${active ? '#E8C96A' : '#2a2a2a'}`,
+    background: active ? 'rgba(232,201,106,0.1)' : '#1a1a1a',
+    color: active ? '#E8C96A' : '#888',
+  })
+
   return (
-    <div style={{ color: '#555', textAlign: 'center', padding: 80, fontSize: 14 }}>
-      <div style={{ fontSize: 32, marginBottom: 16 }}>🚧</div>
-      <div style={{ color: '#E8C96A', fontWeight: 700, marginBottom: 8 }}>Kommer snart</div>
-      <div>Den här modulen är under uppbyggnad.</div>
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <div style={{ fontSize: 22, fontWeight: 800, color: '#E8C96A' }}>Offerter <span style={{ fontSize: 14, color: '#555', fontWeight: 400 }}>({filtered.length})</span></div>
+        <button onClick={() => { setEditOffert(null); setShowModal(true) }}
+          style={{ background: '#E8C96A', color: '#000', border: 'none', borderRadius: 8, padding: '8px 18px', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+          + Ny offert
+        </button>
+      </div>
+
+      <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+        {['Alla', 'utkast', 'skickad', 'accepterad', 'avvisad'].map(s => (
+          <div key={s} style={chip(statusFilter === s)} onClick={() => setStatusFilter(s)}>{s}</div>
+        ))}
+      </div>
+
+      <div style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: 10, overflow: 'hidden' }}>
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: 60, color: '#555' }}>Laddar...</div>
+        ) : filtered.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: 60, color: '#555' }}>
+            {offerter.length === 0 ? (
+              <><div style={{ fontSize: 32, marginBottom: 10 }}>📄</div><div>Inga offerter ännu</div></>
+            ) : 'Inga träffar'}
+          </div>
+        ) : filtered.map(o => {
+          const color = STATUS_COLOR[o.status] || '#888'
+          return (
+            <div key={o.id} style={{ padding: '14px 18px', borderBottom: '1px solid #1a1a1a', cursor: 'pointer' }}
+              onClick={() => { setEditOffert(o); setShowModal(true) }}
+              onMouseEnter={e => e.currentTarget.style.background = '#1a1a1a'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#E8C96A' }}>{o.offer_number || `OFF-${o.id.slice(0, 6)}`}</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: color + '22', color, border: `1px solid ${color}44` }}>{o.status}</span>
+                  </div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: '#e0e0e0' }}>{o.titel || 'Utan titel'}</div>
+                  {o.kund_namn && <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>{o.kund_namn}</div>}
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: '#e0e0e0' }}>{fmtKr(o.totalt)}</div>
+                  <div style={{ fontSize: 11, color: '#555', marginTop: 2 }}>{fmtDatum(o.created_at)}</div>
+                  {o.giltig_till && <div style={{ fontSize: 11, color: '#fb923c' }}>Giltig t.o.m {fmtDatum(o.giltig_till)}</div>}
+                </div>
+              </div>
+              {o.status === 'skickad' && (
+                <div style={{ display: 'flex', gap: 8, marginTop: 10 }} onClick={e => e.stopPropagation()}>
+                  <button onClick={() => updateStatus(o.id, 'accepterad')} style={{ fontSize: 11, fontWeight: 700, padding: '5px 12px', borderRadius: 6, border: '1px solid #4ade8044', background: '#4ade8011', color: '#4ade80', cursor: 'pointer' }}>
+                    ✓ Accepterad
+                  </button>
+                  <button onClick={() => updateStatus(o.id, 'avvisad')} style={{ fontSize: 11, fontWeight: 700, padding: '5px 12px', borderRadius: 6, border: '1px solid #f8717144', background: '#f8717111', color: '#f87171', cursor: 'pointer' }}>
+                    ✕ Avvisad
+                  </button>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {showModal && (
+        <OffertModal offert={editOffert} onClose={() => setShowModal(false)} onSaved={() => { fetchOfferter(); setShowModal(false) }} />
+      )}
     </div>
   )
+}
+
+function OffertModal({ offert, onClose, onSaved }: { offert: Offert | null; onClose: () => void; onSaved: () => void }) {
+  const [kunder, setKunder] = useState<{ id: string; namn: string; epost: string | null; adress: string | null; postnummer: string | null; ort: string | null }[]>([])
+  const [artiklar, setArtiklar] = useState<Artikel[]>([])
+  const [emailSent, setEmailSent] = useState(false)
+  const rowRefs = useRef<(HTMLInputElement | HTMLSelectElement | null)[]>([])
+  const [form, setForm] = useState({
+    titel: offert?.titel || '',
+    customer_id: offert?.customer_id || '',
+    status: offert?.status || 'utkast',
+    beskrivning: offert?.beskrivning || '',
+    giltig_till: offert?.giltig_till || '',
+    rader: (offert?.rader || []) as OffertRad[],
+  })
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    const sb = createClient()
+    sb.from('customers').select('id,namn,epost,adress,postnummer,ort').order('namn').then(({ data }) => setKunder(data || []))
+    sb.from('artiklar').select('id,namn,enhet,a_pris').eq('aktiv', true).order('namn').then(({ data }) => setArtiklar(data || []))
+  }, [])
+
+  const { prisavtal, artikelPris } = useKundPrisavtal(form.customer_id, artiklar)
+
+  const set = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }))
+
+  const TOMRAD = (): OffertRad => ({ typ: 'artikel', artikel_id: '', text: '', antal: 1, resurser: 1, apris: 0, enhet: 'tim' })
+  const addRad = () => {
+    const id = crypto.randomUUID()
+    newRowId.current = id
+    setForm(f => ({ ...f, rader: [...f.rader, { ...TOMRAD(), _id: id } as any] }))
+  }
+  const updateRad = (i: number, k: string, v: any) => setForm(f => ({ ...f, rader: f.rader.map((r, idx) => idx === i ? { ...r, [k]: v } : r) }))
+  const removeRad = (i: number) => setForm(f => ({ ...f, rader: f.rader.filter((_, idx) => idx !== i) }))
+
+  const radBelopp = (r: OffertRad) => {
+    const totalAntal = r.antal * (r.resurser || 1)
+    if (r.typ === 'artikel' && r.artikel_id) return totalAntal * artikelPris(r.artikel_id)
+    return totalAntal * r.apris
+  }
+
+  const newRowId = useRef<string | null>(null)
+  useEffect(() => {
+    if (newRowId.current) {
+      const idx = form.rader.findIndex((r: any) => r._id === newRowId.current)
+      if (idx >= 0) rowRefs.current[idx]?.focus()
+      newRowId.current = null
+    }
+  }, [form.rader])
+
+  const radDesc = (r: OffertRad) => {
+    if (r.typ === 'artikel' && r.artikel_id) return artiklar.find(a => a.id === r.artikel_id)?.namn || ''
+    return r.text
+  }
+
+  const subtotal = form.rader.reduce((s, r) => s + radBelopp(r), 0)
+  const moms = subtotal * 0.25
+  const totalt = subtotal + moms
+
+  const valdKund = kunder.find(k => k.id === form.customer_id)
+  const villkorHTML = `
+<strong>Betalning</strong><br>
+Betalning 30 dagar netto om inget annat avtalats. Vid försenad betalning debiteras dröjsmålsränta enligt räntelagen (referensränta + 8 pp).<br><br>
+<strong>Moms &amp; priser</strong><br>
+Angivna priser är exklusive moms. Moms tillkommer enligt gällande lagstiftning. Tillkommande arbeten och material utanför offertens
+omfattning debiteras löpande enligt prislista.<br><br>
+<strong>Giltighet</strong><br>
+Offerten är giltig till angivet datum. Därefter förbehåller sig Wisboverket AB rätten att revidera priser och villkor.<br><br>
+<strong>Ansvar &amp; reklamation</strong><br>
+Wisboverket AB ansvarar för utförda tjänsters kvalitet i enlighet med branschstandard. Klagomål ska framföras skriftligen inom 30 dagar
+efter utfört arbete. Vi åtgärdar påtalade brister utan extra kostnad om de beror på fel i utförandet.<br><br>
+<strong>Force majeure</strong><br>
+Wisboverket AB ansvarar inte för förseningar orsakade av omständigheter utanför vår kontroll – exempelvis väderhändelser,
+materialbrist eller myndighetsåtgärder. Parterna meddelar varandra snarast möjligt vid sådana händelser.<br><br>
+<strong>Tvist</strong><br>
+Tvist löses i första hand genom förhandling. I andra hand tillämpas svensk lag med Nyköpings tingsrätt som behörig domstol.`
+
+  const genereraPDF = () => {
+    const offerNr = offert?.offer_number || 'UTKAST'
+    const raderHTML = form.rader.map((r, i) => {
+      const enhet = r.typ === 'artikel' ? (artiklar.find(a => a.id === r.artikel_id)?.enhet || r.enhet) : r.enhet
+      const totalAntal = r.antal * (r.resurser || 1)
+      const apris = r.typ === 'artikel' ? artikelPris(r.artikel_id) : r.apris
+      return `
+        <tr class="${i % 2 === 0 ? 'even' : 'odd'}">
+          <td>${radDesc(r)}</td>
+          <td class="center">${totalAntal} ${enhet}</td>
+          <td class="right">${Math.round(apris).toLocaleString('sv-SE')} kr</td>
+          <td class="right bold">${Math.round(radBelopp(r)).toLocaleString('sv-SE')} kr</td>
+        </tr>`
+    }).join('')
+    const kundAdress = valdKund ? [valdKund.adress, valdKund.postnummer && valdKund.ort ? `${valdKund.postnummer} ${valdKund.ort}` : ''].filter(Boolean).join(', ') : ''
+    const logoUrl = `${window.location.origin}/logo.png`
+    const html = `<!DOCTYPE html><html lang="sv"><head><meta charset="UTF-8">
+<title>Offert ${offerNr} – ${form.titel}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Helvetica Neue",Arial,sans-serif;color:#1a1a1a;background:#fff;font-size:13px;line-height:1.5}
+.page{max-width:820px;margin:0 auto;padding:48px}
+.header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:28px;border-bottom:3px solid #C8A94F;margin-bottom:32px}
+.offert-badge{text-align:right}
+.offert-badge .label{font-size:9px;letter-spacing:4px;text-transform:uppercase;color:#888;margin-bottom:4px}
+.offert-badge .number{font-size:32px;font-weight:900;color:#1a1a1a;letter-spacing:2px}
+.offert-badge .sub{font-size:11px;color:#888;margin-top:2px}
+.meta{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;margin-bottom:32px;border:1px solid #e8e0d0;border-radius:4px;overflow:hidden}
+.meta-block{padding:18px 20px;border-right:1px solid #e8e0d0}
+.meta-block:last-child{border-right:none}
+.meta-block .label{font-size:8px;letter-spacing:3px;text-transform:uppercase;color:#888;margin-bottom:6px;font-weight:600}
+.meta-block .val{font-size:13px;font-weight:700;color:#1a1a1a;line-height:1.4}
+.meta-block .sub{font-size:11px;color:#555;margin-top:2px}
+.subject-bar{background:#f7f4ee;border-left:4px solid #C8A94F;padding:12px 18px;margin-bottom:28px;border-radius:0 4px 4px 0}
+.subject-bar .slabel{font-size:8px;letter-spacing:3px;text-transform:uppercase;color:#888;margin-bottom:3px}
+.subject-bar .stitel{font-size:15px;font-weight:800;color:#1a1a1a}
+table{width:100%;border-collapse:collapse;margin-bottom:0}
+thead tr{background:#1a1a1a}
+thead th{padding:10px 14px;text-align:left;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:#C8A94F;font-weight:600}
+thead th.center{text-align:center}
+thead th.right{text-align:right}
+tbody tr.even{background:#fff}
+tbody tr.odd{background:#faf8f4}
+tbody td{padding:12px 14px;border-bottom:1px solid #ede8de;font-size:12px;color:#1a1a1a;vertical-align:middle}
+td.center{text-align:center;color:#555}
+td.right{text-align:right}
+td.bold{font-weight:700}
+.totals-wrap{display:flex;justify-content:flex-end;margin-bottom:36px}
+.totals{width:280px;border:1px solid #e8e0d0;border-top:none;border-radius:0 0 4px 4px;overflow:hidden}
+.totals table{margin:0}
+.totals td{padding:8px 14px;border-bottom:1px solid #ede8de;font-size:12px}
+.totals .total-row td{background:#1a1a1a;color:#fff;font-weight:700;font-size:14px;padding:12px 14px;border:none}
+.totals .total-row td:last-child{color:#C8A94F}
+.sig{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin:40px 0}
+.sig-box{border-bottom:1px solid #999;height:40px}
+.sig-label{font-size:10px;color:#888;margin-top:6px}
+.villkor{margin-top:20px;border-top:1px solid #e8e0d0;padding-top:20px}
+.villkor-header{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#888;font-weight:700;margin-bottom:10px}
+.villkor-body{font-size:10px;color:#555;line-height:1.7}
+.footer{display:flex;justify-content:space-between;align-items:center;margin-top:40px;padding-top:16px;border-top:1px solid #e8e0d0;font-size:10px;color:#888}
+</style></head>
+<body>
+<div class="page">
+  <div class="header">
+    <img src="${logoUrl}" style="height:60px;object-fit:contain;" alt="Wisboverket"/>
+    <div class="offert-badge">
+      <div class="label">Offert</div>
+      <div class="number">${offerNr}</div>
+      <div class="sub">${new Date().toLocaleDateString('sv-SE')}</div>
+    </div>
+  </div>
+
+  <div class="meta">
+    <div class="meta-block">
+      <div class="label">Kund</div>
+      <div class="val">${valdKund?.namn || '—'}</div>
+      ${kundAdress ? `<div class="sub">${kundAdress}</div>` : ''}
+    </div>
+    <div class="meta-block">
+      <div class="label">Giltig till</div>
+      <div class="val">${form.giltig_till ? fmtDatum(form.giltig_till) : '—'}</div>
+    </div>
+    <div class="meta-block">
+      <div class="label">Kontakt</div>
+      <div class="val">${valdKund?.epost || '—'}</div>
+    </div>
+  </div>
+
+  <div class="subject-bar">
+    <div class="slabel">Avser</div>
+    <div class="stitel">${form.titel}</div>
+    ${form.beskrivning ? `<div class="sfastighet">${form.beskrivning}</div>` : ''}
+  </div>
+
+  <table>
+    <thead><tr><th>Beskrivning</th><th class="center">Antal</th><th class="right">À-pris</th><th class="right">Belopp</th></tr></thead>
+    <tbody>${raderHTML}</tbody>
+  </table>
+
+  <div class="totals-wrap">
+    <div class="totals">
+      <table>
+        <tr><td>Netto (ex. moms)</td><td class="right">${Math.round(subtotal).toLocaleString('sv-SE')} kr</td></tr>
+        <tr><td>Moms 25%</td><td class="right">${Math.round(moms).toLocaleString('sv-SE')} kr</td></tr>
+        <tr class="total-row"><td>Totalt att betala</td><td class="right">${Math.round(totalt).toLocaleString('sv-SE')} kr</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="sig">
+    <div><div class="sig-box"></div><div class="sig-label">Kundens underskrift &amp; datum</div></div>
+    <div><div class="sig-box"></div><div class="sig-label">Wisboverket AB &amp; datum</div></div>
+  </div>
+
+  <div class="villkor">
+    <div class="villkor-header">Allmänna villkor</div>
+    <div class="villkor-body">${villkorHTML}</div>
+  </div>
+
+  <div class="footer">
+    <div>Wisboverket AB &nbsp;|&nbsp; Södermanland &nbsp;|&nbsp; info@wisboverket.se &nbsp;|&nbsp; 070-554 09 24</div>
+    <div>${offerNr} &nbsp;|&nbsp; ${new Date().toLocaleDateString('sv-SE')}</div>
+  </div>
+</div>
+<script>window.onload=function(){window.print();}<\/script>
+</body></html>`
+    const w = window.open('', '_blank')
+    w?.document.write(html)
+    w?.document.close()
+  }
+
+  const skickaMedPDF = () => {
+    genereraPDF()
+    const kundEpost = valdKund?.epost || ''
+    const offerNr = offert?.offer_number || 'UTKAST'
+    const sub = `Offert ${offerNr} – ${form.titel}`
+    const body = `Hej ${valdKund?.namn || ''},
+
+Tack för att ni vänder er till Wisboverket AB!
+
+Vänligen se bifogad offert (${offerNr}) avseende: ${form.titel}
+
+Offerten är giltig till och med: ${form.giltig_till ? fmtDatum(form.giltig_till) : '—'}
+
+Hör gärna av er om ni har frågor eller önskemål.
+
+Med vänliga hälsningar,
+Wisboverket AB
+info@wisboverket.se
+070-554 09 24`
+    setTimeout(async () => {
+      window.open(`mailto:${kundEpost}?subject=${encodeURIComponent(sub)}&body=${encodeURIComponent(body)}`, '_blank')
+      if (offert) {
+        await createClient().from('offers').update({ status: 'skickad' }).eq('id', offert.id)
+        onSaved()
+      }
+      setEmailSent(true)
+      setTimeout(() => setEmailSent(false), 5000)
+    }, 400)
+  }
+
+  const spara = async () => {
+    if (!form.titel.trim()) { setError('Titel krävs'); return }
+    setSaving(true); setError('')
+    const sb = createClient()
+    const payload = { ...form, customer_id: form.customer_id || null, subtotal, moms_belopp: moms, totalt }
+    const { error: err } = offert
+      ? await sb.from('offers').update(payload).eq('id', offert.id)
+      : await sb.from('offers').insert(payload)
+    setSaving(false)
+    if (err) setError(err.message)
+    else onSaved()
+  }
+
+  const inp = { background: '#111', border: '1px solid #2a2a2a', borderRadius: 8, padding: '8px 12px', color: '#e0e0e0', fontSize: 13, outline: 'none', width: '100%', boxSizing: 'border-box' as const }
+  const fo = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => { e.target.style.borderColor = '#E8C96A' }
+  const fb = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => { e.target.style.borderColor = '#2a2a2a' }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 14, width: '100%', maxWidth: 640, maxHeight: '90vh', overflow: 'auto' }}>
+        <div style={{ padding: '18px 22px', borderBottom: '1px solid #222', display: 'flex', justifyContent: 'space-between' }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#e0e0e0' }}>{offert ? 'Redigera offert' : 'Ny offert'}</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#666', fontSize: 20, cursor: 'pointer' }}>×</button>
+        </div>
+
+        <div style={{ padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <MF label="TITEL *"><input style={inp} value={form.titel} onChange={e => set('titel', e.target.value)} placeholder="Offertens titel" onFocus={fo} onBlur={fb} /></MF>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <MF label="KUND">
+              <select style={inp} value={form.customer_id} onChange={e => set('customer_id', e.target.value)} onFocus={fo} onBlur={fb}>
+                <option value="">Välj kund...</option>
+                {kunder.map(k => <option key={k.id} value={k.id}>{k.namn}</option>)}
+              </select>
+            </MF>
+            <MF label="GILTIG TILL">
+              <DatumValjare value={form.giltig_till} onChange={d => set('giltig_till', d)} style={inp} />
+            </MF>
+          </div>
+
+          <MF label="BESKRIVNING">
+            <textarea style={{ ...inp, minHeight: 70, resize: 'vertical' as const }} value={form.beskrivning} onChange={e => set('beskrivning', e.target.value)} placeholder="Beskrivning av uppdraget..." onFocus={fo} onBlur={fb} />
+          </MF>
+
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, color: '#555', marginBottom: 10 }}>OFFERTPOSTER</div>
+
+            {/* Header */}
+            <div style={{ display: 'grid', gridTemplateColumns: '28px 3fr 60px 60px 80px 80px 90px 32px', gap: 6, padding: '0 4px 6px', borderBottom: '1px solid #222', marginBottom: 4 }}>
+              {['', 'Beskrivning / Artikel', 'Res.', 'Antal', 'À-pris', 'Enhet', 'Belopp', ''].map((h, i) => (
+                <div key={i} style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1, color: '#444', textAlign: i >= 2 ? 'center' as const : 'left' as const }}>{h}</div>
+              ))}
+            </div>
+
+            {form.rader.map((r, i) => {
+              const vald = artiklar.find(a => a.id === r.artikel_id)
+              const enhet = vald?.enhet || r.enhet || 'st'
+              const apris = r.typ === 'artikel' ? artikelPris(r.artikel_id) : r.apris
+              const visaResurser = enhet === 'tim' || enhet === 'dag'
+              const totalAntal = r.antal * (r.resurser || 1)
+              const belopp = radBelopp(r)
+
+              const cell: React.CSSProperties = {
+                ...inp, border: '1px solid transparent', padding: '6px 8px',
+                textAlign: 'center' as const, transition: 'border-color 0.15s',
+              }
+              const cFo = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => { e.target.style.borderColor = '#E8C96A' }
+              const cFb = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => { e.target.style.borderColor = 'transparent' }
+
+              return (
+                <div key={i} style={{ display: 'grid', gridTemplateColumns: '28px 3fr 60px 60px 80px 80px 90px 32px', gap: 6, padding: '4px', borderRadius: 8, marginBottom: 2,
+                  background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)' }}>
+
+                  {/* Typ-toggle */}
+                  <button title={r.typ === 'artikel' ? 'Byt till fritext' : 'Byt till artikel'}
+                    onClick={() => updateRad(i, 'typ', r.typ === 'artikel' ? 'fritext' : 'artikel')}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: r.typ === 'artikel' ? '#E8C96A' : '#666', padding: 0, textAlign: 'center' as const }}>
+                    {r.typ === 'artikel' ? '🏷' : '✏️'}
+                  </button>
+
+                  {/* Artikel / fritext */}
+                  {r.typ === 'artikel' ? (
+                    <select ref={el => { rowRefs.current[i] = el }} style={{ ...cell, textAlign: 'left' as const }} value={r.artikel_id}
+                      onChange={e => {
+                        const a = artiklar.find(a => a.id === e.target.value)
+                        updateRad(i, 'artikel_id', e.target.value)
+                        if (a) { updateRad(i, 'enhet', a.enhet); updateRad(i, 'apris', a.a_pris) }
+                      }} onFocus={cFo} onBlur={cFb}>
+                      <option value="">— Välj artikel —</option>
+                      {artiklar.map(a => <option key={a.id} value={a.id}>{a.namn}</option>)}
+                    </select>
+                  ) : (
+                    <input ref={el => { rowRefs.current[i] = el }} style={{ ...cell, textAlign: 'left' as const }} value={r.text}
+                      placeholder="Fritext beskrivning..."
+                      onChange={e => updateRad(i, 'text', e.target.value)} onFocus={cFo} onBlur={cFb} />
+                  )}
+
+                  {/* Resurser */}
+                  <input type="number" min="1"
+                    style={{ ...cell, visibility: visaResurser ? 'visible' : 'hidden', color: '#aaa' }}
+                    value={r.resurser || 1}
+                    onChange={e => updateRad(i, 'resurser', parseInt(e.target.value) || 1)}
+                    onFocus={cFo} onBlur={cFb} />
+
+                  {/* Antal */}
+                  <input type="number" step="0.5" min="0" style={cell}
+                    value={r.antal}
+                    onChange={e => updateRad(i, 'antal', parseFloat(e.target.value) || 0)}
+                    onFocus={cFo} onBlur={cFb} />
+
+                  {/* À-pris */}
+                  {r.typ === 'fritext' ? (
+                    <input type="number" min="0" style={cell}
+                      value={r.apris}
+                      onChange={e => updateRad(i, 'apris', parseFloat(e.target.value) || 0)}
+                      onFocus={cFo} onBlur={cFb} />
+                  ) : (
+                    <div title={prisavtal[r.artikel_id] !== undefined ? 'Kundens avtalspris' : undefined}
+                      style={{ ...cell, color: prisavtal[r.artikel_id] !== undefined ? '#E8C96A' : '#666', fontWeight: prisavtal[r.artikel_id] !== undefined ? 700 : 400, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {apris > 0 ? apris : '—'}
+                    </div>
+                  )}
+
+                  {/* Enhet */}
+                  <div style={{ ...cell, color: '#555', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }}>
+                    {visaResurser && (r.resurser || 1) > 1 ? `${totalAntal} ${enhet}` : enhet}
+                  </div>
+
+                  {/* Belopp */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', fontSize: 13, fontWeight: 700, color: belopp > 0 ? '#E8C96A' : '#444', paddingRight: 4 }}>
+                    {belopp > 0 ? fmtKr(belopp) : '—'}
+                  </div>
+
+                  {/* Ta bort */}
+                  <button onClick={() => removeRad(i)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#555', fontSize: 16, padding: 0, lineHeight: 1, textAlign: 'center' as const }}
+                    onMouseEnter={e => (e.currentTarget.style.color = '#f87171')}
+                    onMouseLeave={e => (e.currentTarget.style.color = '#555')}>×</button>
+                </div>
+              )
+            })}
+
+            <button onClick={addRad} style={{ background: '#111', border: '1px dashed #2a2a2a', borderRadius: 8, padding: '8px 16px', color: '#555', cursor: 'pointer', fontSize: 12, width: '100%', marginTop: 4 }}>
+              + Lägg till post
+            </button>
+          </div>
+
+          {form.rader.length > 0 && (
+            <div style={{ background: '#0d0d0d', borderRadius: 8, padding: '12px 14px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span style={{ fontSize: 12, color: '#555' }}>Netto</span>
+                <span style={{ fontSize: 12, color: '#888' }}>{fmtKr(subtotal)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                <span style={{ fontSize: 12, color: '#555' }}>Moms 25%</span>
+                <span style={{ fontSize: 12, color: '#888' }}>{fmtKr(moms)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: '#d0d0d0' }}>Totalt</span>
+                <span style={{ fontSize: 16, fontWeight: 800, color: '#E8C96A' }}>{fmtKr(totalt)}</span>
+              </div>
+            </div>
+          )}
+
+          {error && <div style={{ fontSize: 12, color: '#f87171' }}>{error}</div>}
+        </div>
+
+        <div style={{ padding: '14px 22px', borderTop: '1px solid #222', display: 'flex', gap: 8, justifyContent: 'space-between', flexWrap: 'wrap' as const }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' as const }}>
+            {emailSent && <span style={{ fontSize: 11, color: '#4ade80', fontWeight: 600 }}>✓ PDF och e-postklient öppnade — spara PDF och bifoga!</span>}
+            {offert && (
+              <>
+                <button onClick={genereraPDF}
+                  style={{ padding: '9px 14px', background: 'rgba(232,201,106,0.1)', border: '1px solid rgba(232,201,106,0.4)', borderRadius: 8, color: '#E8C96A', fontWeight: 700, cursor: 'pointer', fontSize: 12 }}
+                  title="Öppnar ett utskriftsfönster — välj 'Spara som PDF'">
+                  📄 Förhandsgranska PDF
+                </button>
+                <button onClick={skickaMedPDF}
+                  style={{ padding: '9px 14px', background: '#60a5fa11', border: '1px solid #60a5fa44', borderRadius: 8, color: '#60a5fa', fontWeight: 700, cursor: 'pointer', fontSize: 12 }}
+                  title="Genererar PDF + öppnar e-postklient med förberedd text">
+                  📧 Skicka med PDF
+                </button>
+              </>
+            )}
+            {offert && offert.status === 'utkast' && (
+              <button onClick={async () => { await createClient().from('offers').update({ status: 'skickad' }).eq('id', offert.id); onSaved() }}
+                style={{ padding: '9px 16px', background: '#60a5fa11', border: '1px solid #60a5fa44', borderRadius: 8, color: '#60a5fa', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
+                📤 Markera skickad
+              </button>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={onClose} style={{ padding: '9px 20px', background: 'none', border: '1px solid #2a2a2a', borderRadius: 8, color: '#888', cursor: 'pointer', fontSize: 13 }}>Avbryt</button>
+            <button onClick={spara} disabled={saving} style={{ padding: '9px 24px', background: '#E8C96A', border: 'none', borderRadius: 8, color: '#000', fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: saving ? 0.6 : 1 }}>
+              {saving ? 'Sparar...' : offert ? 'Spara' : 'Skapa offert'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function MF({ label, children }: { label: string; children: React.ReactNode }) {
+  return <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><label style={{ fontSize: 11, fontWeight: 600, color: '#555' }}>{label}</label>{children}</div>
 }

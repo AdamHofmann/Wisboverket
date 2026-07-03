@@ -102,6 +102,24 @@ alter table orders
   add column if not exists fakturerat_belopp numeric(12,2),
   add column if not exists fakturadatum date,
   add column if not exists fakturareferens text,
-  add column if not exists prioritet text default 'normal', -- lag | normal | hog
+  add column if not exists prioritet text default 'normal',
   add column if not exists bokad_start time,
-  add column if not exists bokad_slut time;
+  add column if not exists bokad_slut time,
+  add column if not exists intern_anteckning text,
+  add column if not exists betyg integer,
+  add column if not exists betyg_kommentar text;
+
+-- Kundkommunikation per order
+create table if not exists order_kommunikation (
+  id uuid primary key default uuid_generate_v4(),
+  order_id uuid not null references orders on delete cascade,
+  typ text not null, -- orderbekraftelse | atgardad | info | eget
+  kanal text not null, -- email | sms | kopia
+  mottagare text,
+  meddelande text,
+  skickat_av text,
+  created_at timestamptz not null default now()
+);
+alter table order_kommunikation enable row level security;
+create policy "auth_policy" on order_kommunikation for all using ((select auth.uid()) is not null) with check ((select auth.uid()) is not null);
+create index on order_kommunikation (order_id);

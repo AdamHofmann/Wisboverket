@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-
-const fmtKr = (n: number) => n.toLocaleString('sv-SE', { minimumFractionDigits: 0 }) + ' kr'
+import { fmtKr } from './shared'
 
 export default function EkonomiTab({ orderId, faktureradeBelopp }: { orderId: string; faktureradeBelopp?: number | null }) {
   const [tidSumma, setTidSumma] = useState({ intakt: 0, kostnad: 0, antal: 0 })

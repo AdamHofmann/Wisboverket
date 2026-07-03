@@ -23,8 +23,9 @@ export async function middleware(request: NextRequest) {
 
   const { data: { user }, error } = await supabase.auth.getUser()
 
-  // Skydda alla routes utom /login
-  if ((error || !user) && !request.nextUrl.pathname.startsWith('/login')) {
+  // Skydda alla routes utom /login och de publika intag-endpointsen (formulär på hofmannsab.se)
+  const ärOffentlig = request.nextUrl.pathname.startsWith('/login') || request.nextUrl.pathname.startsWith('/api/public/')
+  if ((error || !user) && !ärOffentlig) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)

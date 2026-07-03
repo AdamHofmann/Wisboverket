@@ -3,25 +3,24 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
 const ORDER_LINKS = [
   { href: '/dashboard', label: 'Dashboard' },
-  { href: '/ordrar', label: 'Order' },
+  { href: '/inkorg', label: 'Inkorg' },
   { href: '/offerter', label: 'Offert' },
+  { href: '/ordrar', label: 'Order' },
+  { href: '/fastigheter', label: 'Fastigheter' },
+  { href: '/uthyrning', label: 'Uthyrning' },
   { href: '/kunder', label: 'Kunder' },
   { href: '/leverantorer', label: 'Leverantör' },
-  { href: '/kalender', label: 'Kalender' },
+  { href: '/medarbetare', label: 'Kalender' },
   { href: '/statistik', label: 'Statistik' },
   { href: '/fakturering', label: 'Fakturor' },
   { href: '/artiklar', label: 'Artiklar' },
-]
-
-const FASTIGHET_LINKS = [
-  { href: '/fastigheter', label: 'Fastigheter' },
-  { href: '/hyresgaster', label: 'Hyresgäster' },
-  { href: '/hyresavtal', label: 'Hyresavtal' },
-  { href: '/underhall', label: 'Underhåll' },
+  { href: '/mal', label: 'Mål' },
+  { href: '/anvandare', label: 'Användare' },
 ]
 
 const S: Record<string, React.CSSProperties> = {
@@ -42,6 +41,20 @@ export default function Navbar() {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
+  const [inkorgCount, setInkorgCount] = useState(0)
+
+  useEffect(() => {
+    const fetchCount = () => {
+      Promise.all([
+        supabase.from('forfragningar').select('id', { count: 'exact', head: true }).eq('status', 'ny'),
+        supabase.from('felanmalningar').select('id', { count: 'exact', head: true }).eq('status', 'ny'),
+      ]).then(([f, fe]) => setInkorgCount((f.count || 0) + (fe.count || 0)))
+    }
+    fetchCount()
+    const interval = setInterval(fetchCount, 60000)
+    return () => clearInterval(interval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -63,16 +76,11 @@ export default function Navbar() {
         </Link>
 
         {ORDER_LINKS.map(l => (
-          <Link key={l.href} href={l.href} style={{ ...S.link, ...(isActive(l.href) ? S.linkActive : {}) }}>
+          <Link key={l.href} href={l.href} style={{ ...S.link, ...(isActive(l.href) ? S.linkActive : {}), display: 'flex', alignItems: 'center', gap: 6 }}>
             {l.label}
-          </Link>
-        ))}
-
-        <div style={S.divider} />
-
-        {FASTIGHET_LINKS.map(l => (
-          <Link key={l.href} href={l.href} style={{ ...S.link, ...(isActive(l.href) ? S.linkActive : {}) }}>
-            {l.label}
+            {l.href === '/inkorg' && inkorgCount > 0 && (
+              <span style={{ background: '#E8C96A', color: '#000', borderRadius: 10, fontSize: 10, fontWeight: 800, padding: '1px 6px', lineHeight: 1.4 }}>{inkorgCount}</span>
+            )}
           </Link>
         ))}
 

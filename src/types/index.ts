@@ -13,13 +13,16 @@ export type Customer = {
   namn: string
   typ: 'privat' | 'företag'
   epost: string | null
+  fakturamail: string | null
   telefon: string | null
   adress: string | null
   postnummer: string | null
   ort: string | null
   orgnummer: string | null
+  betalvillkor: number | null
   anteckningar: string | null
   created_at: string
+  updated_at: string
 }
 
 export type Contact = {
@@ -63,12 +66,13 @@ export type Order = {
   order_number: string | null
   titel: string
   kategori: string | null
-  status: 'aktiv' | 'slutförd' | 'inaktiv'
+  status: 'ny' | 'pågående' | 'klar' | 'inaktiv'
   customer_id: string | null
   fastighet: string | null
   postnummer: string | null
   ort: string | null
   bokad_datum: string | null
+  bokad_datum_till: string | null
   bokad_start: string | null
   bokad_slut: string | null
   tilldelad: string[] | null
@@ -80,6 +84,13 @@ export type Order = {
   fakturerat_belopp: number | null
   fakturadatum: string | null
   aterkommande: string | null
+  lagenhet: string | null
+  kanal: string | null
+  kontakt_namn: string | null
+  kontakt_telefon: string | null
+  kontakt_epost: string | null
+  utford_datum: string | null
+  faktureras_inte: boolean
   pris: number | null
   offert_id: string | null
   created_by: string | null
@@ -147,7 +158,57 @@ export type StaffStatus = {
   created_at: string
 }
 
-// Fastighets-modulen
+// Fastigheter som projekt
+export type Fastighet = {
+  id: string
+  namn: string
+  adress: string
+  postnummer: string | null
+  ort: string | null
+  beteckning: string | null
+  anteckningar: string | null
+  created_at: string
+}
+
+export type FastighetUnderhall = {
+  id: string
+  fastighet_id: string
+  titel: string
+  beskrivning: string | null
+  status: 'öppen' | 'pågående' | 'stängd'
+  prioritet: 'låg' | 'normal' | 'hög' | 'akut'
+  assignad_till: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type Hyresobjekt = {
+  id: string
+  intern_namn: string | null
+  titel: string | null
+  fastighet: string | null
+  typer: string[]
+  typ: string | null
+  tillganglig_typ: 'datum' | 'overenskommelse'
+  tillganglig_fran: string | null
+  publicerad: boolean
+  total_yta: number | null
+  hyra: number | null
+  kr_kvm_ar: number | null
+  planlosning: string | null
+  bilder: string[]
+  bekvamligheter: string[]
+  kort_beskrivning: string | null
+  beskrivning: string | null
+  kontakt_namn: string | null
+  kontakt_epost: string | null
+  kontakt_telefon: string | null
+  kontakt_titel: string | null
+  created_at: string
+  updated_at: string
+}
+
+// Gamla fastighets-modulen
 export type Company = {
   id: string
   namn: string

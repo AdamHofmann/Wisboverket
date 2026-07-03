@@ -44,9 +44,11 @@ export default function DashboardPage() {
     })
   }, [])
 
-  const aktiva = orders.filter(o => o.status === 'aktiv')
-  const ejPlanerade = orders.filter(o => o.status === 'aktiv' && !o.bokad_datum)
-  const attFakturera = orders.filter(o => o.status === 'slutförd')
+  const aktiva = orders.filter(o => o.status === 'ny' || o.status === 'pågående')
+  const ejPlanerade = orders.filter(o => (o.status === 'ny' || o.status === 'pågående') && !o.bokad_datum)
+  // Planerade jobb (har datum) men saknar tilldelad resurs
+  const ejTilldelad = orders.filter(o => (o.status === 'ny' || o.status === 'pågående') && o.bokad_datum && (!o.tilldelad || o.tilldelad.length === 0))
+  const attFakturera = orders.filter(o => o.status === 'klar')
   const idag = new Date().toISOString().split('T')[0]
   const faktureratIdag = invoices.filter(i => i.created_at?.startsWith(idag)).reduce((s, i) => s + (i.total_incl_moms || 0), 0)
   const manad = new Date().toLocaleString('sv-SE', { month: 'short' }).toUpperCase()
@@ -57,12 +59,12 @@ export default function DashboardPage() {
   const senastFakturerade = invoices.slice(0, 5)
 
   const statCards = [
-    { label: 'Öppna ordrar', value: aktiva.length, sub: `${ejPlanerade.length} nya`, color: '#60a5fa' },
-    { label: 'Ej planerade', value: ejPlanerade.length, sub: 'saknar datum', color: '#f59e0b' },
-    { label: 'Bekräftas', value: 0, sub: 'till kund', color: '#a78bfa' },
-    { label: 'Att fakturera', value: attFakturera.length, sub: 'slutförda', color: '#e0e0e0' },
-    { label: 'Fakturerat idag', value: fmt(faktureratIdag), sub: 'exkl moms', color: '#4ade80', wide: true },
-    { label: manad, value: fmt(faktureratManad), sub: 'fakturerat', color: '#E8C96A', wide: true },
+    { label: 'Öppna ordrar', value: aktiva.length, sub: `${ejPlanerade.length} nya`, color: '#60a5fa', href: '/ordrar?status=pågående' },
+    { label: 'Ej planerade', value: ejPlanerade.length, sub: 'saknar datum', color: '#f59e0b', href: '/ordrar?status=ny' },
+    { label: 'Ej tilldelad', value: ejTilldelad.length, sub: 'planerat, saknar resurs', color: '#f87171', href: '/ordrar?status=pågående' },
+    { label: 'Att fakturera', value: attFakturera.length, sub: 'slutförda', color: '#e0e0e0', href: '/ordrar?status=klar' },
+    { label: 'Fakturerat idag', value: fmt(faktureratIdag), sub: 'exkl moms', color: '#4ade80', wide: true, href: '/fakturor' },
+    { label: manad, value: fmt(faktureratManad), sub: 'fakturerat', color: '#E8C96A', wide: true, href: '/fakturor' },
   ]
 
   if (loading) return <div style={{ color: '#555', padding: 40, textAlign: 'center' }}>Laddar...</div>
@@ -71,12 +73,14 @@ export default function DashboardPage() {
     <div>
       <div style={S.grid}>
         {statCards.map(c => (
-          <div key={c.label} style={{ ...S.card, gridColumn: (c as any).wide ? 'span 1' : undefined }}>
+          <Link key={c.label} href={(c as any).href} style={{ ...S.card, gridColumn: (c as any).wide ? 'span 1' : undefined, textDecoration: 'none', display: 'block', cursor: 'pointer', transition: 'border-color 0.15s' }}
+            onMouseEnter={e => (e.currentTarget.style.borderColor = '#3a3a3a')}
+            onMouseLeave={e => (e.currentTarget.style.borderColor = '#2a2a2a')}>
             <div style={{ ...S.cardAccent, background: c.color }} />
             <div style={S.cardLabel}>{c.label}</div>
             <div style={{ ...S.cardValue, color: c.color }}>{c.value}</div>
             <div style={S.cardSub}>{c.sub}</div>
-          </div>
+          </Link>
         ))}
       </div>
 
@@ -90,7 +94,7 @@ export default function DashboardPage() {
           {ejPlanerade.length === 0
             ? <div style={S.kbEmpty}>Alla planerade ✓</div>
             : ejPlanerade.slice(0, 6).map(o => (
-              <Link href={`/ordrar/${o.id}`} key={o.id} style={{ ...S.kbItem, display: 'block', textDecoration: 'none' }}
+              <Link href={`/ordrar?order=${o.id}`} key={o.id} style={{ ...S.kbItem, display: 'block', textDecoration: 'none' }}
                 onMouseEnter={e => (e.currentTarget.style.background = '#1e1e1e')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
                 <div style={S.kbItemTitle}>{o.titel}</div>
@@ -99,13 +103,22 @@ export default function DashboardPage() {
             ))}
         </div>
 
-        {/* Bekräftas till kund */}
+        {/* Ej tilldelad — planerat men saknar resurs */}
         <div style={S.kbCol}>
           <div style={S.kbHeader}>
-            <span style={{ ...S.kbTitle, color: '#a78bfa' }}>📋 BEKRÄFTAS TILL KUND</span>
-            <span style={S.kbBadge}>0</span>
+            <span style={{ ...S.kbTitle, color: '#f87171' }}>👤 EJ TILLDELAD</span>
+            <span style={S.kbBadge}>{ejTilldelad.length}</span>
           </div>
-          <div style={S.kbEmpty}>Alla klara är bekräftade ✓</div>
+          {ejTilldelad.length === 0
+            ? <div style={S.kbEmpty}>Alla planerade jobb har resurs ✓</div>
+            : ejTilldelad.slice(0, 6).map(o => (
+              <Link href={`/ordrar?order=${o.id}`} key={o.id} style={{ ...S.kbItem, display: 'block', textDecoration: 'none' }}
+                onMouseEnter={e => (e.currentTarget.style.background = '#1e1e1e')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                <div style={S.kbItemTitle}>{o.titel}</div>
+                <div style={S.kbItemSub}>{o.bokad_datum ? fmtDate(o.bokad_datum) : '—'}{o.fastighet ? ` · ${o.fastighet}` : ''}</div>
+              </Link>
+            ))}
         </div>
 
         {/* Klara att fakturera */}
@@ -117,7 +130,7 @@ export default function DashboardPage() {
           {attFakturera.length === 0
             ? <div style={S.kbEmpty}>Inga att fakturera</div>
             : attFakturera.slice(0, 6).map(o => (
-              <Link href={`/ordrar/${o.id}`} key={o.id} style={{ ...S.kbItem, display: 'block', textDecoration: 'none' }}
+              <Link href={`/ordrar?order=${o.id}`} key={o.id} style={{ ...S.kbItem, display: 'block', textDecoration: 'none' }}
                 onMouseEnter={e => (e.currentTarget.style.background = '#1e1e1e')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
                 <div style={S.kbItemTitle}>{o.titel}</div>

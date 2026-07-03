@@ -65,6 +65,8 @@ export default function SendModal({ orderId, orderTitel, kundEpost, kundTelefon,
   const [aiLoading, setAiLoading] = useState(false)
   const [sent, setSent] = useState(false)
   const [sentKanal, setSentKanal] = useState('')
+  const [smsSending, setSmsSending] = useState(false)
+  const [smsError, setSmsError] = useState('')
 
   const loggaUtskick = async (kanal: string) => {
     await createClient().from('order_kommunikation').insert({
@@ -87,10 +89,23 @@ export default function SendModal({ orderId, orderTitel, kundEpost, kundTelefon,
     loggaUtskick('email')
   }
 
-  const skickaSMS = () => {
+  const skickaSMS = async () => {
     if (!telefon || !meddelande) return
-    window.open(`sms:${telefon}?body=${encodeURIComponent(meddelande)}`)
-    loggaUtskick('sms')
+    setSmsSending(true); setSmsError('')
+    try {
+      const res = await fetch('/api/send-sms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: telefon, message: meddelande }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setSmsError(data.error || 'Kunde inte skicka SMS'); return }
+      loggaUtskick('sms')
+    } catch {
+      setSmsError('Kunde inte nå SMS-tjänsten')
+    } finally {
+      setSmsSending(false)
+    }
   }
 
   const kopiera = async () => {
@@ -114,8 +129,9 @@ export default function SendModal({ orderId, orderTitel, kundEpost, kundTelefon,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt }),
       })
-      const data = await res.json()
-      setMeddelande(data.text || '')
+      const data = await res.json().catch(() => null)
+      if (res.ok && data?.text) setMeddelande(data.text)
+      else setMeddelande('Kunde inte generera meddelande. Skriv manuellt.')
     } catch {
       setMeddelande('Kunde inte generera meddelande. Skriv manuellt.')
     }
@@ -140,7 +156,7 @@ export default function SendModal({ orderId, orderTitel, kundEpost, kundTelefon,
           <div style={S.successWrap}>
             <div style={S.successIcon}>{sentKanal === 'email' ? '📧' : sentKanal === 'sms' ? '💬' : '📋'}</div>
             <div style={S.successTitle}>
-              {sentKanal === 'email' ? 'E-POSTKLIENT ÖPPNAD' : sentKanal === 'sms' ? 'SMS-APP ÖPPNAD' : 'KOPIERAT!'}
+              {sentKanal === 'email' ? 'E-POSTKLIENT ÖPPNAD' : sentKanal === 'sms' ? 'SMS SKICKAT' : 'KOPIERAT!'}
             </div>
             <div style={S.successSub}>Meddelandet är loggat på ordern</div>
             <button onClick={onClose} style={{ marginTop: 20, background: '#2a2a2a', border: 'none', borderRadius: 8, padding: '10px 24px', color: '#e0e0e0', cursor: 'pointer', fontSize: 13 }}>Stäng</button>
@@ -191,9 +207,10 @@ export default function SendModal({ orderId, orderTitel, kundEpost, kundTelefon,
               </div>
             </div>
 
+            {smsError && <div style={{ padding: '0 22px', fontSize: 12, color: '#f87171' }}>{smsError}</div>}
             <div style={S.footer}>
               <button style={S.sendBtn('#60a5fa', !epost || !meddelande)} onClick={skickaEmail}>📧 E-post</button>
-              <button style={S.sendBtn('#4ade80', !telefon || !meddelande)} onClick={skickaSMS}>💬 SMS</button>
+              <button style={S.sendBtn('#4ade80', !telefon || !meddelande || smsSending)} onClick={skickaSMS}>{smsSending ? '...' : '💬 SMS'}</button>
               <button style={S.sendBtn('#888', !meddelande)} onClick={kopiera}>📋 Kopiera</button>
             </div>
           </>
