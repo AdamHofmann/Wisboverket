@@ -11,7 +11,6 @@ const ORDER_LINKS = [
   { href: '/inkorg', label: 'Inkorg' },
   { href: '/offerter', label: 'Offert' },
   { href: '/ordrar', label: 'Order' },
-  { href: '/fastigheter', label: 'Fastigheter' },
   { href: '/uthyrning', label: 'Uthyrning' },
   { href: '/kunder', label: 'Kunder' },
   { href: '/leverantorer', label: 'Leverantör' },
@@ -85,6 +84,18 @@ export default function Navbar() {
         ))}
 
         <div style={S.spacer} />
+        <Link
+          href="/fastigheter"
+          style={{
+            padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+            background: pathname.startsWith('/fastigheter') ? '#E8C96A' : 'transparent',
+            color: pathname.startsWith('/fastigheter') ? '#000' : '#E8C96A',
+            border: '1px solid #E8C96A', textDecoration: 'none', marginRight: 12,
+            whiteSpace: 'nowrap', flexShrink: 0,
+          }}
+        >
+          🏢 Fastigheter
+        </Link>
         <button onClick={handleLogout} style={S.logoutBtn}>Logga ut</button>
       </div>
     </nav>

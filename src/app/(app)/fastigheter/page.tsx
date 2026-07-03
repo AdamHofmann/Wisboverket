@@ -1,369 +1,382 @@
 'use client'
 
+// MODULROT /fastigheter — Dashboard/Översikt.
+// Källa: src/app/page.tsx (Tailwind, lucide, blå/ljus).
+// Portad till: inline dark/gold-styles + emoji-ikoner. Data via den migrerade
+// Supabase-routen /api/fastigheter/dashboard (svarskontraktet oförändrat).
+// useBolag från porterad context. Bolagsväxlaren sitter redan i Subnav (layout.tsx),
+// därför ingen egen <select> i headern (undviker dubbla växlare).
+//
+// Färgremap: blue/purple/indigo/orange-kort → guld/mörka paneler via C-tokens;
+// grön/gul/röd highlight → C.ok/C.gold/C.danger; lucide-ikoner → emoji.
+
 import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import type { Fastighet, FastighetUnderhall, Order } from '@/types'
-import AdressInput from '@/components/AdressInput'
+import { useBolag } from '@/components/fastigheter/BolagContext'
+import { C, fmtKvm } from '@/components/fastigheter/styles'
 
-const PRIO_COLOR: Record<string, string> = { låg: '#636366', normal: '#60a5fa', hög: '#fb923c', akut: '#f87171' }
-const STATUS_ICON: Record<string, string> = { öppen: '🔴', pågående: '🟡', stängd: '✅' }
-const PERSONAL = ['Adam', 'Isabelle', 'Kalle', 'Maria', 'Erik', 'Sofia']
+interface KommandeAvtal {
+  id: string
+  slutdatum: string
+  status: string
+  bashyra: number
+  arshyra: number | null
+  uppsagningstidHG: number | null
+  uppsagningstidHV: number | null
+  uppsagningstid: number
+  hyresgast: { namn: string }
+  lokaler: { lokal: { namn: string; fastighet: { namn: string } } }[]
+}
 
-const inp: React.CSSProperties = { background: '#111', border: '1px solid #2a2a2a', borderRadius: 8, padding: '8px 12px', color: '#e0e0e0', fontSize: 13, outline: 'none', width: '100%', boxSizing: 'border-box' }
-const fo = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => { e.target.style.borderColor = '#E8C96A' }
-const fb = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => { e.target.style.borderColor = '#2a2a2a' }
-const fmtKr = (n: number) => n.toLocaleString('sv-SE') + ' kr'
+interface VakansFastighet {
+  fastighetId: string
+  fastighetNamn: string
+  antalByggnader: number
+  totalBTA: number
+  uthyrbarYta: number
+  uthyrdYta: number
+  vakantYta: number
+  vakansgrad: number
+  forloradHyra: number
+  antalLokaler: number
+  ledigaLokaler: number
+}
 
-type FastighetMedStats = Fastighet & { _ordrar: number; _underhall: number; _intakt: number; _kostnad: number; _tb: number }
+interface DashboardData {
+  totalLokaler: number
+  uthyrdaLokaler: number
+  ledigaLokaler: number
+  belaggningsgrad: number
+  totalHyraPerManad: number
+  obetalda: number
+  driftskostnaderManad: number
+  aktiva_hyresgaster: number
+  kommandeAvtal: KommandeAvtal[]
+  totalBTA: number
+  totalLOA: number
+  totalUthyrdYta: number
+  totalVakantYta: number
+  totalVakansgrad: number
+  totalForloradHyra: number
+  vakansPerFastighet: VakansFastighet[]
+}
 
-export default function FastigheterPage() {
-  const [fastigheter, setFastigheter] = useState<FastighetMedStats[]>([])
-  const [vald, setVald] = useState<Fastighet | null>(null)
-  const [showModal, setShowModal] = useState(false)
-  const [editTarget, setEditTarget] = useState<Fastighet | null>(null)
+const formatSEK = (n: number) =>
+  new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK', maximumFractionDigits: 0 }).format(n)
+const formatDate = (d: string) => new Date(d).toLocaleDateString('sv-SE')
+const daysUntil = (d: string) => Math.ceil((new Date(d).getTime() - Date.now()) / 86400000)
+
+// Färg per vakansnivå (grön ≤5% · guld ≤15% · röd över)
+const vakansFarg = (pct: number) => (pct <= 5 ? C.ok : pct <= 15 ? C.gold : C.danger)
+
+function StatCard({
+  title, value, subtitle, icon, highlight,
+}: {
+  title: string; value: string | number; subtitle?: string
+  icon: string; highlight?: 'red' | 'green' | 'gold'
+}) {
+  const border =
+    highlight === 'red' ? 'rgba(248,113,113,0.35)'
+      : highlight === 'green' ? 'rgba(74,222,128,0.35)'
+      : highlight === 'gold' ? 'rgba(232,201,106,0.35)'
+      : C.borderSoft
+  const bg =
+    highlight === 'red' ? 'rgba(248,113,113,0.06)'
+      : highlight === 'green' ? 'rgba(74,222,128,0.06)'
+      : highlight === 'gold' ? C.goldSoft
+      : C.panel
+  const iconColor =
+    highlight === 'red' ? C.danger
+      : highlight === 'green' ? C.ok
+      : highlight === 'gold' ? C.gold
+      : C.gold
+  return (
+    <div style={{ borderRadius: 12, border: `1px solid ${border}`, background: bg, padding: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ minWidth: 0 }}>
+          <p style={{ fontSize: 13, fontWeight: 500, color: C.muted, margin: 0 }}>{title}</p>
+          <p style={{ marginTop: 8, fontSize: 28, fontWeight: 700, color: C.text, marginBottom: 0 }}>{value}</p>
+          {subtitle && <p style={{ marginTop: 4, fontSize: 12, color: C.muted, marginBottom: 0 }}>{subtitle}</p>}
+        </div>
+        <div style={{ borderRadius: 8, background: C.goldSoft, padding: 10, fontSize: 18, lineHeight: 1, color: iconColor, flexShrink: 0 }}>{icon}</div>
+      </div>
+    </div>
+  )
+}
+
+function VakansBar({ pct }: { pct: number }) {
+  const color = vakansFarg(pct)
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div style={{ flex: 1, background: C.field, borderRadius: 999, height: 6, overflow: 'hidden' }}>
+        <div style={{ height: 6, borderRadius: 999, background: color, width: `${Math.min(pct, 100)}%`, transition: 'width .2s' }} />
+      </div>
+      <span style={{ fontSize: 12, fontWeight: 600, width: 44, textAlign: 'right', color }}>{pct.toFixed(1)}%</span>
+    </div>
+  )
+}
+
+const th: React.CSSProperties = { padding: '10px 16px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: C.muted2, textTransform: 'uppercase', letterSpacing: 1, whiteSpace: 'nowrap' }
+const thR: React.CSSProperties = { ...th, textAlign: 'right' }
+const td: React.CSSProperties = { padding: '10px 16px', fontSize: 13, color: C.text2, verticalAlign: 'top' }
+const tdR: React.CSSProperties = { ...td, textAlign: 'right' }
+
+export default function FastigheterDashboard() {
+  const { valtBolagId } = useBolag()
+  const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
 
-  const fetchFastigheter = async () => {
-    const sb = createClient()
-    const { data: f } = await sb.from('fastigheter').select('*').order('namn')
-    if (!f) { setLoading(false); return }
+  useEffect(() => {
+    setLoading(true)
+    const url = valtBolagId ? `/api/fastigheter/dashboard?bolagId=${valtBolagId}` : '/api/fastigheter/dashboard'
+    fetch(url).then(r => r.json()).then(setData).finally(() => setLoading(false))
+  }, [valtBolagId])
 
-    const enriched = await Promise.all(f.map(async (fst) => {
-      const [{ data: fstOrdrar }, { count: underhall }] = await Promise.all([
-        sb.from('orders').select('id, fakturerat_belopp').eq('fastighet_id', fst.id),
-        sb.from('fastighet_underhall').select('*', { count: 'exact', head: true }).eq('fastighet_id', fst.id).neq('status', 'stängd'),
-      ])
-
-      const orderIds = (fstOrdrar || []).map(o => o.id)
-      const intakt = (fstOrdrar || []).reduce((s, o) => s + (o.fakturerat_belopp || 0), 0)
-
-      let kostnad = 0
-      if (orderIds.length > 0) {
-        const [{ data: tid }, { data: inkop }] = await Promise.all([
-          sb.from('order_tid_rader').select('total_kostnad').in('order_id', orderIds),
-          sb.from('order_inkop').select('belopp').in('order_id', orderIds),
-        ])
-        kostnad = (tid || []).reduce((s, r) => s + (r.total_kostnad || 0), 0)
-          + (inkop || []).reduce((s, r) => s + (r.belopp || 0), 0)
-      }
-
-      return {
-        ...fst,
-        _ordrar: orderIds.length,
-        _underhall: underhall || 0,
-        _intakt: intakt,
-        _kostnad: kostnad,
-        _tb: intakt - kostnad,
-      }
-    }))
-
-    setFastigheter(enriched)
-    setLoading(false)
-  }
-
-  useEffect(() => { fetchFastigheter() }, [])
+  const vakansgrad = data?.totalVakansgrad ?? 0
+  const hasYtadata = (data?.totalLOA ?? 0) > 0
+  const vakansPerFastighet = data?.vakansPerFastighet ?? []
 
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <div style={{ fontSize: 22, fontWeight: 800, color: '#E8C96A' }}>
-          Fastigheter <span style={{ fontSize: 14, color: '#555', fontWeight: 400 }}>({fastigheter.length})</span>
-        </div>
-        <button onClick={() => { setEditTarget(null); setShowModal(true) }}
-          style={{ background: '#E8C96A', color: '#000', border: 'none', borderRadius: 8, padding: '8px 18px', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
-          + Ny fastighet
-        </button>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {/* Header */}
+      <div>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: C.text, margin: 0 }}>Översikt</h1>
+        <p style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>Välkommen till Hofmanns Fastigheter</p>
       </div>
 
       {loading ? (
-        <div style={{ textAlign: 'center', padding: 60, color: '#555' }}>Laddar...</div>
-      ) : fastigheter.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: 60, color: '#555' }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>🏢</div>
-          <div>Inga fastigheter registrerade ännu</div>
-          <div style={{ fontSize: 12, color: '#333', marginTop: 6 }}>Lägg till en fastighet som projekt</div>
-        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200, color: C.muted2 }}>Laddar...</div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
-          {fastigheter.map(f => (
-            <div key={f.id} onClick={() => setVald(f)}
-              style={{ background: '#141414', border: `1px solid ${vald?.id === f.id ? '#E8C96A55' : '#1e1e1e'}`, borderRadius: 12, padding: '18px 20px', cursor: 'pointer', transition: 'border-color 0.15s' }}
-              onMouseEnter={e => { if (vald?.id !== f.id) e.currentTarget.style.borderColor = '#2a2a2a' }}
-              onMouseLeave={e => { if (vald?.id !== f.id) e.currentTarget.style.borderColor = '#1e1e1e' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-                <div>
-                  <div style={{ fontSize: 15, fontWeight: 800, color: '#f2f2f7' }}>{f.namn}</div>
-                  <div style={{ fontSize: 12, color: '#636366', marginTop: 2 }}>{f.adress}{f.ort ? `, ${f.ort}` : ''}</div>
-                  {f.beteckning && <div style={{ fontSize: 11, color: '#E8C96A88', marginTop: 2 }}>{f.beteckning}</div>}
-                </div>
-                <button onClick={e => { e.stopPropagation(); setEditTarget(f); setShowModal(true) }}
-                  style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer', fontSize: 13, padding: 4 }}>✏️</button>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                <div style={{ background: '#0d0d0d', borderRadius: 8, padding: '8px 10px' }}>
-                  <div style={{ fontSize: 10, color: '#555', letterSpacing: 1, marginBottom: 3 }}>ORDRAR</div>
-                  <div style={{ fontSize: 20, fontWeight: 800, color: '#aeaeb2' }}>{f._ordrar}</div>
-                </div>
-                <div style={{ background: '#0d0d0d', borderRadius: 8, padding: '8px 10px' }}>
-                  <div style={{ fontSize: 10, color: '#555', letterSpacing: 1, marginBottom: 3 }}>UNDERHÅLL</div>
-                  <div style={{ fontSize: 20, fontWeight: 800, color: f._underhall > 0 ? '#fb923c' : '#636366' }}>{f._underhall}</div>
-                </div>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginTop: 8 }}>
-                <div style={{ background: '#0d0d0d', borderRadius: 8, padding: '8px 10px' }}>
-                  <div style={{ fontSize: 10, color: '#555', letterSpacing: 1, marginBottom: 3 }}>INTÄKT</div>
-                  <div style={{ fontSize: 14, fontWeight: 800, color: '#4ade80' }}>{fmtKr(f._intakt)}</div>
-                </div>
-                <div style={{ background: '#0d0d0d', borderRadius: 8, padding: '8px 10px' }}>
-                  <div style={{ fontSize: 10, color: '#555', letterSpacing: 1, marginBottom: 3 }}>KOSTNAD</div>
-                  <div style={{ fontSize: 14, fontWeight: 800, color: '#f87171' }}>{fmtKr(f._kostnad)}</div>
-                </div>
-                <div style={{ background: '#0d0d0d', borderRadius: 8, padding: '8px 10px', border: `1px solid ${(f._tb >= 0 ? '#4ade80' : '#f87171')}33` }}>
-                  <div style={{ fontSize: 10, color: '#555', letterSpacing: 1, marginBottom: 3 }}>TB</div>
-                  <div style={{ fontSize: 14, fontWeight: 800, color: f._tb >= 0 ? '#4ade80' : '#f87171' }}>
-                    {fmtKr(f._tb)}
-                    {f._intakt > 0 && <span style={{ fontSize: 11, fontWeight: 600, opacity: 0.75, marginLeft: 5 }}>({((f._tb / f._intakt) * 100).toFixed(0)}%)</span>}
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Sidopanel */}
-      {vald && <div onClick={() => setVald(null)} style={{ position: 'fixed', inset: 0, zIndex: 199 }} />}
-      {vald && <FastighetPanel fastighet={vald} onClose={() => setVald(null)} onUpdated={fetchFastigheter} />}
-
-      {showModal && (
-        <FastighetModal fastighet={editTarget} onClose={() => setShowModal(false)}
-          onSaved={() => { setShowModal(false); fetchFastigheter() }} />
-      )}
-    </div>
-  )
-}
-
-// ─── Panel ────────────────────────────────────────────────────────────────────
-function FastighetPanel({ fastighet, onClose, onUpdated }: { fastighet: Fastighet; onClose: () => void; onUpdated: () => void }) {
-  const [tab, setTab] = useState<'ordrar' | 'underhall'>('ordrar')
-  const [ordrar, setOrdrar] = useState<any[]>([])
-  const [underhall, setUnderhall] = useState<FastighetUnderhall[]>([])
-  const [nyUnderhall, setNyUnderhall] = useState(false)
-  const [uForm, setUForm] = useState({ titel: '', beskrivning: '', prioritet: 'normal', assignad_till: '' })
-  const [sparar, setSparar] = useState(false)
-
-  useEffect(() => {
-    const sb = createClient()
-    sb.from('orders').select('*, customer:customers(namn)').eq('fastighet_id', fastighet.id).order('created_at', { ascending: false })
-      .then(({ data }) => setOrdrar(data || []))
-    sb.from('fastighet_underhall').select('*').eq('fastighet_id', fastighet.id).order('created_at', { ascending: false })
-      .then(({ data }) => setUnderhall(data || []))
-  }, [fastighet.id])
-
-  const laggTillUnderhall = async () => {
-    if (!uForm.titel) return
-    setSparar(true)
-    await createClient().from('fastighet_underhall').insert({
-      fastighet_id: fastighet.id,
-      titel: uForm.titel,
-      beskrivning: uForm.beskrivning || null,
-      prioritet: uForm.prioritet,
-      assignad_till: uForm.assignad_till || null,
-    })
-    const { data } = await createClient().from('fastighet_underhall').select('*').eq('fastighet_id', fastighet.id).order('created_at', { ascending: false })
-    setUnderhall(data || [])
-    setUForm({ titel: '', beskrivning: '', prioritet: 'normal', assignad_till: '' })
-    setNyUnderhall(false)
-    setSparar(false)
-    onUpdated()
-  }
-
-  const byttStatus = async (id: string, status: string) => {
-    await createClient().from('fastighet_underhall').update({ status, updated_at: new Date().toISOString() }).eq('id', id)
-    setUnderhall(u => u.map(r => r.id === id ? { ...r, status: status as any } : r))
-    onUpdated()
-  }
-
-  const STATUS_COLOR: Record<string, string> = { aktiv: '#4ade80', slutförd: '#60a5fa', inaktiv: '#555' }
-
-  return (
-    <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 680, background: '#1a1a1a', zIndex: 200, display: 'flex', flexDirection: 'column', boxShadow: '-8px 0 40px rgba(0,0,0,0.6)', borderLeft: '1px solid #222' }}>
-      <div style={{ padding: '20px 24px', borderBottom: '1px solid #222', flexShrink: 0 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: '#f2f2f7' }}>{fastighet.namn}</div>
-            <div style={{ fontSize: 12, color: '#636366', marginTop: 3 }}>
-              {fastighet.adress}{fastighet.postnummer ? ` · ${fastighet.postnummer}` : ''}{fastighet.ort ? ` ${fastighet.ort}` : ''}
-            </div>
-            {fastighet.beteckning && <div style={{ fontSize: 11, color: '#E8C96A', marginTop: 2 }}>{fastighet.beteckning}</div>}
-          </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#636366', fontSize: 22, cursor: 'pointer' }}>×</button>
-        </div>
-        <div style={{ display: 'flex', gap: 4, marginTop: 16 }}>
-          {[{ id: 'ordrar', label: `Ordrar (${ordrar.length})` }, { id: 'underhall', label: `Underhåll (${underhall.filter(u => u.status !== 'stängd').length} öppna)` }].map(t => (
-            <button key={t.id} onClick={() => setTab(t.id as any)}
-              style={{ padding: '6px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600, background: tab === t.id ? '#E8C96A' : '#252528', color: tab === t.id ? '#000' : '#8e8e93' }}>
-              {t.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div style={{ flex: 1, overflow: 'auto', padding: '20px 24px' }}>
-        {tab === 'ordrar' && (
-          ordrar.length === 0
-            ? <div style={{ textAlign: 'center', padding: 40, color: '#444' }}>Inga ordrar kopplade till denna fastighet</div>
-            : ordrar.map((o: any) => (
-              <div key={o.id} style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: 10, padding: '12px 16px', marginBottom: 8 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#f2f2f7' }}>{o.titel}</div>
-                    <div style={{ fontSize: 11, color: '#636366', marginTop: 2 }}>
-                      {o.order_number && `${o.order_number} · `}
-                      {o.bokad_datum ? new Date(o.bokad_datum).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' }) : ''}
-                      {o.customer?.namn ? ` · ${o.customer.namn}` : ''}
-                    </div>
-                  </div>
-                  <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 8, background: (STATUS_COLOR[o.status] || '#555') + '22', color: STATUS_COLOR[o.status] || '#555', border: `1px solid ${STATUS_COLOR[o.status] || '#555'}44` }}>
-                    {o.status}
-                  </span>
-                </div>
-              </div>
-            ))
-        )}
-
-        {tab === 'underhall' && (
-          <div>
-            <button onClick={() => setNyUnderhall(v => !v)}
-              style={{ width: '100%', padding: '10px', background: nyUnderhall ? 'none' : '#E8C96A', color: nyUnderhall ? '#8e8e93' : '#000', border: nyUnderhall ? '1px solid #2a2a2a' : 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', marginBottom: 14 }}>
-              {nyUnderhall ? 'Avbryt' : '+ Nytt underhållsärende'}
-            </button>
-
-            {nyUnderhall && (
-              <div style={{ background: '#141414', border: '1px solid #2a2a2a', borderRadius: 10, padding: '16px', marginBottom: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <input style={inp} placeholder="Titel *" value={uForm.titel} onChange={e => setUForm(f => ({ ...f, titel: e.target.value }))} onFocus={fo} onBlur={fb} />
-                <textarea style={{ ...inp, minHeight: 70, resize: 'vertical' }} placeholder="Beskrivning..." value={uForm.beskrivning} onChange={e => setUForm(f => ({ ...f, beskrivning: e.target.value }))} onFocus={fo} onBlur={fb} />
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <select style={inp} value={uForm.prioritet} onChange={e => setUForm(f => ({ ...f, prioritet: e.target.value }))} onFocus={fo} onBlur={fb}>
-                    <option value="låg">Låg</option>
-                    <option value="normal">Normal</option>
-                    <option value="hög">Hög</option>
-                    <option value="akut">Akut 🚨</option>
-                  </select>
-                  <select style={inp} value={uForm.assignad_till} onChange={e => setUForm(f => ({ ...f, assignad_till: e.target.value }))} onFocus={fo} onBlur={fb}>
-                    <option value="">— Tilldela —</option>
-                    {PERSONAL.map(p => <option key={p} value={p}>{p}</option>)}
-                  </select>
-                </div>
-                <button onClick={laggTillUnderhall} disabled={sparar || !uForm.titel}
-                  style={{ padding: '9px', background: '#E8C96A', border: 'none', borderRadius: 8, color: '#000', fontWeight: 700, cursor: 'pointer', opacity: !uForm.titel ? 0.5 : 1 }}>
-                  {sparar ? 'Sparar...' : 'Lägg till'}
-                </button>
-              </div>
-            )}
-
-            {underhall.length === 0 && !nyUnderhall
-              ? <div style={{ textAlign: 'center', padding: 40, color: '#444' }}>Inga underhållsärenden</div>
-              : underhall.map(u => (
-                <div key={u.id} style={{ background: '#141414', border: `1px solid ${u.status === 'stängd' ? '#1e1e1e' : PRIO_COLOR[u.prioritet] + '33'}`, borderRadius: 10, padding: '12px 16px', marginBottom: 8, opacity: u.status === 'stängd' ? 0.5 : 1 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                        <span>{STATUS_ICON[u.status]}</span>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: '#f2f2f7' }}>{u.titel}</span>
-                        <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: PRIO_COLOR[u.prioritet] + '22', color: PRIO_COLOR[u.prioritet] }}>{u.prioritet}</span>
-                      </div>
-                      {u.beskrivning && <div style={{ fontSize: 11, color: '#636366', marginTop: 4, marginLeft: 22 }}>{u.beskrivning}</div>}
-                      {u.assignad_till && <div style={{ fontSize: 11, color: '#aeaeb2', marginTop: 4, marginLeft: 22 }}>→ {u.assignad_till}</div>}
-                    </div>
-                    <div style={{ display: 'flex', gap: 6, marginLeft: 10 }}>
-                      {u.status === 'öppen' && <SBtn label="Påbörja" color="#fb923c" onClick={() => byttStatus(u.id, 'pågående')} />}
-                      {u.status === 'pågående' && <SBtn label="Stäng" color="#4ade80" onClick={() => byttStatus(u.id, 'stängd')} />}
-                      {u.status === 'stängd' && <SBtn label="Öppna" color="#60a5fa" onClick={() => byttStatus(u.id, 'öppen')} />}
-                    </div>
-                  </div>
-                </div>
-              ))
-            }
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function SBtn({ label, color, onClick }: { label: string; color: string; onClick: () => void }) {
-  return (
-    <button onClick={onClick} style={{ fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 6, border: `1px solid ${color}44`, background: color + '11', color, cursor: 'pointer' }}>
-      {label}
-    </button>
-  )
-}
-
-// ─── Modal ────────────────────────────────────────────────────────────────────
-function FastighetModal({ fastighet, onClose, onSaved }: { fastighet: Fastighet | null; onClose: () => void; onSaved: () => void }) {
-  const [form, setForm] = useState({ namn: fastighet?.namn || '', adress: fastighet?.adress || '', postnummer: fastighet?.postnummer || '', ort: fastighet?.ort || '', beteckning: fastighet?.beteckning || '', anteckningar: fastighet?.anteckningar || '' })
-  const [saving, setSaving] = useState(false)
-  const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
-
-  const spara = async () => {
-    if (!form.namn || !form.adress) return
-    setSaving(true)
-    const sb = createClient()
-    const payload = { ...form, postnummer: form.postnummer || null, ort: form.ort || null, beteckning: form.beteckning || null, anteckningar: form.anteckningar || null }
-    if (fastighet) await sb.from('fastigheter').update(payload).eq('id', fastighet.id)
-    else await sb.from('fastigheter').insert(payload)
-    setSaving(false)
-    onSaved()
-  }
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
-      onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 14, width: '100%', maxWidth: 500 }}>
-        <div style={{ padding: '18px 22px', borderBottom: '1px solid #222', display: 'flex', justifyContent: 'space-between' }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#e0e0e0' }}>{fastighet ? 'Redigera fastighet' : 'Ny fastighet'}</div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#666', fontSize: 20, cursor: 'pointer' }}>×</button>
-        </div>
-        <div style={{ padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {[['NAMN *', 'namn', 'Vägmästarvägen 7'], ['FASTIGHETSBETECKNING', 'beteckning', 't.ex. Indelningen 1:1']].map(([lbl, key, ph]) => (
-            <div key={key}>
-              <label style={{ fontSize: 11, fontWeight: 600, color: '#555', display: 'block', marginBottom: 5 }}>{lbl}</label>
-              <input style={inp} value={(form as any)[key]} placeholder={ph} onChange={e => set(key, e.target.value)} onFocus={fo} onBlur={fb} />
-            </div>
-          ))}
-          <div>
-            <label style={{ fontSize: 11, fontWeight: 600, color: '#555', display: 'block', marginBottom: 5 }}>ADRESS *</label>
-            <AdressInput
-              value={form.adress}
-              onChange={v => set('adress', v)}
-              onPick={(adress, postnummer, ort) => setForm(f => ({ ...f, adress, postnummer: postnummer || f.postnummer, ort: ort || f.ort }))}
-              style={inp}
-              onFocus={fo}
-              onBlur={fb}
+        <>
+          {/* KPI-kort rad 1 */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
+            <StatCard
+              title="Totalt lokaler"
+              value={data?.totalLokaler ?? 0}
+              subtitle={`${data?.ledigaLokaler ?? 0} lediga`}
+              icon="🚪"
+            />
+            <StatCard
+              title={hasYtadata ? 'Vakansgrad (yta)' : 'Vakansgrad (antal)'}
+              value={hasYtadata ? `${vakansgrad}%` : `${(100 - (data?.belaggningsgrad ?? 0)).toFixed(1)}%`}
+              subtitle={hasYtadata
+                ? `${fmtKvm(data?.totalVakantYta ?? 0)} vakant av ${fmtKvm(data?.totalLOA ?? 0)}`
+                : `${data?.ledigaLokaler ?? 0} av ${data?.totalLokaler ?? 0} lokaler`}
+              icon="📉"
+              highlight={vakansgrad <= 5 ? 'green' : vakansgrad <= 15 ? 'gold' : 'red'}
+            />
+            <StatCard
+              title="Hyresintäkt/månad"
+              value={formatSEK(data?.totalHyraPerManad ?? 0)}
+              subtitle={`${formatSEK((data?.totalHyraPerManad ?? 0) * 12)}/år`}
+              icon="🧾"
+            />
+            <StatCard
+              title="Aktiva hyresgäster"
+              value={data?.aktiva_hyresgaster ?? 0}
+              subtitle="Med aktiva avtal"
+              icon="👥"
             />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 10 }}>
-            {[['POSTNUMMER', 'postnummer'], ['ORT', 'ort']].map(([lbl, key]) => (
-              <div key={key}>
-                <label style={{ fontSize: 11, fontWeight: 600, color: '#555', display: 'block', marginBottom: 5 }}>{lbl}</label>
-                <input style={inp} value={(form as any)[key]} onChange={e => set(key, e.target.value)} onFocus={fo} onBlur={fb} />
+
+          {/* Vakans sammanfattning (ytabaserad) */}
+          {hasYtadata && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
+              <div style={{ borderRadius: 12, border: `1px solid ${C.borderSoft}`, background: C.panel, padding: 18 }}>
+                <p style={{ fontSize: 11, fontWeight: 600, color: C.muted2, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4, marginTop: 0 }}>Total yta BTA</p>
+                <p style={{ fontSize: 22, fontWeight: 700, color: C.text, margin: 0 }}>{fmtKvm(data?.totalBTA ?? 0)}</p>
+                <p style={{ fontSize: 12, color: C.muted2, marginTop: 2, marginBottom: 0 }}>Bruttoarea alla byggnader</p>
               </div>
-            ))}
+              <div style={{ borderRadius: 12, border: `1px solid ${C.borderSoft}`, background: C.panel, padding: 18 }}>
+                <p style={{ fontSize: 11, fontWeight: 600, color: C.muted2, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4, marginTop: 0 }}>Uthyrbar yta LOA</p>
+                <p style={{ fontSize: 22, fontWeight: 700, color: C.text, margin: 0 }}>{fmtKvm(data?.totalLOA ?? 0)}</p>
+                <p style={{ fontSize: 12, color: C.muted2, marginTop: 2, marginBottom: 0 }}>{fmtKvm(data?.totalUthyrdYta ?? 0)} uthyrd · {fmtKvm(data?.totalVakantYta ?? 0)} vakant</p>
+              </div>
+              <div style={{ borderRadius: 12, border: `1px solid ${(data?.totalForloradHyra ?? 0) > 0 ? 'rgba(248,113,113,0.3)' : C.borderSoft}`, background: (data?.totalForloradHyra ?? 0) > 0 ? 'rgba(248,113,113,0.06)' : C.panel, padding: 18 }}>
+                <p style={{ fontSize: 11, fontWeight: 600, color: C.muted2, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4, marginTop: 0 }}>Estimerad förlorad hyra</p>
+                <p style={{ fontSize: 22, fontWeight: 700, color: (data?.totalForloradHyra ?? 0) > 0 ? C.danger : C.text, margin: 0 }}>
+                  {formatSEK(data?.totalForloradHyra ?? 0)}
+                </p>
+                <p style={{ fontSize: 12, color: C.muted2, marginTop: 2, marginBottom: 0 }}>{formatSEK((data?.totalForloradHyra ?? 0) * 12)}/år · Lediga lokalers bashyra</p>
+              </div>
+            </div>
+          )}
+
+          {/* Vakans per fastighet */}
+          {vakansPerFastighet.length > 0 && (
+            <div style={{ borderRadius: 12, border: `1px solid ${C.borderSoft}`, background: C.panel, overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', borderBottom: `1px solid ${C.borderSoft}` }}>
+                <div style={{ borderRadius: 8, background: C.goldSoft, padding: 8, fontSize: 15, lineHeight: 1 }}>📐</div>
+                <h3 style={{ fontWeight: 600, color: C.text, margin: 0, fontSize: 15 }}>Vakans per fastighet</h3>
+              </div>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: C.panel2, borderBottom: `1px solid ${C.borderSoft}` }}>
+                      <th style={th}>Fastighet</th>
+                      <th style={thR}>Lokaler</th>
+                      {hasYtadata && <th style={thR}>BTA</th>}
+                      {hasYtadata && <th style={thR}>LOA</th>}
+                      {hasYtadata && <th style={thR}>Uthyrd yta</th>}
+                      {hasYtadata && <th style={thR}>Vakant yta</th>}
+                      <th style={{ ...th, minWidth: 140 }}>Vakansgrad</th>
+                      <th style={thR}>Est. förlorad hyra</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {vakansPerFastighet.map(f => (
+                      <tr key={f.fastighetId} style={{ borderBottom: `1px solid ${C.borderSoft}` }}>
+                        <td style={td}>
+                          <p style={{ fontWeight: 500, color: C.text, margin: 0 }}>{f.fastighetNamn}</p>
+                          {f.antalByggnader > 0 && (
+                            <p style={{ fontSize: 12, color: C.muted2, margin: 0 }}>{f.antalByggnader} {f.antalByggnader === 1 ? 'byggnad' : 'byggnader'}</p>
+                          )}
+                        </td>
+                        <td style={{ ...tdR, color: C.muted }}>
+                          <span>{f.uthyrdYta > 0 ? f.antalLokaler - f.ledigaLokaler : '–'}/{f.antalLokaler}</span>
+                          {f.ledigaLokaler > 0 && (
+                            <span style={{ marginLeft: 4, fontSize: 12, color: C.danger }}>({f.ledigaLokaler} ledig)</span>
+                          )}
+                        </td>
+                        {hasYtadata && <td style={{ ...tdR, color: C.muted2 }}>{f.totalBTA > 0 ? fmtKvm(f.totalBTA) : '–'}</td>}
+                        {hasYtadata && <td style={{ ...tdR, color: C.muted }}>{f.uthyrbarYta > 0 ? fmtKvm(f.uthyrbarYta) : '–'}</td>}
+                        {hasYtadata && <td style={{ ...tdR, color: C.muted }}>{f.uthyrdYta > 0 ? fmtKvm(f.uthyrdYta) : '–'}</td>}
+                        {hasYtadata && (
+                          <td style={tdR}>
+                            {f.vakantYta > 0 ? <span style={{ color: C.danger, fontWeight: 500 }}>{fmtKvm(f.vakantYta)}</span> : <span style={{ color: C.ok }}>–</span>}
+                          </td>
+                        )}
+                        <td style={td}>
+                          {f.uthyrbarYta > 0
+                            ? <VakansBar pct={f.vakansgrad} />
+                            : <span style={{ fontSize: 12, color: C.muted2 }}>Ingen ytadata</span>}
+                        </td>
+                        <td style={tdR}>
+                          {f.forloradHyra > 0
+                            ? <span style={{ color: C.danger, fontWeight: 500 }}>{formatSEK(f.forloradHyra)}<br /><span style={{ fontSize: 11, fontWeight: 400, color: 'rgba(248,113,113,0.7)' }}>{formatSEK(f.forloradHyra * 12)}/år</span></span>
+                            : <span style={{ color: C.ok, fontSize: 12 }}>–</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  {vakansPerFastighet.length > 1 && (
+                    <tfoot>
+                      <tr style={{ borderTop: `1px solid ${C.borderStrong}`, background: C.panel2, fontWeight: 600, color: C.text2 }}>
+                        <td style={{ ...td, fontWeight: 600, color: C.text }}>Totalt</td>
+                        <td style={tdR}>{data?.uthyrdaLokaler}/{data?.totalLokaler}</td>
+                        {hasYtadata && <td style={{ ...tdR, color: C.muted2 }}>{(data?.totalBTA ?? 0) > 0 ? fmtKvm(data!.totalBTA) : '–'}</td>}
+                        {hasYtadata && <td style={tdR}>{fmtKvm(data?.totalLOA ?? 0)}</td>}
+                        {hasYtadata && <td style={tdR}>{fmtKvm(data?.totalUthyrdYta ?? 0)}</td>}
+                        {hasYtadata && <td style={{ ...tdR, color: C.danger }}>{(data?.totalVakantYta ?? 0) > 0 ? fmtKvm(data!.totalVakantYta) : '–'}</td>}
+                        <td style={td}><VakansBar pct={data?.totalVakansgrad ?? 0} /></td>
+                        <td style={{ ...tdR, color: C.danger }}>{(data?.totalForloradHyra ?? 0) > 0 ? <>{formatSEK(data!.totalForloradHyra)}<br /><span style={{ fontSize: 11, fontWeight: 400, color: 'rgba(248,113,113,0.7)' }}>{formatSEK(data!.totalForloradHyra * 12)}/år</span></> : '–'}</td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Nedre rad: Ekonomi + Kommande avtal */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
+            {/* Ekonomi */}
+            <div style={{ borderRadius: 12, border: `1px solid ${C.borderSoft}`, background: C.panel, padding: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                <div style={{ borderRadius: 8, background: C.goldSoft, padding: 8, fontSize: 16, lineHeight: 1 }}>🧾</div>
+                <h3 style={{ fontWeight: 600, color: C.text, margin: 0, fontSize: 15 }}>Ekonomi (innevarande månad)</h3>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                  <span style={{ color: C.muted }}>Hyresintäkter</span>
+                  <span style={{ fontWeight: 500, color: C.ok }}>{formatSEK(data?.totalHyraPerManad ?? 0)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                  <span style={{ color: C.muted }}>Driftskostnader</span>
+                  <span style={{ fontWeight: 500, color: C.danger }}>{formatSEK(data?.driftskostnaderManad ?? 0)}</span>
+                </div>
+                {(data?.totalForloradHyra ?? 0) > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                    <span style={{ color: C.muted2 }}>Förlorad hyra (vakans)</span>
+                    <span style={{ fontWeight: 500, color: C.warn }}>−{formatSEK(data?.totalForloradHyra ?? 0)}</span>
+                  </div>
+                )}
+                <div style={{ borderTop: `1px solid ${C.borderSoft}`, paddingTop: 12, display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 600 }}>
+                  <span style={{ color: C.text2 }}>Netto</span>
+                  <span style={{ color: (data?.totalHyraPerManad ?? 0) > (data?.driftskostnaderManad ?? 0) ? C.ok : C.danger }}>
+                    {formatSEK((data?.totalHyraPerManad ?? 0) - (data?.driftskostnaderManad ?? 0))}
+                  </span>
+                </div>
+                {(data?.obetalda ?? 0) > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderRadius: 8, background: 'rgba(248,113,113,0.08)', padding: '8px 12px', marginTop: 4 }}>
+                    <span style={{ fontSize: 13 }}>⚠️</span>
+                    <span style={{ fontSize: 13, color: C.danger }}>{data?.obetalda} obetalda fakturor</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Kommande avtal */}
+            <div style={{ borderRadius: 12, border: `1px solid ${C.borderSoft}`, background: C.panel, padding: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                <div style={{ borderRadius: 8, background: C.goldSoft, padding: 8, fontSize: 16, lineHeight: 1 }}>📅</div>
+                <h3 style={{ fontWeight: 600, color: C.text, margin: 0, fontSize: 15 }}>Avtal som löper ut</h3>
+                <span style={{ fontSize: 12, color: C.muted2 }}>inom 12 månader</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {(data?.kommandeAvtal ?? []).length === 0 ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderRadius: 8, background: 'rgba(74,222,128,0.08)', padding: '8px 12px' }}>
+                    <div style={{ height: 8, width: 8, borderRadius: 999, background: C.ok }} />
+                    <span style={{ fontSize: 13, color: C.ok }}>Inga avtal löper ut inom 12 månader</span>
+                  </div>
+                ) : (
+                  (data?.kommandeAvtal ?? []).map(a => {
+                    const days = daysUntil(a.slutdatum)
+                    const uppMån = a.uppsagningstidHG ?? a.uppsagningstid ?? 9
+                    const uppDagar = uppMån * 30
+                    const uppsagningDeadline = days - uppDagar
+                    const isAkut = days <= 90
+                    const isUppDeadline = uppsagningDeadline <= 30 && uppsagningDeadline > 0
+                    const isPasserad = uppsagningDeadline <= 0
+                    const hyra = a.arshyra ?? a.bashyra * 12
+
+                    const cardBg = isPasserad ? 'rgba(248,113,113,0.08)'
+                      : isAkut ? 'rgba(251,146,60,0.08)'
+                      : isUppDeadline ? C.goldSoft
+                      : C.field
+                    const cardBorder = isPasserad ? 'rgba(248,113,113,0.3)'
+                      : isAkut ? 'rgba(251,146,60,0.3)'
+                      : isUppDeadline ? 'rgba(232,201,106,0.3)'
+                      : C.borderSoft
+
+                    return (
+                      <div key={a.id} style={{ borderRadius: 8, padding: '12px 16px', background: cardBg, border: `1px solid ${cardBorder}` }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+                          <div style={{ minWidth: 0 }}>
+                            <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: 0 }}>{a.hyresgast.namn}</p>
+                            <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>{a.lokaler[0]?.lokal.fastighet.namn} – {a.lokaler.map(l => l.lokal.namn).join(', ')}</p>
+                            <p style={{ fontSize: 12, color: C.muted2, marginTop: 2, marginBottom: 0 }}>{formatSEK(hyra)}/år</p>
+                          </div>
+                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                            <p style={{ fontSize: 13, fontWeight: 700, color: C.text, margin: 0 }}>{formatDate(a.slutdatum)}</p>
+                            <p style={{ fontSize: 12, fontWeight: 500, color: isAkut ? C.warn : C.muted, margin: 0 }}>{days} dagar kvar</p>
+                          </div>
+                        </div>
+                        {(isPasserad || isUppDeadline) && (
+                          <div style={{ marginTop: 8, borderRadius: 6, padding: '4px 8px', fontSize: 12, fontWeight: 500, background: isPasserad ? 'rgba(248,113,113,0.15)' : C.goldSoft, color: isPasserad ? C.danger : C.gold }}>
+                            {isPasserad
+                              ? `⚠ Uppsägningstid (${uppMån} mån) har passerat — avtalet förlängs om inget görs`
+                              : `Uppsägningstid (${uppMån} mån) — senast ${Math.abs(uppsagningDeadline)} dagar kvar att agera`}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+            </div>
           </div>
-          <div>
-            <label style={{ fontSize: 11, fontWeight: 600, color: '#555', display: 'block', marginBottom: 5 }}>ANTECKNINGAR</label>
-            <textarea style={{ ...inp, minHeight: 80, resize: 'vertical' }} value={form.anteckningar} onChange={e => set('anteckningar', e.target.value)} onFocus={fo} onBlur={fb} />
-          </div>
-        </div>
-        <div style={{ padding: '14px 22px', borderTop: '1px solid #222', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button onClick={onClose} style={{ padding: '9px 20px', background: 'none', border: '1px solid #2a2a2a', borderRadius: 8, color: '#888', cursor: 'pointer', fontSize: 13 }}>Avbryt</button>
-          <button onClick={spara} disabled={saving || !form.namn || !form.adress}
-            style={{ padding: '9px 24px', background: '#E8C96A', border: 'none', borderRadius: 8, color: '#000', fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: !form.namn || !form.adress ? 0.5 : 1 }}>
-            {saving ? 'Sparar...' : 'Spara'}
-          </button>
-        </div>
-      </div>
+        </>
+      )}
     </div>
   )
 }
