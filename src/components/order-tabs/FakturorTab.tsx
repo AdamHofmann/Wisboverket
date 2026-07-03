@@ -8,6 +8,7 @@ type Faktura = {
   id: string; fakturanummer: string; typ: string; status: string
   fakturadatum: string; totalt: number; subtotal: number; moms_belopp: number
   kund_namn: string | null; kund_epost: string | null; referens: string | null; original_faktura_id: string | null
+  hogia_faktura_id: string | null; hogia_synkad_at: string | null
   rader: Array<{ typ: string; desc: string; antal: number; apris: number; enhet: string; belopp: number }>
 }
 
@@ -21,7 +22,8 @@ export default function FakturorTab({ orderId }: { orderId: string }) {
   const [kreditModal, setKreditModal] = useState<Faktura | null>(null)
   const [kreditBelopp, setKreditBelopp] = useState('')
   const [kreditMode, setKreditMode] = useState<'belopp' | 'rader'>('belopp')
-  const [valdaRader, setValdaRader] = useState<Record<number, boolean>>({})
+  // Antal att kreditera per rad-index (delkreditering, t.ex. 3h av 8h)
+  const [kreditAntal, setKreditAntal] = useState<Record<number, string>>({})
   const [sparar, setSparar] = useState(false)
 
   const fetchFakturor = async () => {
@@ -50,10 +52,18 @@ export default function FakturorTab({ orderId }: { orderId: string }) {
       kreditRader = [{ typ: 'rad', desc: 'Kreditering', antal: 1, apris: -netto, enhet: 'st', belopp: -netto }]
       kreditTotalt = -tot
     } else {
-      const rader = kreditModal.rader.filter((_, i) => valdaRader[i])
-      kreditRader = rader.map(r => ({ ...r, apris: -r.apris, belopp: -r.belopp }))
+      const radRader = kreditModal.rader.filter(r => r.typ === 'rad')
+      kreditRader = radRader
+        .map((r, i) => {
+          const antal = Math.min(Math.max(parseFloat(kreditAntal[i] || '0') || 0, 0), r.antal)
+          if (antal <= 0) return null
+          const belopp = antal * r.apris
+          return { typ: 'rad', desc: `${r.desc} (kreditering)`, antal, apris: -r.apris, enhet: r.enhet, belopp: -belopp }
+        })
+        .filter(Boolean) as Faktura['rader']
       kreditTotalt = -(kreditRader.reduce((s, r) => s + Math.abs(r.belopp), 0) * 1.25)
     }
+    if (kreditRader.length === 0 || kreditTotalt === 0) { setSparar(false); return }
 
     const isFullKredit = Math.abs(kreditTotalt) >= kreditModal.totalt * 0.99
 
@@ -74,7 +84,7 @@ export default function FakturorTab({ orderId }: { orderId: string }) {
     // Uppdatera original
     await sb.from('fakturor').update({ status: isFullKredit ? 'krediterad' : 'delkrediterad' }).eq('id', kreditModal.id)
 
-    setKreditModal(null); setSparar(false); setKreditBelopp(''); setValdaRader({})
+    setKreditModal(null); setSparar(false); setKreditBelopp(''); setKreditAntal({})
     fetchFakturor()
   }
 
@@ -124,7 +134,7 @@ export default function FakturorTab({ orderId }: { orderId: string }) {
                     Markera betald
                   </button>
                 )}
-                <button onClick={() => { setKreditModal(f); setValdaRader({}) }} style={{ fontSize: 11, fontWeight: 700, padding: '5px 12px', borderRadius: 6, border: '1px solid #f8717144', background: '#f8717111', color: '#f87171', cursor: 'pointer' }}>
+                <button onClick={() => { setKreditModal(f); setKreditAntal({}); setKreditBelopp(''); setKreditMode('belopp') }} style={{ fontSize: 11, fontWeight: 700, padding: '5px 12px', borderRadius: 6, border: '1px solid #f8717144', background: '#f8717111', color: '#f87171', cursor: 'pointer' }}>
                   Kreditera
                 </button>
               </div>
@@ -164,20 +174,49 @@ export default function FakturorTab({ orderId }: { orderId: string }) {
                     onFocus={e => e.currentTarget.style.borderColor = '#f87171'}
                     onBlur={e => e.currentTarget.style.borderColor = '#2a2a2a'} />
                 </div>
-              ) : (
+              ) : (() => {
+                const radRader = kreditModal.rader.filter(r => r.typ === 'rad')
+                const clamp = (i: number, max: number) => Math.min(Math.max(parseFloat(kreditAntal[i] || '0') || 0, 0), max)
+                const netto = radRader.reduce((s, r, i) => s + clamp(i, r.antal) * r.apris, 0)
+                const moms = netto * 0.25
+                const total = netto + moms
+                return (
                 <div>
-                  {kreditModal.rader.filter(r => r.typ === 'rad').map((r, i) => (
-                    <label key={i} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #1e1e1e', cursor: 'pointer' }}>
-                      <input type="checkbox" checked={!!valdaRader[i]} onChange={e => setValdaRader(prev => ({ ...prev, [i]: e.target.checked }))} />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 12, color: '#d0d0d0' }}>{r.desc}</div>
-                        <div style={{ fontSize: 11, color: '#555' }}>{r.antal} {r.enhet} × {fmtKr(r.apris)}</div>
+                  <div style={{ fontSize: 11, color: '#666', marginBottom: 14 }}>Ange hur mycket av varje rad som ska krediteras (t.ex. 3 av 8 tim).</div>
+                  {radRader.map((r, i) => {
+                    const antal = clamp(i, r.antal)
+                    return (
+                      <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #1e1e1e' }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, color: '#d0d0d0' }}>{r.desc}</div>
+                          <div style={{ fontSize: 11, color: '#555', marginTop: 2 }}>{r.antal} {r.enhet} × {fmtKr(r.apris)}</div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <input type="number" min="0" max={r.antal} step="0.5" value={kreditAntal[i] ?? ''} placeholder="0"
+                            onChange={e => setKreditAntal(prev => ({ ...prev, [i]: e.target.value }))}
+                            style={{ width: 60, background: '#111', border: '1px solid #2a2a2a', borderRadius: 6, padding: '7px 8px', color: '#e0e0e0', fontSize: 13, outline: 'none', textAlign: 'right' as const }}
+                            onFocus={e => e.currentTarget.style.borderColor = '#f87171'} onBlur={e => e.currentTarget.style.borderColor = '#2a2a2a'} />
+                          <span style={{ fontSize: 11, color: '#555', minWidth: 54 }}>av {r.antal} {r.enhet}</span>
+                        </div>
+                        <div style={{ minWidth: 90, textAlign: 'right' as const }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: antal > 0 ? '#f87171' : '#555' }}>−{fmtKr(antal * r.apris)}</div>
+                          <div style={{ fontSize: 10, color: '#555', marginTop: 1 }}>ex moms</div>
+                        </div>
                       </div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: valdaRader[i] ? '#f87171' : '#555' }}>−{fmtKr(Math.abs(r.belopp) * 1.25)}</div>
-                    </label>
-                  ))}
+                    )
+                  })}
+                  <button onClick={() => { const full: Record<number, string> = {}; radRader.forEach((r, i) => { full[i] = String(r.antal) }); setKreditAntal(full) }}
+                    style={{ marginTop: 14, background: 'none', border: '1px dashed #2a2a2a', borderRadius: 6, padding: '8px', width: '100%', color: '#666', fontSize: 11, cursor: 'pointer' }}>
+                    Fyll i hela fakturan
+                  </button>
+                  <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid #222' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#888', marginBottom: 6 }}><span>Netto (ex moms)</span><span>−{fmtKr(Math.abs(netto))}</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#888', marginBottom: 8 }}><span>Moms 25%</span><span>−{fmtKr(Math.abs(moms))}</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: 700, color: '#f87171' }}><span>Att kreditera</span><span>−{fmtKr(Math.abs(total))}</span></div>
+                  </div>
                 </div>
-              )}
+                )
+              })()}
             </div>
             <div style={{ padding: '14px 22px', borderTop: '1px solid #222', display: 'flex', gap: 8 }}>
               <button onClick={() => setKreditModal(null)} style={{ flex: 1, padding: '9px', background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 8, color: '#888', cursor: 'pointer', fontSize: 13 }}>Avbryt</button>
@@ -194,12 +233,22 @@ export default function FakturorTab({ orderId }: { orderId: string }) {
 
 // ─── Faktura PDF-liknande vy ────────────────────────────────────────────────
 export type { Faktura }
-export function FakturaVy({ faktura: f, onClose }: { faktura: Faktura; onClose: () => void }) {
+export function FakturaVy({ faktura: f, autoSend, onClose }: { faktura: Faktura; autoSend?: boolean; onClose: () => void }) {
   const [emailSent, setEmailSent] = useState(false)
+  const [hogiaSynkar, setHogiaSynkar] = useState(false)
+  const [hogiaFel, setHogiaFel] = useState('')
 
-  const hogiaSync = () => {
-    // TODO: POST till /api/hogia/faktura när integrationen är klar
-    alert('Hogia-integration kommer i nästa fas. Fakturanummer: ' + f.fakturanummer)
+  const hogiaSync = async () => {
+    setHogiaSynkar(true); setHogiaFel('')
+    try {
+      const res = await fetch('/api/hogia', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ typ: 'faktura', id: f.id }) })
+      const data = await res.json()
+      if (!res.ok || !data.ok) setHogiaFel(data.error || 'Synk misslyckades')
+    } catch {
+      setHogiaFel('Kunde inte nå synk-tjänsten')
+    } finally {
+      setHogiaSynkar(false)
+    }
   }
 
   const print = () => window.print()
@@ -229,7 +278,15 @@ info@wisboverket.se
     }, 400)
   }
 
-  const rader = f.rader.filter(r => r.typ === 'rad')
+  // "Skapa & skicka": öppna skicka-flödet automatiskt när vyn öppnas
+  useEffect(() => {
+    if (!autoSend) return
+    const t = setTimeout(() => skickaMedPDF(), 600)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const rader = f.rader.filter(r => r.typ === 'rad' || r.typ === 'rubrik')
   const forfallo = f.fakturadatum
     ? new Date(new Date(f.fakturadatum).getTime() + 30 * 86400000).toLocaleDateString('sv-SE')
     : '—'
@@ -245,9 +302,13 @@ info@wisboverket.se
         <span style={{ fontSize: 12, color: '#636366', marginLeft: 4 }}>{f.kund_namn || '—'}</span>
         <div style={{ flex: 1 }} />
         {emailSent && <span style={{ fontSize: 11, color: '#4ade80', fontWeight: 600, marginRight: 4 }}>✓ PDF och e-postklient öppnade!</span>}
-        <button onClick={hogiaSync}
-          style={{ padding: '7px 16px', borderRadius: 8, border: '1px solid #4ade8044', background: '#4ade8011', color: '#4ade80', fontWeight: 700, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-          🔗 Synka med Hogia
+        <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 10, background: (f.hogia_synkad_at ? '#4ade80' : '#666') + '1a', color: f.hogia_synkad_at ? '#4ade80' : '#8e8e93', border: `1px solid ${f.hogia_synkad_at ? '#4ade80' : '#666'}44` }}>
+          {f.hogia_synkad_at ? 'Synkad' : 'Ej synkad'}
+        </span>
+        {hogiaFel && <span style={{ fontSize: 11, color: '#fb923c', maxWidth: 260 }}>{hogiaFel}</span>}
+        <button onClick={hogiaSync} disabled={hogiaSynkar}
+          style={{ padding: '7px 16px', borderRadius: 8, border: '1px solid #4ade8044', background: '#4ade8011', color: '#4ade80', fontWeight: 700, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: hogiaSynkar ? 0.6 : 1 }}>
+          {hogiaSynkar ? '...' : '🔗 Synka med Hogia'}
         </button>
         <button onClick={print}
           style={{ padding: '7px 16px', borderRadius: 8, border: '1px solid #E8C96A44', background: '#E8C96A11', color: '#E8C96A', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
@@ -319,12 +380,18 @@ info@wisboverket.se
 
           {/* Rader */}
           {rader.map((r, i) => (
-            <div key={i} style={{ display: 'grid', gridTemplateColumns: '3fr 80px 90px 90px', gap: 8, padding: '12px 0', borderBottom: '1px solid #f0f0f0' }}>
-              <div style={{ fontSize: 13, fontWeight: 500 }}>{r.desc}</div>
-              <div style={{ fontSize: 13, textAlign: 'right', color: '#555' }}>{r.antal} {r.enhet}</div>
-              <div style={{ fontSize: 13, textAlign: 'right', color: '#555' }}>{r.apris.toLocaleString('sv-SE')} kr</div>
-              <div style={{ fontSize: 13, textAlign: 'right', fontWeight: 600 }}>{Math.abs(r.belopp).toLocaleString('sv-SE')} kr</div>
-            </div>
+            r.typ === 'rubrik' ? (
+              <div key={i} style={{ padding: '14px 0 6px', borderBottom: '1px solid #e5e5e5' }}>
+                <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 0.5, color: '#111', textTransform: 'capitalize' }}>{r.desc}</div>
+              </div>
+            ) : (
+              <div key={i} style={{ display: 'grid', gridTemplateColumns: '3fr 80px 90px 90px', gap: 8, padding: '12px 0', borderBottom: '1px solid #f0f0f0' }}>
+                <div style={{ fontSize: 13, fontWeight: 500 }}>{r.desc}</div>
+                <div style={{ fontSize: 13, textAlign: 'right', color: '#555' }}>{r.antal} {r.enhet}</div>
+                <div style={{ fontSize: 13, textAlign: 'right', color: '#555' }}>{r.apris.toLocaleString('sv-SE')} kr</div>
+                <div style={{ fontSize: 13, textAlign: 'right', fontWeight: 600 }}>{Math.abs(r.belopp).toLocaleString('sv-SE')} kr</div>
+              </div>
+            )
           ))}
 
           {/* Summering */}

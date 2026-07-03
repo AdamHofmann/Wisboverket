@@ -277,7 +277,7 @@ export default function OrderDetailPage() {
         )}
 
         {tab === 'offert' && <OffertTab orderId={order.id} />}
-        {tab === 'tid' && <TidFaktureringTab orderId={order.id} />}
+        {tab === 'tid' && <TidFaktureringTab orderId={order.id} onUpdated={fetchAll} />}
         {tab === 'inkop' && <InkopTab orderId={order.id} />}
         {tab === 'ekonomi' && <EkonomiTab orderId={order.id} faktureradeBelopp={order.fakturerat_belopp} />}
         {tab === 'fakturor' && <FakturorTab orderId={order.id} />}

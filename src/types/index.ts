@@ -21,6 +21,10 @@ export type Customer = {
   orgnummer: string | null
   betalvillkor: number | null
   anteckningar: string | null
+  leveranssatt: 'brev' | 'epost' | 'peppol'
+  peppol_id: string | null
+  hogia_kund_id: string | null
+  hogia_synkad_at: string | null
   created_at: string
   updated_at: string
 }
@@ -56,7 +60,10 @@ export type Article = {
   enhet: string
   moms_procent: number
   bokforing_konto: string | null
+  konto: string | null
+  momssats: number
   hogia_artikel_id: string | null
+  hogia_synkad_at: string | null
   aktiv: boolean
   created_at: string
 }
@@ -143,6 +150,7 @@ export type Invoice = {
   moms: number
   total_incl_moms: number
   hogia_faktura_id: string | null
+  hogia_synkad_at: string | null
   created_by: string | null
   created_at: string
   customer?: Customer

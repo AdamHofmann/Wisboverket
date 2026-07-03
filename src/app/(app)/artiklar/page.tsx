@@ -3,14 +3,14 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
-type Artikel = { id: string; artikelnummer: string | null; namn: string; enhet: string; a_pris: number; kostnad_per_enhet: number; kategori: string | null; aktiv: boolean }
+type Artikel = { id: string; artikelnummer: string | null; namn: string; enhet: string; a_pris: number; kostnad_per_enhet: number; kategori: string | null; aktiv: boolean; konto: string | null; momssats: number; hogia_artikel_id: string | null; hogia_synkad_at: string | null }
 
 const KATEGORIER = ['bemanning', 'fordon', 'material', 'restid', 'tillagg']
 const KAT_LABEL: Record<string, string> = { bemanning: 'Bemanning', fordon: 'Fordon', material: 'Material', restid: 'Restid', tillagg: 'Tillägg' }
 
 const fmtKr = (n: number) => n.toLocaleString('sv-SE', { minimumFractionDigits: 0 }) + ' kr'
 
-const EMPTY = { artikelnummer: '', namn: '', enhet: 'tim', a_pris: 0, kostnad_per_enhet: 0, kategori: 'bemanning', aktiv: true }
+const EMPTY = { artikelnummer: '', namn: '', enhet: 'tim', a_pris: 0, kostnad_per_enhet: 0, kategori: 'bemanning', aktiv: true, konto: '', momssats: 25 }
 
 export default function ArtikalarPage() {
   const [artiklar, setArtiklar] = useState<Artikel[]>([])
@@ -30,6 +30,15 @@ export default function ArtikalarPage() {
   const toggleAktiv = async (a: Artikel) => {
     await createClient().from('artiklar').update({ aktiv: !a.aktiv }).eq('id', a.id)
     fetch()
+  }
+
+  // Nästa lediga artikelnummer (A + löpnummer, baserat på befintliga)
+  const nastaArtikelnummer = () => {
+    const max = artiklar.reduce((m, a) => {
+      const n = /^A(\d+)$/i.exec(a.artikelnummer || '')
+      return n ? Math.max(m, parseInt(n[1], 10)) : m
+    }, 0)
+    return 'A' + String(max + 1).padStart(3, '0')
   }
 
   const grouped = KATEGORIER.reduce((acc, k) => {
@@ -71,7 +80,11 @@ export default function ArtikalarPage() {
                       const marginal = a.a_pris > 0 ? ((a.a_pris - a.kostnad_per_enhet) / a.a_pris) * 100 : 0
                       const margFarg = marginal >= 30 ? '#4ade80' : marginal >= 15 ? '#fb923c' : '#f87171'
                       return (
-                        <tr key={a.id} style={{ opacity: a.aktiv ? 1 : 0.4 }}>
+                        <tr key={a.id}
+                          onClick={() => { setEdit(a); setNewArtikel(false); setShowModal(true) }}
+                          style={{ opacity: a.aktiv ? 1 : 0.4, cursor: 'pointer' }}
+                          onMouseEnter={e => (e.currentTarget.style.background = '#1a1a1a')}
+                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
                           <td style={{ padding: '11px 14px', borderBottom: '1px solid #1a1a1a', fontSize: 13, color: '#d0d0d0', verticalAlign: 'middle' as const }}>
                             <div style={{ fontWeight: 600 }}>{a.namn}</div>
                             {a.artikelnummer && <div style={{ fontSize: 11, color: '#555' }}>{a.artikelnummer}</div>}
@@ -81,11 +94,7 @@ export default function ArtikalarPage() {
                           <td style={{ padding: '11px 14px', borderBottom: '1px solid #1a1a1a', fontSize: 13, color: '#f87171', textAlign: 'right' as const }}>{fmtKr(a.kostnad_per_enhet)}</td>
                           <td style={{ padding: '11px 14px', borderBottom: '1px solid #1a1a1a', fontSize: 13, fontWeight: 700, color: margFarg, textAlign: 'right' as const }}>{marginal.toFixed(0)}%</td>
                           <td style={{ padding: '11px 14px', borderBottom: '1px solid #1a1a1a', textAlign: 'right' as const }}>
-                            <button onClick={() => { setEdit(a); setNewArtikel(false); setShowModal(true) }}
-                              style={{ background: 'none', border: '1px solid #2a2a2a', borderRadius: 6, padding: '3px 10px', color: '#888', fontSize: 11, cursor: 'pointer', marginRight: 6 }}>
-                              Redigera
-                            </button>
-                            <button onClick={() => toggleAktiv(a)}
+                            <button onClick={e => { e.stopPropagation(); toggleAktiv(a) }}
                               style={{ background: 'none', border: `1px solid ${a.aktiv ? '#2a2a2a' : '#4ade8044'}`, borderRadius: 6, padding: '3px 10px', color: a.aktiv ? '#555' : '#4ade80', fontSize: 11, cursor: 'pointer' }}>
                               {a.aktiv ? 'Inaktivera' : 'Aktivera'}
                             </button>
@@ -102,14 +111,14 @@ export default function ArtikalarPage() {
       )}
 
       {showModal && (
-        <ArtikelModal artikel={newArtikel ? null : edit} onClose={() => setShowModal(false)} onSaved={() => { fetch(); setShowModal(false) }} />
+        <ArtikelModal artikel={newArtikel ? null : edit} nastaNummer={nastaArtikelnummer()} onClose={() => setShowModal(false)} onSaved={() => { fetch(); setShowModal(false) }} />
       )}
     </div>
   )
 }
 
-function ArtikelModal({ artikel, onClose, onSaved }: { artikel: Artikel | null; onClose: () => void; onSaved: () => void }) {
-  const [form, setForm] = useState(artikel ? { ...artikel } : { ...EMPTY })
+function ArtikelModal({ artikel, nastaNummer, onClose, onSaved }: { artikel: Artikel | null; nastaNummer: string; onClose: () => void; onSaved: () => void }) {
+  const [form, setForm] = useState(artikel ? { ...artikel } : { ...EMPTY, artikelnummer: nastaNummer })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -141,12 +150,19 @@ function ArtikelModal({ artikel, onClose, onSaved }: { artikel: Artikel | null; 
       onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 14, width: '100%', maxWidth: 480 }}>
         <div style={{ padding: '18px 22px', borderBottom: '1px solid #222', display: 'flex', justifyContent: 'space-between' }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#e0e0e0' }}>{artikel ? 'Redigera artikel' : 'Ny artikel'}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#e0e0e0' }}>{artikel ? 'Redigera artikel' : 'Ny artikel'}</div>
+            {artikel && (
+              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: (artikel.hogia_synkad_at ? '#4ade80' : '#666') + '1a', color: artikel.hogia_synkad_at ? '#4ade80' : '#888', border: `1px solid ${artikel.hogia_synkad_at ? '#4ade80' : '#666'}44` }}>
+                {artikel.hogia_synkad_at ? 'Synkad' : 'Ej synkad'}
+              </span>
+            )}
+          </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#666', fontSize: 20, cursor: 'pointer' }}>×</button>
         </div>
         <div style={{ padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <MF label="ARTIKELNUMMER"><input style={inp} value={form.artikelnummer || ''} onChange={e => set('artikelnummer', e.target.value)} placeholder="A001" onFocus={fo} onBlur={fb} /></MF>
+            <MF label="ARTIKELNUMMER"><input style={{ ...inp, color: '#888', cursor: 'not-allowed' }} value={form.artikelnummer || ''} readOnly title="Sätts automatiskt av systemet" /></MF>
             <MF label="KATEGORI">
               <select style={inp} value={form.kategori || 'bemanning'} onChange={e => set('kategori', e.target.value)} onFocus={fo} onBlur={fb}>
                 {KATEGORIER.map(k => <option key={k} value={k}>{KAT_LABEL[k]}</option>)}
@@ -165,6 +181,14 @@ function ArtikelModal({ artikel, onClose, onSaved }: { artikel: Artikel | null; 
           </div>
           <div style={{ background: '#0d0d0d', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#555' }}>
             Marginal: <strong style={{ color: parseFloat(marginal) >= 30 ? '#4ade80' : parseFloat(marginal) >= 15 ? '#fb923c' : '#f87171' }}>{marginal}%</strong>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <MF label="INTÄKTSKONTO"><input style={inp} value={form.konto || ''} onChange={e => set('konto', e.target.value)} placeholder="3010" onFocus={fo} onBlur={fb} /></MF>
+            <MF label="MOMSSATS">
+              <select style={inp} value={form.momssats ?? 25} onChange={e => set('momssats', parseInt(e.target.value))} onFocus={fo} onBlur={fb}>
+                {[25, 12, 6, 0].map(m => <option key={m} value={m}>{m}%</option>)}
+              </select>
+            </MF>
           </div>
           {error && <div style={{ fontSize: 12, color: '#f87171' }}>{error}</div>}
         </div>

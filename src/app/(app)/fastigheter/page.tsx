@@ -120,7 +120,10 @@ export default function FastigheterPage() {
                 </div>
                 <div style={{ background: '#0d0d0d', borderRadius: 8, padding: '8px 10px', border: `1px solid ${(f._tb >= 0 ? '#4ade80' : '#f87171')}33` }}>
                   <div style={{ fontSize: 10, color: '#555', letterSpacing: 1, marginBottom: 3 }}>TB</div>
-                  <div style={{ fontSize: 14, fontWeight: 800, color: f._tb >= 0 ? '#4ade80' : '#f87171' }}>{fmtKr(f._tb)}</div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: f._tb >= 0 ? '#4ade80' : '#f87171' }}>
+                    {fmtKr(f._tb)}
+                    {f._intakt > 0 && <span style={{ fontSize: 11, fontWeight: 600, opacity: 0.75, marginLeft: 5 }}>({((f._tb / f._intakt) * 100).toFixed(0)}%)</span>}
+                  </div>
                 </div>
               </div>
             </div>

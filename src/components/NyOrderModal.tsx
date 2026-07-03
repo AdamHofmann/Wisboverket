@@ -175,6 +175,7 @@ export default function NyOrderModal({ onClose, onSaved, order }: Props) {
   const [nyKund, setNyKund] = useState({
     namn: '', typ: 'företag', telefon: '', epost: '', fakturamail: '',
     orgnummer: '', adress: '', postnummer: '', ort: '', betalvillkor: 30, anteckningar: '',
+    leveranssatt: 'epost', peppol_id: '',
   })
   const [nyKundError, setNyKundError] = useState('')
   const [namnFel, setNamnFel] = useState('')
@@ -280,13 +281,15 @@ export default function NyOrderModal({ onClose, onSaved, order }: Props) {
       ort: nyKund.ort.trim() || null,
       betalvillkor: nyKund.betalvillkor,
       anteckningar: nyKund.anteckningar.trim() || null,
+      leveranssatt: nyKund.leveranssatt,
+      peppol_id: nyKund.leveranssatt === 'peppol' ? (nyKund.peppol_id.trim() || null) : null,
     }).select('id,namn').single()
     if (error) { setNyKundError(error.message); return }
     if (data) {
       await fetchKunder()
       set('customer_id', data.id)
       setShowNyKund(false)
-      setNyKund({ namn: '', typ: 'företag', telefon: '', epost: '', fakturamail: '', orgnummer: '', adress: '', postnummer: '', ort: '', betalvillkor: 30, anteckningar: '' })
+      setNyKund({ namn: '', typ: 'företag', telefon: '', epost: '', fakturamail: '', orgnummer: '', adress: '', postnummer: '', ort: '', betalvillkor: 30, anteckningar: '', leveranssatt: 'epost', peppol_id: '' })
     }
   }
 
@@ -296,8 +299,9 @@ export default function NyOrderModal({ onClose, onSaved, order }: Props) {
     if (!form.titel.trim()) return
     setSaving(true)
     setSaveError('')
+    // status sätts helt automatiskt (ny → klar när tid rapporterats; inaktiv via knapp) — inte i formuläret
     const payload = {
-      titel: form.titel, kategori: form.kategori, status: form.status,
+      titel: form.titel, kategori: form.kategori,
       customer_id: form.customer_id || null,
       fastighet_id: form.fastighet_id || null,
       fastighet: form.fastighet || null, postnummer: form.postnummer || null, ort: form.ort || null,
@@ -316,7 +320,7 @@ export default function NyOrderModal({ onClose, onSaved, order }: Props) {
     }
     const { error } = order
       ? await createClient().from('orders').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', order.id)
-      : await createClient().from('orders').insert(payload)
+      : await createClient().from('orders').insert({ ...payload, status: 'ny' })
     setSaving(false)
     if (error) { setSaveError(error.message) } else { onSaved(); onClose() }
   }
@@ -340,22 +344,11 @@ export default function NyOrderModal({ onClose, onSaved, order }: Props) {
               placeholder="T.ex. Rondering Björkalléen 8" onFocus={fo} onBlur={fb} />
           </div>
 
-          <div style={S.row}>
-            <div style={S.field}>
-              <label style={S.label}>KATEGORI</label>
-              <select style={S.select} value={form.kategori} onChange={e => set('kategori', e.target.value)} onFocus={fo} onBlur={fb}>
-                {KATEGORIER.map(k => <option key={k} value={k}>{k}</option>)}
-              </select>
-            </div>
-            <div style={S.field}>
-              <label style={S.label}>STATUS</label>
-              <select style={S.select} value={form.status} onChange={e => set('status', e.target.value)} onFocus={fo} onBlur={fb}>
-                <option value="ny">Ny</option>
-                <option value="pågående">Pågående</option>
-                <option value="klar">Klar</option>
-                <option value="inaktiv">Inaktiv</option>
-              </select>
-            </div>
+          <div style={S.field}>
+            <label style={S.label}>KATEGORI</label>
+            <select style={S.select} value={form.kategori} onChange={e => set('kategori', e.target.value)} onFocus={fo} onBlur={fb}>
+              {KATEGORIER.map(k => <option key={k} value={k}>{k}</option>)}
+            </select>
           </div>
 
           <div style={{ background: '#111', border: '1px solid #2a2a2a', borderRadius: 10, padding: '14px 16px' }}>
@@ -519,12 +512,30 @@ export default function NyOrderModal({ onClose, onSaved, order }: Props) {
                   </div>
                 </div>
 
-                <div style={S.field}>
-                  <label style={S.label}>BETALVILLKOR</label>
-                  <select style={S.select} value={nyKund.betalvillkor} onChange={e => setNyKund(k => ({ ...k, betalvillkor: parseInt(e.target.value) }))} onFocus={fo} onBlur={fb}>
-                    {[10, 20, 30, 45, 60].map(d => <option key={d} value={d}>{d} dagar</option>)}
-                  </select>
+                <div style={S.miniRow}>
+                  <div style={S.field}>
+                    <label style={S.label}>BETALVILLKOR</label>
+                    <select style={S.select} value={nyKund.betalvillkor} onChange={e => setNyKund(k => ({ ...k, betalvillkor: parseInt(e.target.value) }))} onFocus={fo} onBlur={fb}>
+                      {[10, 20, 30, 45, 60].map(d => <option key={d} value={d}>{d} dagar</option>)}
+                    </select>
+                  </div>
+                  <div style={S.field}>
+                    <label style={S.label}>LEVERANSSÄTT (FAKTURA)</label>
+                    <select style={S.select} value={nyKund.leveranssatt} onChange={e => setNyKund(k => ({ ...k, leveranssatt: e.target.value }))} onFocus={fo} onBlur={fb}>
+                      <option value="brev">Brev</option>
+                      <option value="epost">E-post</option>
+                      <option value="peppol">E-faktura (Peppol)</option>
+                    </select>
+                  </div>
                 </div>
+
+                {nyKund.leveranssatt === 'peppol' && (
+                  <div style={S.field}>
+                    <label style={S.label}>PEPPOL-ID</label>
+                    <input style={S.input} value={nyKund.peppol_id} onChange={e => setNyKund(k => ({ ...k, peppol_id: e.target.value }))}
+                      placeholder="0007:5561234567" onFocus={fo} onBlur={fb} />
+                  </div>
+                )}
 
                 <div style={S.field}>
                   <label style={S.label}>ANTECKNINGAR</label>

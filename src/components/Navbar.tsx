@@ -20,7 +20,7 @@ const ORDER_LINKS = [
   { href: '/fakturering', label: 'Fakturor' },
   { href: '/artiklar', label: 'Artiklar' },
   { href: '/mal', label: 'Mål' },
-  { href: '/anvandare', label: 'Användare' },
+  { href: '/installningar', label: 'Inställningar' },
 ]
 
 const S: Record<string, React.CSSProperties> = {

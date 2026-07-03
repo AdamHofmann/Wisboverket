@@ -8,6 +8,7 @@ type Faktura = {
   id: string; fakturanummer: string; typ: string; status: string; fakturadatum: string
   totalt: number; subtotal: number; moms_belopp: number
   kund_namn: string | null; kund_epost: string | null; referens: string | null; original_faktura_id: string | null
+  hogia_faktura_id: string | null; hogia_synkad_at: string | null
   rader: Array<{ typ: string; desc: string; antal: number; apris: number; enhet: string; belopp: number }>
   order_id: string | null
 }

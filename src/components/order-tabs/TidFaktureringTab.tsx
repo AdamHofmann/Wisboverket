@@ -5,17 +5,18 @@ import { createClient } from '@/lib/supabase/client'
 import { useKundPrisavtal } from '@/hooks/useKundPrisavtal'
 import { fmtKr, inp, lbl, fo, fb } from './shared'
 import DatumValjare from '@/components/DatumValjare'
+import { FakturaVy, type Faktura } from '@/components/order-tabs/FakturorTab'
 
 type Artikel = { id: string; namn: string; enhet: string; a_pris: number; kostnad_per_enhet: number }
 type TidRad = {
-  id: string; resurs: string | null; artikel_namn: string; enhet: string
+  id: string; resurs: string | null; artikel_id: string | null; artikel_namn: string; enhet: string
   antal: number; a_pris: number; kostnad_per_enhet: number
   total_intakt: number; total_kostnad: number
   datum: string | null; start_tid: string | null; slut_tid: string | null; anteckning: string | null
 }
 type DagRad = { datum: string; start: string; slut: string }
 type PlanRad = { id: string; resurs: string; datum: string; start: string; slut: string; artikelId: string }
-type FakturaRad = { id: string; typ: 'artikel' | 'fritext'; artikel_id: string; text: string; antal: number; resurser: number; apris: number; enhet: string }
+type FakturaRad = { id: string; typ: 'artikel' | 'fritext' | 'datum'; artikel_id: string; text: string; antal: number; resurser: number; apris: number; enhet: string }
 
 const PERSONAL = ['Adam', 'Isabelle', 'Kalle', 'Maria', 'Erik', 'Sofia']
 const fmtDag = (d: string) => new Date(d).toLocaleDateString('sv-SE', { weekday: 'short', day: 'numeric', month: 'short' })
@@ -31,7 +32,7 @@ function datumMellan(fran: string, till: string): string[] {
   return dagar
 }
 
-export default function TidFaktureringTab({ orderId }: { orderId: string }) {
+export default function TidFaktureringTab({ orderId, onUpdated }: { orderId: string; onUpdated?: () => void }) {
   const [subTab, setSubTab] = useState<'tid' | 'faktura'>('tid')
   const [artiklar, setArtiklar] = useState<Artikel[]>([])
   const [rader, setRader] = useState<TidRad[]>([])
@@ -56,6 +57,7 @@ export default function TidFaktureringTab({ orderId }: { orderId: string }) {
   ])
   const [skaparFaktura, setSkaparFaktura] = useState(false)
   const [fakturaSkapad, setFakturaSkapad] = useState(false)
+  const [skickadFaktura, setSkickadFaktura] = useState<Faktura | null>(null)
   const [nextFakturaNr, setNextFakturaNr] = useState('HOF-1001')
   const newRowRef = useRef<string | null>(null)
   const rowRefs = useRef<Record<string, HTMLSelectElement | HTMLInputElement | null>>({})
@@ -64,7 +66,7 @@ export default function TidFaktureringTab({ orderId }: { orderId: string }) {
     const sb = createClient()
     sb.from('artiklar').select('*').eq('aktiv', true).order('namn').then(({ data }) => setArtiklar(data || []))
     fetchRader()
-    sb.from('orders').select('*, customer:customers(namn,betalvillkor,orgnummer,epost,adress,postnummer,ort)').eq('id', orderId).single()
+    sb.from('orders').select('*, customer:customers(namn,betalvillkor,orgnummer,epost,fakturamail,adress,postnummer,ort)').eq('id', orderId).single()
       .then(({ data }) => {
         setOrderInfo(data); setFakturaRef(data?.fakturareferens || '')
         // Förifyll FRÅN DATUM med orderns planerade datum (samma som på ordern)
@@ -89,6 +91,16 @@ export default function TidFaktureringTab({ orderId }: { orderId: string }) {
   const fetchRader = async () => {
     const { data } = await createClient().from('order_tid_rader').select('*').eq('order_id', orderId).order('datum').order('created_at')
     setRader(data || [])
+  }
+
+  // Auto-status: order blir "klar" när tid rapporterats (eller fakturerad), annars "ny". Inaktiv rörs ej.
+  const synkaOrderStatus = async (harTid: boolean) => {
+    if (!orderInfo || orderInfo.status === 'inaktiv') return
+    const nyStatus = (harTid || orderInfo.fakturerat) ? 'klar' : 'ny'
+    if (nyStatus === orderInfo.status) return
+    await createClient().from('orders').update({ status: nyStatus }).eq('id', orderId)
+    setOrderInfo((o: any) => o ? { ...o, status: nyStatus } : o)
+    onUpdated?.()
   }
 
   const valdArtikel = artiklar.find(a => a.id === artikelId)
@@ -120,6 +132,7 @@ export default function TidFaktureringTab({ orderId }: { orderId: string }) {
     }
     setArtikelId(''); setFranDatum(''); setTillDatum(''); setDagRader([]); setAnteckning('')
     await fetchRader()
+    await synkaOrderStatus(true)
     setSaving(false)
   }
 
@@ -166,12 +179,16 @@ export default function TidFaktureringTab({ orderId }: { orderId: string }) {
     }
     setPlanRader([])
     await fetchRader()
+    await synkaOrderStatus(true)
     setSavingPlan(false)
   }
 
   const taBortRad = async (id: string) => {
-    await createClient().from('order_tid_rader').delete().eq('id', id)
-    fetchRader()
+    const sb = createClient()
+    await sb.from('order_tid_rader').delete().eq('id', id)
+    await fetchRader()
+    const { count } = await sb.from('order_tid_rader').select('id', { count: 'exact', head: true }).eq('order_id', orderId)
+    await synkaOrderStatus((count || 0) > 0)
   }
 
   const totIntakt = rader.reduce((s, r) => s + (r.total_intakt || 0), 0)
@@ -186,7 +203,43 @@ export default function TidFaktureringTab({ orderId }: { orderId: string }) {
   const updateFakturaRad = (id: string, k: string, v: any) => setFakturaRader(r => r.map(row => row.id === id ? { ...row, [k]: v } : row))
   const removeFakturaRad = (id: string) => setFakturaRader(r => r.filter(row => row.id !== id))
 
+  // Bygg fakturarader från inrapporterade tidposter — grupperat per datum, med en
+  // datum-rubrik ovanför varje dags rader. Artikelrader använder artikel_id så att
+  // à-priset följer kundens prisavtal (annars artikelpriset) via artikelPris().
+  const hamtaFranTid = () => {
+    if (rader.length === 0) return
+    const perDatum = new Map<string, Map<string, { namn: string; enhet: string; artikelId: string; apris: number; antal: number }>>()
+    for (const r of rader) {
+      const dkey = r.datum || ''
+      if (!perDatum.has(dkey)) perDatum.set(dkey, new Map())
+      const inner = perDatum.get(dkey)!
+      const aid = r.artikel_id || ''
+      const akey = `${aid}|${r.artikel_namn}|${r.enhet}|${r.a_pris}`
+      const g = inner.get(akey)
+      if (g) g.antal += r.antal || 0
+      else inner.set(akey, { namn: r.artikel_namn, enhet: r.enhet, artikelId: aid, apris: r.a_pris || 0, antal: r.antal || 0 })
+    }
+    const nya: FakturaRad[] = []
+    for (const dkey of Array.from(perDatum.keys()).sort()) {
+      nya.push({ id: crypto.randomUUID(), typ: 'datum', artikel_id: '', text: dkey ? fmtDag(dkey) : 'Utan datum', antal: 0, resurser: 1, apris: 0, enhet: '' })
+      for (const g of perDatum.get(dkey)!.values()) {
+        nya.push({
+          id: crypto.randomUUID(),
+          typ: g.artikelId ? 'artikel' : 'fritext',
+          artikel_id: g.artikelId,
+          text: g.artikelId ? '' : g.namn,
+          antal: Math.round(g.antal * 100) / 100,
+          resurser: 1,
+          apris: g.apris, // används bara för fritext-fallback; artikelrader räknar via artikelPris()
+          enhet: g.enhet,
+        })
+      }
+    }
+    if (nya.length) setFakturaRader(nya)
+  }
+
   const radBelopp = (r: FakturaRad) => {
+    if (r.typ === 'datum') return 0
     const totalAntal = r.antal * (r.resurser || 1)
     if (r.typ === 'artikel' && r.artikel_id) return totalAntal * artikelPris(r.artikel_id)
     return totalAntal * r.apris
@@ -209,6 +262,9 @@ export default function TidFaktureringTab({ orderId }: { orderId: string }) {
     setSkaparFaktura(true)
     const sb = createClient()
     const raderPayload = fakturaRader.map(r => {
+      if (r.typ === 'datum') {
+        return { typ: 'rubrik', desc: r.text, antal: 0, apris: 0, enhet: '', belopp: 0 }
+      }
       if (r.typ === 'artikel' && r.artikel_id) {
         const a = artiklar.find(a => a.id === r.artikel_id)
         const pris = artikelPris(r.artikel_id)
@@ -216,7 +272,7 @@ export default function TidFaktureringTab({ orderId }: { orderId: string }) {
       }
       return { typ: 'rad', desc: r.text, antal: r.antal, apris: r.apris, enhet: r.enhet, belopp: r.antal * r.apris }
     })
-    await sb.from('fakturor').insert({
+    const { data: nyFaktura } = await sb.from('fakturor').insert({
       fakturanummer: nextFakturaNr,
       order_id: orderId,
       customer_id: orderInfo?.customer_id,
@@ -227,13 +283,24 @@ export default function TidFaktureringTab({ orderId }: { orderId: string }) {
       totalt: fakturaTotalt,
       kund_namn: orderInfo?.customer?.namn,
       kund_orgnr: orderInfo?.customer?.orgnummer,
-      kund_epost: orderInfo?.customer?.epost,
+      kund_epost: orderInfo?.customer?.fakturamail || orderInfo?.customer?.epost,
       referens: fakturaRef,
-    })
-    await sb.from('orders').update({ fakturerat: true, fakturerat_belopp: fakturaTotalt, fakturadatum: new Date().toISOString().split('T')[0] }).eq('id', orderId)
+      status: 'skickad',
+    }).select('*').single()
+    await sb.from('orders').update({
+      fakturerat: true,
+      fakturerat_belopp: fakturaTotalt,
+      fakturadatum: new Date().toISOString().split('T')[0],
+      // Fakturerad order räknas som klar (rör inte manuellt inaktiverade ordrar)
+      status: orderInfo?.status === 'inaktiv' ? 'inaktiv' : 'klar',
+    }).eq('id', orderId)
+    setOrderInfo((o: any) => o ? { ...o, fakturerat: true, status: o.status === 'inaktiv' ? 'inaktiv' : 'klar' } : o)
     setSkaparFaktura(false)
     setFakturaSkapad(true)
     setTimeout(() => setFakturaSkapad(false), 3000)
+    onUpdated?.()
+    // Öppna fakturan och trigga skicka-flödet (utskrift/PDF + e-postklient)
+    if (nyFaktura) setSkickadFaktura(nyFaktura as Faktura)
   }
 
   return (
@@ -435,7 +502,15 @@ export default function TidFaktureringTab({ orderId }: { orderId: string }) {
 
           {/* Fakturarader — inline spreadsheet */}
           <div style={{ background: '#252528', borderRadius: 12, padding: '14px 16px', marginBottom: 12 }}>
-            <div style={{ ...lbl, marginBottom: 10 }}>FAKTURARADER</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <div style={lbl}>FAKTURARADER</div>
+              {rader.length > 0 && (
+                <button onClick={hamtaFranTid}
+                  style={{ background: 'none', border: '1px solid #3a3a3c', borderRadius: 8, padding: '5px 12px', color: '#E8C96A', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                  ⬇ Hämta från tidrapportering ({rader.length})
+                </button>
+              )}
+            </div>
 
             {/* Header */}
             <div style={{ display: 'grid', gridTemplateColumns: '28px 3fr 60px 60px 80px 80px 90px 32px', gap: 6, padding: '0 4px 6px', borderBottom: '1px solid #3a3a3c', marginBottom: 4 }}>
@@ -445,6 +520,15 @@ export default function TidFaktureringTab({ orderId }: { orderId: string }) {
             </div>
 
             {fakturaRader.map((r, idx) => {
+              if (r.typ === 'datum') {
+                return (
+                  <div key={r.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '10px 4px 4px', marginTop: idx > 0 ? 6 : 0, borderTop: idx > 0 ? '1px solid #3a3a3c' : 'none' }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 0.5, color: '#E8C96A', textTransform: 'capitalize' }}>📅 {r.text}</div>
+                    <button onClick={() => removeFakturaRad(r.id)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#636366', fontSize: 16, padding: 0, lineHeight: 1 }}>×</button>
+                  </div>
+                )
+              }
               const vald = artiklar.find(a => a.id === r.artikel_id)
               const enhet = vald?.enhet || r.enhet || 'st'
               const apris = r.typ === 'artikel' ? artikelPris(r.artikel_id) : r.apris
@@ -558,10 +642,12 @@ export default function TidFaktureringTab({ orderId }: { orderId: string }) {
 
           <button onClick={skapaFakturaFn} disabled={skaparFaktura || fakturaRader.length === 0}
             style={{ width: '100%', padding: '13px', background: fakturaSkapad ? '#4ade80' : '#E8C96A', color: '#000', border: 'none', borderRadius: 10, fontWeight: 800, fontSize: 14, cursor: 'pointer', opacity: skaparFaktura ? 0.6 : 1 }}>
-            {fakturaSkapad ? '✓ Faktura skapad!' : skaparFaktura ? 'Skapar...' : `🧾 Skapa faktura – ${fmtKr(fakturaTotalt)}`}
+            {fakturaSkapad ? '✓ Skapad & skickad!' : skaparFaktura ? 'Skapar...' : `📧 Skapa & skicka faktura – ${fmtKr(fakturaTotalt)}`}
           </button>
         </div>
       )}
+
+      {skickadFaktura && <FakturaVy faktura={skickadFaktura} autoSend onClose={() => setSkickadFaktura(null)} />}
     </div>
   )
 }

@@ -166,6 +166,7 @@ function OrdrarInner() {
                     const intakt = o.fakturerat_belopp || 0
                     const kostnad = kostnadMap[o.id] || 0
                     const tb = intakt - kostnad
+                    const tbProc = intakt > 0 ? (tb / intakt) * 100 : null
                     return (
                       <>
                         <td style={{ padding: '12px 14px', borderBottom: '1px solid #1a1a1a', fontSize: 13, textAlign: 'right', fontWeight: 600, color: intakt > 0 ? '#4ade80' : '#555' }}>
@@ -176,6 +177,7 @@ function OrdrarInner() {
                         </td>
                         <td style={{ padding: '12px 14px', borderBottom: '1px solid #1a1a1a', fontSize: 13, textAlign: 'right', fontWeight: 700, color: (intakt === 0 && kostnad === 0) ? '#555' : (tb >= 0 ? '#4ade80' : '#f87171') }}>
                           {(intakt === 0 && kostnad === 0) ? '—' : fmtKr(tb)}
+                          {tbProc !== null && <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.75 }}>{tbProc.toFixed(0)}%</div>}
                         </td>
                       </>
                     )

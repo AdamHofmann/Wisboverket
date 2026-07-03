@@ -16,6 +16,17 @@ const S: Record<string, any> = {
   td: { padding: '12px 14px', borderBottom: '1px solid #1a1a1a', fontSize: 13, color: '#d0d0d0', verticalAlign: 'middle' as const },
 }
 
+const LEVERANSSATT_LABEL: Record<string, string> = { brev: 'Brev', epost: 'E-post', peppol: 'E-faktura (Peppol)' }
+
+function SynkBadge({ synkad }: { synkad: boolean }) {
+  const c = synkad ? '#4ade80' : '#666'
+  return (
+    <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: c + '1a', color: c, border: `1px solid ${c}44` }}>
+      {synkad ? 'Synkad' : 'Ej synkad'}
+    </span>
+  )
+}
+
 export default function KunderPage() {
   const [kunder, setKunder] = useState<Customer[]>([])
   const [loading, setLoading] = useState(true)
@@ -125,7 +136,7 @@ export default function KunderPage() {
   )
 }
 
-type Prisavtal = { id: string; artikel_id: string; avtalspris: number; artikel?: { namn: string; enhet: string; a_pris: number } }
+type Prisavtal = { id: string; artikel_id: string; avtalspris: number; artikel?: { namn: string; enhet: string; a_pris: number; kostnad_per_enhet: number } }
 type ArtikelOpt = { id: string; namn: string; enhet: string; a_pris: number }
 
 function KundDetailModal({ kund, onClose, onEdit }: { kund: Customer; onClose: () => void; onEdit: () => void }) {
@@ -134,10 +145,25 @@ function KundDetailModal({ kund, onClose, onEdit }: { kund: Customer; onClose: (
   const [artiklar, setArtiklar] = useState<ArtikelOpt[]>([])
   const [nyAvtalArt, setNyAvtalArt] = useState('')
   const [nyAvtalPris, setNyAvtalPris] = useState('')
+  const [hogiaSynkar, setHogiaSynkar] = useState(false)
+  const [hogiaFel, setHogiaFel] = useState('')
+
+  const synkaHogia = async () => {
+    setHogiaSynkar(true); setHogiaFel('')
+    try {
+      const res = await fetch('/api/hogia', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ typ: 'kund', id: kund.id }) })
+      const data = await res.json()
+      if (!res.ok || !data.ok) setHogiaFel(data.error || 'Synk misslyckades')
+    } catch {
+      setHogiaFel('Kunde inte nå synk-tjänsten')
+    } finally {
+      setHogiaSynkar(false)
+    }
+  }
   const STATUS_COLOR: Record<string, string> = { aktiv: '#4ade80', slutförd: '#60a5fa', inaktiv: '#555' }
 
   const fetchPrisavtal = () => {
-    createClient().from('kund_prisavtal').select('id,artikel_id,avtalspris,artikel:artiklar(namn,enhet,a_pris)').eq('customer_id', kund.id)
+    createClient().from('kund_prisavtal').select('id,artikel_id,avtalspris,artikel:artiklar(namn,enhet,a_pris,kostnad_per_enhet)').eq('customer_id', kund.id)
       .then(({ data }) => setPrisavtal((data as any) || []))
   }
 
@@ -196,6 +222,22 @@ function KundDetailModal({ kund, onClose, onEdit }: { kund: Customer; onClose: (
             {kund.adress && <KVRow label="Adress">{kund.adress}</KVRow>}
             {kund.postnummer && <KVRow label="Postnr">{kund.postnummer} {kund.ort}</KVRow>}
             <KVRow label="Betalvillkor">{kund.betalvillkor || 30} dagar</KVRow>
+            <KVRow label="Leveranssätt">{LEVERANSSATT_LABEL[kund.leveranssatt || 'epost']}</KVRow>
+            {kund.leveranssatt === 'peppol' && kund.peppol_id && <KVRow label="Peppol-ID">{kund.peppol_id}</KVRow>}
+          </div>
+
+          <div style={{ background: '#111', border: '1px solid #1e1e1e', borderRadius: 8, padding: '12px 14px', gridColumn: '1 / -1', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, color: '#555' }}>HOGIA</span>
+              <SynkBadge synkad={!!kund.hogia_synkad_at} />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              {hogiaFel && <span style={{ fontSize: 11, color: '#fb923c' }}>{hogiaFel}</span>}
+              <button onClick={synkaHogia} disabled={hogiaSynkar}
+                style={{ background: 'none', border: '1px solid #2a2a2a', borderRadius: 6, padding: '4px 10px', color: '#888', fontSize: 11, cursor: 'pointer', whiteSpace: 'nowrap' as const, opacity: hogiaSynkar ? 0.6 : 1 }}>
+                {hogiaSynkar ? '...' : '🔗 Synka med Hogia'}
+              </button>
+            </div>
           </div>
 
           {kund.anteckningar && (
@@ -211,17 +253,26 @@ function KundDetailModal({ kund, onClose, onEdit }: { kund: Customer; onClose: (
           <div style={{ background: '#111', border: '1px solid #1e1e1e', borderRadius: 8, padding: '12px 14px' }}>
             {prisavtal.length === 0 ? (
               <div style={{ fontSize: 12, color: '#444', marginBottom: 10 }}>Inga prisavtal — standardpris används</div>
-            ) : prisavtal.map(p => (
+            ) : prisavtal.map(p => {
+              const kostnad = p.artikel?.kostnad_per_enhet || 0
+              const tbProc = p.avtalspris > 0 ? ((p.avtalspris - kostnad) / p.avtalspris) * 100 : 0
+              const tbFarg = tbProc >= 30 ? '#4ade80' : tbProc >= 15 ? '#fb923c' : '#f87171'
+              return (
               <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #1a1a1a' }}>
                 <div style={{ fontSize: 12, color: '#d0d0d0' }}>
-                  {p.artikel?.namn} <span style={{ color: '#444' }}>({p.artikel?.a_pris} kr std)</span>
+                  {p.artikel?.namn} <span style={{ color: '#444' }}>({p.artikel?.a_pris} kr std · kostn {kostnad} kr)</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span title={`Avtalspris ${p.avtalspris} kr vs kostnad ${kostnad} kr`}
+                    style={{ fontSize: 11, fontWeight: 700, color: tbFarg, background: tbFarg + '1a', border: `1px solid ${tbFarg}44`, borderRadius: 6, padding: '2px 7px' }}>
+                    TB {tbProc.toFixed(0)}%
+                  </span>
                   <span style={{ fontSize: 13, fontWeight: 700, color: '#E8C96A' }}>{p.avtalspris} kr/{p.artikel?.enhet}</span>
                   <button onClick={() => taBortAvtal(p.id)} style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer', fontSize: 14 }}>✕</button>
                 </div>
               </div>
-            ))}
+              )
+            })}
             <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
               <select value={nyAvtalArt} onChange={e => setNyAvtalArt(e.target.value)}
                 style={{ flex: 1, background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 6, padding: '6px 8px', color: '#e0e0e0', fontSize: 12 }}>
@@ -260,7 +311,7 @@ function KVRow({ label, children }: { label: string; children: React.ReactNode }
   )
 }
 
-const EMPTY_FORM: Partial<Customer> = { namn: '', typ: 'företag', telefon: '', epost: '', fakturamail: '', orgnummer: '', adress: '', postnummer: '', ort: '', betalvillkor: 30, anteckningar: '' }
+const EMPTY_FORM: Partial<Customer> = { namn: '', typ: 'företag', telefon: '', epost: '', fakturamail: '', orgnummer: '', adress: '', postnummer: '', ort: '', betalvillkor: 30, anteckningar: '', leveranssatt: 'epost', peppol_id: '' }
 
 function KundModal({ kund, onClose, onSaved }: { kund: Customer | null; onClose: () => void; onSaved: () => void }) {
   const [form, setForm] = useState<Partial<Customer>>(kund ? { ...kund } : { ...EMPTY_FORM })
@@ -408,11 +459,26 @@ function KundModal({ kund, onClose, onSaved }: { kund: Customer | null; onClose:
             </MF>
           </div>
 
-          <MF label="BETALVILLKOR">
-            <select style={inp} value={form.betalvillkor || 30} onChange={e => set('betalvillkor', parseInt(e.target.value))} onFocus={fo} onBlur={fb}>
-              {[10, 20, 30, 45, 60].map(d => <option key={d} value={d}>{d} dagar</option>)}
-            </select>
-          </MF>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <MF label="BETALVILLKOR">
+              <select style={inp} value={form.betalvillkor || 30} onChange={e => set('betalvillkor', parseInt(e.target.value))} onFocus={fo} onBlur={fb}>
+                {[10, 20, 30, 45, 60].map(d => <option key={d} value={d}>{d} dagar</option>)}
+              </select>
+            </MF>
+            <MF label="LEVERANSSÄTT (FAKTURA)">
+              <select style={inp} value={form.leveranssatt || 'epost'} onChange={e => set('leveranssatt', e.target.value)} onFocus={fo} onBlur={fb}>
+                <option value="brev">Brev</option>
+                <option value="epost">E-post</option>
+                <option value="peppol">E-faktura (Peppol)</option>
+              </select>
+            </MF>
+          </div>
+
+          {form.leveranssatt === 'peppol' && (
+            <MF label="PEPPOL-ID">
+              <input style={inp} value={form.peppol_id || ''} onChange={e => set('peppol_id', e.target.value)} placeholder="0007:5561234567" onFocus={fo} onBlur={fb} />
+            </MF>
+          )}
 
           <MF label="ANTECKNINGAR">
             <textarea style={{ ...inp, minHeight: 70, resize: 'vertical' as const }} value={form.anteckningar || ''} onChange={e => set('anteckningar', e.target.value)} placeholder="Interna anteckningar..." onFocus={fo} onBlur={fb} />

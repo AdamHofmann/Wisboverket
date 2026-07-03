@@ -48,7 +48,7 @@ export default function DashboardPage() {
   const ejPlanerade = orders.filter(o => (o.status === 'ny' || o.status === 'pågående') && !o.bokad_datum)
   // Planerade jobb (har datum) men saknar tilldelad resurs
   const ejTilldelad = orders.filter(o => (o.status === 'ny' || o.status === 'pågående') && o.bokad_datum && (!o.tilldelad || o.tilldelad.length === 0))
-  const attFakturera = orders.filter(o => o.status === 'klar')
+  const attFakturera = orders.filter(o => o.status === 'klar' && !o.fakturerat)
   const idag = new Date().toISOString().split('T')[0]
   const faktureratIdag = invoices.filter(i => i.created_at?.startsWith(idag)).reduce((s, i) => s + (i.total_incl_moms || 0), 0)
   const manad = new Date().toLocaleString('sv-SE', { month: 'short' }).toUpperCase()

@@ -357,7 +357,7 @@ export default function OrderPanel({ orderId, onClose, onUpdated }: Props) {
             )}
 
             {tab === 'offert' && <OffertTab orderId={order.id} />}
-            {tab === 'tid' && <TidFaktureringTab orderId={order.id} />}
+            {tab === 'tid' && <TidFaktureringTab orderId={order.id} onUpdated={() => { fetchAll(); onUpdated() }} />}
             {tab === 'inkop' && <InkopTab orderId={order.id} />}
             {tab === 'ekonomi' && <EkonomiTab orderId={order.id} faktureradeBelopp={order.fakturerat_belopp} />}
             {tab === 'fakturor' && <FakturorTab orderId={order.id} />}
