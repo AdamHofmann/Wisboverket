@@ -170,18 +170,6 @@ export type Fastighet = {
   created_at: string
 }
 
-export type FastighetUnderhall = {
-  id: string
-  fastighet_id: string
-  titel: string
-  beskrivning: string | null
-  status: 'öppen' | 'pågående' | 'stängd'
-  prioritet: 'låg' | 'normal' | 'hög' | 'akut'
-  assignad_till: string | null
-  created_at: string
-  updated_at: string
-}
-
 export type Hyresobjekt = {
   id: string
   intern_namn: string | null
@@ -204,90 +192,6 @@ export type Hyresobjekt = {
   kontakt_epost: string | null
   kontakt_telefon: string | null
   kontakt_titel: string | null
-  created_at: string
-  updated_at: string
-}
-
-// Gamla fastighets-modulen
-export type Company = {
-  id: string
-  namn: string
-  orgnummer: string | null
-  adress: string | null
-  postnummer: string | null
-  ort: string | null
-  epost: string | null
-  telefon: string | null
-  created_at: string
-}
-
-export type Property = {
-  id: string
-  company_id: string
-  beteckning: string | null
-  adress: string
-  postnummer: string | null
-  ort: string | null
-  byggår: number | null
-  antal_enheter: number | null
-  anteckningar: string | null
-  created_at: string
-  company?: Company
-}
-
-export type Unit = {
-  id: string
-  property_id: string
-  building_id: string | null
-  beteckning: string
-  typ: string | null
-  yta_kvm: number | null
-  plan: number | null
-  status: 'uthyrd' | 'ledig' | 'underhåll'
-  created_at: string
-}
-
-export type Tenant = {
-  id: string
-  namn: string
-  typ: 'företag' | 'privat'
-  orgnummer: string | null
-  personnummer: string | null
-  epost: string | null
-  telefon: string | null
-  adress: string | null
-  kontaktperson: string | null
-  created_at: string
-}
-
-export type Lease = {
-  id: string
-  unit_id: string
-  tenant_id: string
-  startdatum: string
-  slutdatum: string | null
-  bashyra: number
-  indexklausul: boolean
-  index_basår: number | null
-  uppsagningstid_manader: number
-  driftskostnader_ansvar: string | null
-  anteckningar: string | null
-  aktiv: boolean
-  created_at: string
-  tenant?: Tenant
-  unit?: Unit
-}
-
-export type Maintenance = {
-  id: string
-  property_id: string
-  unit_id: string | null
-  titel: string
-  beskrivning: string | null
-  status: 'öppen' | 'pågående' | 'stängd'
-  prioritet: 'låg' | 'normal' | 'hög' | 'akut'
-  rapporterad_av: string | null
-  assignad_till: string | null
   created_at: string
   updated_at: string
 }
