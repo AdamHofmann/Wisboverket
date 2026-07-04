@@ -8,18 +8,16 @@ import { createClient } from '@/lib/supabase/client'
 
 const ORDER_LINKS = [
   { href: '/dashboard', label: 'Dashboard' },
-  { href: '/inkorg', label: 'Inkorg' },
   { href: '/offerter', label: 'Offert' },
   { href: '/ordrar', label: 'Order' },
-  { href: '/uthyrning', label: 'Uthyrning' },
+  { href: '/fastighetsoversikt', label: 'Fastigheter' },
   { href: '/kunder', label: 'Kunder' },
   { href: '/leverantorer', label: 'Leverantör' },
   { href: '/medarbetare', label: 'Kalender' },
   { href: '/statistik', label: 'Statistik' },
   { href: '/fakturering', label: 'Fakturor' },
-  { href: '/artiklar', label: 'Artiklar' },
   { href: '/mal', label: 'Mål' },
-  { href: '/installningar', label: 'Inställningar' },
+  { href: '/installningar', label: 'Admin' },
 ]
 
 const S: Record<string, React.CSSProperties> = {
@@ -62,6 +60,11 @@ export default function Navbar() {
   }
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + '/')
+  // Inne i den nya fastighet-appen (INTE order-appens /fastighetsoversikt)
+  const inFastighetApp = pathname === '/fastigheter' || pathname.startsWith('/fastigheter/')
+
+  // I fastighet-appen ersätts HELA order-baren av fastighet-modulens egen rad (Subnav)
+  if (inFastighetApp) return null
 
   return (
     <nav style={S.nav}>
@@ -77,7 +80,7 @@ export default function Navbar() {
         {ORDER_LINKS.map(l => (
           <Link key={l.href} href={l.href} style={{ ...S.link, ...(isActive(l.href) ? S.linkActive : {}), display: 'flex', alignItems: 'center', gap: 6 }}>
             {l.label}
-            {l.href === '/inkorg' && inkorgCount > 0 && (
+            {l.href === '/installningar' && inkorgCount > 0 && (
               <span style={{ background: '#E8C96A', color: '#000', borderRadius: 10, fontSize: 10, fontWeight: 800, padding: '1px 6px', lineHeight: 1.4 }}>{inkorgCount}</span>
             )}
           </Link>
@@ -88,8 +91,7 @@ export default function Navbar() {
           href="/fastigheter"
           style={{
             padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700,
-            background: pathname.startsWith('/fastigheter') ? '#E8C96A' : 'transparent',
-            color: pathname.startsWith('/fastigheter') ? '#000' : '#E8C96A',
+            background: 'transparent', color: '#E8C96A',
             border: '1px solid #E8C96A', textDecoration: 'none', marginRight: 12,
             whiteSpace: 'nowrap', flexShrink: 0,
           }}

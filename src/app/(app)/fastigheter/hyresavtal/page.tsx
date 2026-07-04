@@ -506,7 +506,7 @@ export default function HyresavtalPage() {
                     </td>}
                     {visibleCols.has('bashyra') && <td style={td}>
                       <div style={{ fontWeight: 600, color: C.text }}>{formatSEK(a.bashyra)}</div>
-                      {a.faktureringsfrekvens === 'kvartalsvis' && <div style={{ fontSize: 12, color: '#a78bfa' }}>Kvartalsvis</div>}
+                      <div style={{ fontSize: 12, color: '#a78bfa' }}>{a.faktureringsfrekvens === 'kvartalsvis' ? 'Kvartalsvis' : 'Månadsvis'}</div>
                     </td>}
                     {visibleCols.has('arshyra') && <td style={{ ...td, fontWeight: 600, color: C.text }}>{formatSEK(arshyra)}</td>}
                     {visibleCols.has('hyresutveckling') && <td style={td}>

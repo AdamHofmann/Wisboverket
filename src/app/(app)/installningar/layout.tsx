@@ -4,6 +4,9 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
 const TABS = [
+  { href: '/installningar/inkorg', label: 'Inkorg' },
+  { href: '/installningar/uthyrning', label: 'Uthyrning' },
+  { href: '/installningar/artiklar', label: 'Artiklar' },
   { href: '/installningar/anvandare', label: 'Användare' },
   { href: '/installningar/integration', label: 'Integration' },
   { href: '/installningar/kontoplan', label: 'Kontoplan' },
@@ -16,7 +19,7 @@ export default function InstallningarLayout({ children }: { children: React.Reac
 
   return (
     <div>
-      <div style={{ fontSize: 22, fontWeight: 800, color: '#E8C96A', marginBottom: 16 }}>Inställningar</div>
+      <div style={{ fontSize: 22, fontWeight: 800, color: '#E8C96A', marginBottom: 16 }}>Admin</div>
       <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid #1e1e1e', marginBottom: 24, overflowX: 'auto' }}>
         {TABS.map(t => {
           const active = isActive(t.href)

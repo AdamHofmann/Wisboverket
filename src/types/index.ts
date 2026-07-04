@@ -178,6 +178,18 @@ export type Fastighet = {
   created_at: string
 }
 
+export type FastighetUnderhall = {
+  id: string
+  fastighet_id: string
+  titel: string
+  beskrivning: string | null
+  status: 'öppen' | 'pågående' | 'stängd'
+  prioritet: 'låg' | 'normal' | 'hög' | 'akut'
+  assignad_till: string | null
+  created_at: string
+  updated_at: string
+}
+
 export type Hyresobjekt = {
   id: string
   intern_namn: string | null
