@@ -233,8 +233,6 @@ export default function HemPage() {
         <div className="hero-grid"></div>
         <div className="hero-glow"></div>
 
-        <div className="hero-eyebrow">Fastighet & Skötsel</div>
-
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/logo.png"
@@ -436,7 +434,11 @@ export default function HemPage() {
           {filtrerade.length > 0 ? (
             <div
               id="uth-grid"
-              style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(300px,1fr))', gap: 20 }}
+              style={
+                filtrerade.length === 1
+                  ? { display: 'grid', gridTemplateColumns: 'minmax(300px,380px)', justifyContent: 'center', gap: 20 }
+                  : { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(300px,1fr))', gap: 20 }
+              }
             >
               {filtrerade.map((o) => (
                 <div
