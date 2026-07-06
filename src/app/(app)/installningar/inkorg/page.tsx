@@ -10,7 +10,7 @@ type Forfragan = {
   fastighet: string | null; status: string; created_at: string
 }
 type Felanmalan = {
-  id: string; kategori: string; prioritet: string; namn: string | null; telefon: string | null; epost: string | null
+  id: string; nummer: number | null; kategori: string; prioritet: string; namn: string | null; telefon: string | null; epost: string | null
   fastighet: string | null; lagenhet: string | null; beskrivning: string; status: string; order_id: string | null; created_at: string
 }
 
@@ -212,6 +212,7 @@ function FelanmalanTab({ onHandled }: { onHandled: () => void }) {
                 <span style={{ fontWeight: isNy ? 700 : 500, fontSize: 13, color: '#e0e0e0' }}>{KAT_LABEL[item.kategori] || item.kategori}</span>
                 <span style={{ fontSize: 9, fontWeight: 700, color: PRIO_COLOR[item.prioritet], background: 'rgba(255,255,255,0.06)', borderRadius: 3, padding: '2px 6px' }}>{item.prioritet}</span>
               </div>
+              {item.nummer != null && <div style={{ fontSize: 10, color: '#8a7a4a', fontWeight: 700, letterSpacing: 0.5, marginBottom: 3 }}>FA-{item.nummer}</div>}
               <div style={{ fontSize: 11, color: '#666', marginBottom: 3 }}>{item.fastighet || '—'}{item.lagenhet ? `, ${item.lagenhet}` : ''}</div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ fontSize: 10, color: '#555' }}>{fmtDate(item.created_at)}</span>
@@ -226,7 +227,8 @@ function FelanmalanTab({ onHandled }: { onHandled: () => void }) {
         <div style={{ flex: 1, padding: 24 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
             <div>
-              <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6, color: '#e0e0e0' }}>{KAT_LABEL[selected.kategori] || selected.kategori}</div>
+              <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4, color: '#e0e0e0' }}>{KAT_LABEL[selected.kategori] || selected.kategori}</div>
+              {selected.nummer != null && <div style={{ fontSize: 12, color: '#8a7a4a', fontWeight: 700, letterSpacing: 0.5, marginBottom: 6 }}>Ärende FA-{selected.nummer}</div>}
               <span style={{ fontSize: 11, fontWeight: 700, color: PRIO_COLOR[selected.prioritet], background: 'rgba(255,255,255,0.06)', borderRadius: 4, padding: '3px 8px' }}>Prioritet: {selected.prioritet}</span>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>

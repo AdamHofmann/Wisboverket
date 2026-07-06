@@ -181,7 +181,8 @@ export default function HemPage() {
         }),
       })
       if (!res.ok) throw new Error('HTTP ' + res.status)
-      setFaRef('FA-' + Date.now().toString(36).toUpperCase().slice(-6))
+      const data = await res.json().catch(() => null)
+      setFaRef(data?.nummer ? 'FA-' + data.nummer : 'FA-' + Date.now().toString(36).toUpperCase().slice(-6))
       setFaStep(4)
       trackConversion('felanmalan', { kategori: faKat, prioritet: faPrio })
     } catch {

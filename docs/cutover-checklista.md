@@ -25,6 +25,7 @@ Domän-, hosting- och namnbyte för Wisboverket. Uppdaterad 2026-07-06.
 ## Fas 3 — Cutover-dagen
 - [ ] Sätt env i Vercel till wisboverket-värden (SITE_URL, SITE_EMAIL, MAIL_FROM, PUBLIC_FORM_ORIGIN, GA_ID, ADS_ID)
 - [ ] Lägg till wisboverket.se som domän i Vercel
+- [ ] Lägg till **app.wisboverket.se** som domän i Vercel (samma projekt) + DNS hos Loopia. Bygg in hostname-routing i `middleware.ts` så `app.`-adressen går rakt till inloggningen/systemet — internt separerat från publika sidan. Publika `wisboverket.se` ska INTE ha synlig inloggning (bokmärke `/login` används tills subdomänen är live).
 - [ ] Peka Loopia-DNS (A/CNAME) mot Vercel → SSL auto, verifiera https
 - [ ] Uppdatera Supabase auth redirect-URL:er
 - [ ] 301-redirect hofmannsab.se → wisboverket.se (behåll gamla domänen för SEO)
