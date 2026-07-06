@@ -11,10 +11,6 @@ export const metadata: Metadata = {
     'Wisboverket är ett familjeägt fastighetsbolag i Södermanland. Vi tar hand om din fastighet löpande eller vid specifika tillfällen – gräsklippning, reparationer, rondering och mer.',
   keywords:
     'fastighetsförvaltning, fastighetsskötsel, Södermanland, Gnesta, Eskilstuna, Trosa, Strängnäs, Vagnhärad, underhåll, rondering, reparationer',
-  icons: {
-    icon: '/logo.png',
-    apple: '/logo.png',
-  },
   openGraph: {
     type: 'website',
     url: SITE_URL,
