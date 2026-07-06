@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useIsMobile } from '@/hooks/useMediaQuery'
 
 const TYPER = [
   { id: 'orderbekräftelse', label: 'Orderbekräftelse', icon: '📩' },
@@ -58,6 +59,7 @@ type Props = {
 }
 
 export default function SendModal({ orderId, orderTitel, kundEpost, kundTelefon, onClose, onSent }: Props) {
+  const m = useIsMobile()
   const [typ, setTyp] = useState('orderbekräftelse')
   const [meddelande, setMeddelande] = useState('')
   const [epost, setEpost] = useState(kundEpost || '')
@@ -142,8 +144,8 @@ export default function SendModal({ orderId, orderTitel, kundEpost, kundTelefon,
   const fb = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => { e.target.style.borderColor = '#2a2a2a' }
 
   return (
-    <div style={S.overlay} onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={S.modal}>
+    <div style={m ? { ...S.overlay, padding: 0, alignItems: 'flex-end' } : S.overlay} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={m ? { ...S.modal, width: '100vw', maxWidth: '100vw', maxHeight: '100vh', borderRadius: 0, display: 'flex', flexDirection: 'column' } : S.modal}>
         <div style={S.header}>
           <div>
             <div style={S.title}>ÅTERRAPPORTERING</div>
@@ -163,10 +165,10 @@ export default function SendModal({ orderId, orderTitel, kundEpost, kundTelefon,
           </div>
         ) : (
           <>
-            <div style={S.body}>
+            <div style={m ? { ...S.body, flex: 1, overflowY: 'auto', minHeight: 0 } : S.body}>
               <div>
                 <div style={S.section}>MEDDELANDETYP</div>
-                <div style={S.typGrid}>
+                <div style={m ? { ...S.typGrid, gridTemplateColumns: '1fr 1fr' } : S.typGrid}>
                   {TYPER.map(t => (
                     <div key={t.id} style={S.typBtn(typ === t.id)} onClick={() => setTyp(t.id)}>
                       <span style={S.typIcon}>{t.icon}</span>
@@ -180,6 +182,7 @@ export default function SendModal({ orderId, orderTitel, kundEpost, kundTelefon,
                 <div style={S.section}>MEDDELANDE</div>
                 <div style={S.textareaWrap}>
                   <textarea
+                    spellCheck={true}
                     style={S.textarea} value={meddelande}
                     onChange={e => setMeddelande(e.target.value)}
                     placeholder="Skriv meddelande..."
@@ -196,19 +199,19 @@ export default function SendModal({ orderId, orderTitel, kundEpost, kundTelefon,
               <div style={S.row}>
                 <div style={S.field}>
                   <label style={S.label}>E-POSTADRESS</label>
-                  <input style={S.input} value={epost} onChange={e => setEpost(e.target.value)}
+                  <input spellCheck={false} style={S.input} value={epost} onChange={e => setEpost(e.target.value)}
                     placeholder="kund@example.com" onFocus={fo} onBlur={fb} />
                 </div>
                 <div style={S.field}>
                   <label style={S.label}>TELEFON (SMS)</label>
-                  <input style={S.input} value={telefon} onChange={e => setTelefon(e.target.value)}
+                  <input spellCheck={false} style={S.input} value={telefon} onChange={e => setTelefon(e.target.value)}
                     placeholder="07X-XXX XX XX" onFocus={fo} onBlur={fb} />
                 </div>
               </div>
             </div>
 
             {smsError && <div style={{ padding: '0 22px', fontSize: 12, color: '#f87171' }}>{smsError}</div>}
-            <div style={S.footer}>
+            <div style={m ? { ...S.footer, position: 'sticky', bottom: 0, background: '#1a1a1a', paddingBottom: 'calc(14px + env(safe-area-inset-bottom))' } : S.footer}>
               <button style={S.sendBtn('#60a5fa', !epost || !meddelande)} onClick={skickaEmail}>📧 E-post</button>
               <button style={S.sendBtn('#4ade80', !telefon || !meddelande || smsSending)} onClick={skickaSMS}>{smsSending ? '...' : '💬 SMS'}</button>
               <button style={S.sendBtn('#888', !meddelande)} onClick={kopiera}>📋 Kopiera</button>

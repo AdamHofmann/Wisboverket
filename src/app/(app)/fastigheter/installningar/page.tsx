@@ -17,11 +17,14 @@
 // från @/components/fastigheter.
 
 import { useState, useEffect, useRef } from 'react'
+import Link from 'next/link'
+import { useIsMobile } from '@/hooks/useMediaQuery'
 import { useBolag, BolagItem } from '@/components/fastigheter/BolagContext'
 import { useRouter } from 'next/navigation'
 import AdressInput from '@/components/AdressInput'
 import BolagAutocomplete from '@/components/fastigheter/BolagAutocomplete'
 import SlideOver from '@/components/fastigheter/SlideOver'
+import { useConfirm } from '@/components/ConfirmDialog'
 import { C, inp, lbl, fo, fb, btnPrimary, btnGhost } from '@/components/fastigheter/styles'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -107,6 +110,7 @@ const subLabel: React.CSSProperties = {
 // ─── Main component ──────────────────────────────────────────────────────────
 
 export default function InstallningarPage() {
+  const isMobile = useIsMobile()
   const [activeTab, setActiveTab] = useState<Tab>('bolag')
 
   const tabs: { id: Tab; label: string; icon: string }[] = [
@@ -117,14 +121,14 @@ export default function InstallningarPage() {
   ]
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 960 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 960, ...(isMobile ? { overflowX: 'hidden' } : {}) }}>
       <div>
         <h2 style={{ fontSize: 20, fontWeight: 700, color: C.text, margin: 0 }}>Inställningar</h2>
         <p style={{ fontSize: 13, color: C.muted, marginTop: 2 }}>Hantera bolag, fastigheter och systeminställningar</p>
       </div>
 
       {/* Tab bar */}
-      <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${C.border}` }}>
+      <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${C.border}`, ...(isMobile ? { overflowX: 'auto' } : {}) }}>
         {tabs.map((t) => {
           const active = activeTab === t.id
           return (
@@ -141,6 +145,7 @@ export default function InstallningarPage() {
                 background: active ? C.panel : 'transparent',
                 color: active ? C.gold : C.muted,
                 cursor: 'pointer',
+                ...(isMobile ? { whiteSpace: 'nowrap', flexShrink: 0 } : {}),
               }}
             >
               <span>{t.icon}</span>
@@ -161,6 +166,8 @@ export default function InstallningarPage() {
 // ─── Bolag tab ───────────────────────────────────────────────────────────────
 
 function BolagTab() {
+  const isMobile = useIsMobile()
+  const confirm = useConfirm()
   const { bolagLista, reloadBolag } = useBolag()
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<BolagItem | null>(null)
@@ -218,7 +225,7 @@ function BolagTab() {
   }
 
   const remove = async (id: string, namn: string) => {
-    if (!confirm(`Ta bort bolaget "${namn}"? Fastigheter kopplade till bolaget behåller sin data men förlorar kopplingen.`)) return
+    if (!(await confirm({ message: `Ta bort bolaget "${namn}"? Fastigheter kopplade till bolaget behåller sin data men förlorar kopplingen.`, danger: true, confirmLabel: 'Ta bort' }))) return
     await fetch(`/api/fastigheter/bolag/${id}`, { method: 'DELETE' })
     reloadBolag()
   }
@@ -246,6 +253,7 @@ function BolagTab() {
     <div key={key}>
       <label style={lbl}>{label}</label>
       <input
+        spellCheck={false}
         type={type}
         style={inp}
         onFocus={fo}
@@ -268,7 +276,7 @@ function BolagTab() {
       />
 
       <div style={card}>
-        <div style={cardHeader}>
+        <div style={{ ...cardHeader, ...(isMobile ? { flexDirection: 'column', alignItems: 'stretch', gap: 12 } : {}) }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ borderRadius: 8, background: C.goldSoft, padding: 8, fontSize: 16, lineHeight: 1 }}>🏢</div>
             <div>
@@ -295,8 +303,9 @@ function BolagTab() {
                 onClick={() => openEdit(b)}
                 style={{
                   display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
-                  padding: '20px 24px', cursor: 'pointer',
+                  padding: isMobile ? '16px' : '20px 24px', cursor: 'pointer',
                   borderTop: i > 0 ? `1px solid ${C.borderSoft}` : 'none',
+                  ...(isMobile ? { flexWrap: 'wrap', gap: 12 } : {}),
                 }}
               >
                 {/* Logo area */}
@@ -325,8 +334,8 @@ function BolagTab() {
                   </button>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, minWidth: 0, ...(isMobile ? { flexBasis: '100%', order: 3 } : {}) }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     <h4 style={{ fontWeight: 700, color: C.text, margin: 0 }}>{b.namn}</h4>
                     {b._count && b._count.fastigheter > 0 && (
                       <span style={{ fontSize: 11, background: C.goldSoft, color: C.gold, padding: '2px 8px', borderRadius: 999, fontWeight: 600 }}>
@@ -343,7 +352,7 @@ function BolagTab() {
                     {b.hemsida && <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: C.muted }}>🌐 {b.hemsida}</span>}
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: 4, marginLeft: 16, flexShrink: 0 }}>
+                <div style={{ display: 'flex', gap: 4, marginLeft: 16, flexShrink: 0, ...(isMobile ? { marginLeft: 'auto', order: 2 } : {}) }}>
                   <button
                     onClick={(e) => { e.stopPropagation(); remove(b.id, b.namn) }}
                     style={{ background: 'none', border: 'none', color: C.muted2, cursor: 'pointer', fontSize: 14, padding: 6 }}
@@ -402,7 +411,7 @@ function BolagTab() {
                   onBlur={fb}
                 />
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
                 {fi('postnummer', 'Postnummer', '123 45')}
                 {fi('stad', 'Stad', 'Stockholm')}
               </div>
@@ -415,11 +424,11 @@ function BolagTab() {
             <p style={subLabel}>Betalningsinformation</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {fi('momsregistreringsnummer', 'Momsregistreringsnummer', 'SE556xxxxx01')}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
                 {fi('bankgiro', 'Bankgiro', '1234-5678')}
                 {fi('plusgiro', 'Plusgiro', '12 34 56-7')}
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: 12 }}>
                 {fi('betalningsvillkor', 'Betalningsvillkor (dagar)', '30', 'number')}
                 {fi('drojsmalsranta', 'Dröjsmålsränta (%)', '8', 'number')}
                 {fi('fastighetsskattesats', 'Fastighetsskattesats (%)', '0.5', 'number')}
@@ -429,16 +438,18 @@ function BolagTab() {
           <div>
             <p style={subLabel}>Fakturainformation</p>
             <div>
-              <label style={lbl}>Fakturatext (visas överst på faktura)</label>
+              <label style={lbl}>Fakturameddelande (visas på fakturan)</label>
               <textarea
+                spellCheck={true}
                 style={{ ...inp, resize: 'none' }}
                 rows={3}
                 value={form.fakturaPrefixText}
                 onFocus={fo}
                 onBlur={fb}
                 onChange={(e) => setForm({ ...form, fakturaPrefixText: e.target.value })}
-                placeholder="T.ex. Tack för din betalning"
+                placeholder="T.ex. OBS! Nytt bankgiro 123-4567 – eller God Jul & Gott Nytt År"
               />
+              <p style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>Visas som en markerad ruta högst upp på alla fakturor från detta bolag. Töm fältet för att dölja.</p>
             </div>
           </div>
         </div>
@@ -450,6 +461,7 @@ function BolagTab() {
 // ─── Fastigheter tab ─────────────────────────────────────────────────────────
 
 function FastigheterTab() {
+  const isMobile = useIsMobile()
   const { bolagLista } = useBolag()
   const router = useRouter()
   const [fastigheter, setFastigheter] = useState<Fastighet[]>([])
@@ -485,8 +497,8 @@ function FastigheterTab() {
   const ingenBolag = fastigheter.filter(f => !f.bolag_id)
 
   const groupHeader = (onClick: () => void, expanded: boolean, icon: string, iconColor: string, namn: string, count: number, countLabel: string): React.ReactNode => (
-    <div onClick={onClick} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 24px', borderBottom: `1px solid ${C.borderSoft}`, background: C.panel2, cursor: 'pointer' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+    <div onClick={onClick} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: isMobile ? '14px 16px' : '16px 24px', borderBottom: `1px solid ${C.borderSoft}`, background: C.panel2, cursor: 'pointer' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flexWrap: 'wrap' }}>
         <span style={{ color: iconColor }}>{icon}</span>
         <span style={{ fontWeight: 700, color: C.text }}>{namn}</span>
         <span style={{ fontSize: 12, color: C.muted2 }}>{count} {countLabel}</span>
@@ -496,8 +508,8 @@ function FastigheterTab() {
   )
 
   const fastighetRad = (f: Fastighet) => (
-    <div key={f.id} onClick={() => router.push('/fastigheter/objekt')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 24px', cursor: 'pointer', borderTop: `1px solid ${C.borderSoft}` }}>
-      <div>
+    <div key={f.id} onClick={() => router.push('/fastigheter/objekt')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: isMobile ? '12px 16px' : '12px 24px', cursor: 'pointer', borderTop: `1px solid ${C.borderSoft}` }}>
+      <div style={{ minWidth: 0 }}>
         <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: 0 }}>{f.namn}</p>
         <p style={{ fontSize: 12, color: C.muted, margin: '2px 0 0', display: 'flex', alignItems: 'center', gap: 4 }}>📍 {f.adress}, {f.postnummer} {f.stad}</p>
       </div>
@@ -551,6 +563,7 @@ function FastigheterTab() {
 // ─── Fastighetsbestånd tab ───────────────────────────────────────────────────
 
 function BestandTab() {
+  const isMobile = useIsMobile()
   const [data, setData] = useState<BolagBestand[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -627,7 +640,7 @@ function BestandTab() {
 
         return (
           <div key={b.bolagId} style={card}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '16px 24px', borderBottom: `1px solid ${C.borderSoft}`, background: C.panel2 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: isMobile ? '14px 16px' : '16px 24px', borderBottom: `1px solid ${C.borderSoft}`, background: C.panel2 }}>
               <span style={{ color: C.gold }}>🏢</span>
               <h3 style={{ fontWeight: 700, color: C.text, margin: 0 }}>{b.bolagNamn}</h3>
               <span style={{ fontSize: 12, color: C.muted2, marginLeft: 4 }}>
@@ -637,6 +650,37 @@ function BestandTab() {
 
             {b.fastigheter.length === 0 ? (
               <p style={{ padding: '16px 24px', fontSize: 13, color: C.muted2 }}>Inga fastigheter kopplade</p>
+            ) : isMobile ? (
+              <div style={{ padding: 12 }}>
+                {b.fastigheter.map((f) => {
+                  const vakans = f.uthyrbarYta > 0 ? ((f.uthyrbarYta - f.uthyrdYta) / f.uthyrbarYta) * 100 : 0
+                  return (
+                    <div key={f.fastighetId} style={{ border: `1px solid ${C.borderSoft}`, borderRadius: 10, padding: 12, marginBottom: 8 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{f.fastighetNamn}</span>
+                        <VakansBadge value={vakans} />
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}><span style={{ color: C.muted2 }}>Byggnader</span><span style={{ color: C.text2 }}>{f.antalByggnader || '–'}</span></div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}><span style={{ color: C.muted2 }}>BTA (kvm)</span><span style={{ color: C.muted }}>{f.totalyta > 0 ? fmt(f.totalyta) : '–'}</span></div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}><span style={{ color: C.muted2 }}>LOA/uthyrbar (kvm)</span><span style={{ color: C.text2 }}>{fmt(f.uthyrbarYta)}</span></div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}><span style={{ color: C.muted2 }}>Uthyrd (kvm)</span><span style={{ color: C.text2 }}>{fmt(f.uthyrdYta)}</span></div>
+                      </div>
+                    </div>
+                  )
+                })}
+                <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, padding: 12, background: C.goldSoft }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: C.gold }}>Summa {b.bolagNamn}</span>
+                    <VakansBadge value={bolagTotals.uthyrbarYta > 0 ? ((bolagTotals.uthyrbarYta - bolagTotals.uthyrdYta) / bolagTotals.uthyrbarYta) * 100 : 0} />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}><span style={{ color: C.gold }}>BTA (kvm)</span><span style={{ color: C.gold }}>{bolagTotals.totalyta > 0 ? fmt(bolagTotals.totalyta) : '–'}</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}><span style={{ color: C.gold }}>LOA/uthyrbar (kvm)</span><span style={{ color: C.gold }}>{fmt(bolagTotals.uthyrbarYta)}</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}><span style={{ color: C.gold }}>Uthyrd (kvm)</span><span style={{ color: C.gold }}>{fmt(bolagTotals.uthyrdYta)}</span></div>
+                  </div>
+                </div>
+              </div>
             ) : (
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
@@ -688,6 +732,16 @@ function BestandTab() {
 
       {/* Grand total */}
       <div style={{ borderRadius: 12, border: `1px solid ${C.borderStrong}`, background: C.panel2, overflow: 'hidden' }}>
+        {isMobile ? (
+          <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ fontWeight: 700, color: C.text, marginBottom: 2 }}>Totalt — alla bolag</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}><span style={{ color: C.muted2 }}>Lokaler</span><span style={{ color: C.muted2 }}>{grandTotal.antalLokaler} lok.</span></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}><span style={{ color: C.muted2 }}>BTA</span><span style={{ color: C.muted2 }}>{grandTotal.totalyta > 0 ? `${fmt(grandTotal.totalyta)} kvm` : '–'}</span></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}><span style={{ color: C.muted2 }}>LOA/uthyrbar</span><span style={{ color: C.text2 }}>{fmt(grandTotal.uthyrbarYta)} kvm</span></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}><span style={{ color: C.muted2 }}>Uthyrd</span><span style={{ color: C.text2 }}>{fmt(grandTotal.uthyrdYta)} kvm</span></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}><span style={{ color: C.gold, fontWeight: 700 }}>Vakans</span><span style={{ color: C.gold, fontWeight: 700 }}>{grandTotal.uthyrbarYta > 0 ? fmtPct((grandTotal.uthyrbarYta - grandTotal.uthyrdYta) / grandTotal.uthyrbarYta * 100) : '–'}</span></div>
+          </div>
+        ) : (
         <div style={{ padding: '12px 24px', overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <tbody>
@@ -708,6 +762,7 @@ function BestandTab() {
             </tbody>
           </table>
         </div>
+        )}
       </div>
     </div>
   )
@@ -732,9 +787,35 @@ function VakansBadge({ value }: { value: number }) {
 
 function OvrigtTab() {
   return (
-    <div style={{ ...card, padding: 48, textAlign: 'center' }}>
-      <div style={{ fontSize: 40, marginBottom: 12 }}>⚙️</div>
-      <p style={{ color: C.muted, fontSize: 13 }}>Fler inställningar kommer snart</p>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <Link
+        href="/fastigheter/artiklar"
+        style={{ ...card, display: 'flex', alignItems: 'center', gap: 16, padding: '20px 24px', textDecoration: 'none' }}
+      >
+        <div style={{ borderRadius: 8, background: C.goldSoft, padding: 8, fontSize: 16, lineHeight: 1, flexShrink: 0 }}>📦</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h3 style={{ fontWeight: 700, color: C.text, margin: 0 }}>Artikelregister</h3>
+          <p style={{ fontSize: 12, color: C.muted, margin: '2px 0 0' }}>Fakturaartiklar med benämning, á-pris och moms — styr autofyll på fakturarader.</p>
+        </div>
+        <span style={{ color: C.muted2, flexShrink: 0 }}>→</span>
+      </Link>
+
+      <Link
+        href="/installningar/systemlogg"
+        style={{ ...card, display: 'flex', alignItems: 'center', gap: 16, padding: '20px 24px', textDecoration: 'none' }}
+      >
+        <div style={{ borderRadius: 8, background: C.goldSoft, padding: 8, fontSize: 16, lineHeight: 1, flexShrink: 0 }}>🩺</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h3 style={{ fontWeight: 700, color: C.text, margin: 0 }}>Systemlogg</h3>
+          <p style={{ fontSize: 12, color: C.muted, margin: '2px 0 0' }}>Fel &amp; prestanda för hela appen — om något strular.</p>
+        </div>
+        <span style={{ color: C.muted2, flexShrink: 0 }}>→</span>
+      </Link>
+
+      <div style={{ ...card, padding: 48, textAlign: 'center' }}>
+        <div style={{ fontSize: 40, marginBottom: 12 }}>⚙️</div>
+        <p style={{ color: C.muted, fontSize: 13 }}>Fler inställningar kommer snart</p>
+      </div>
     </div>
   )
 }

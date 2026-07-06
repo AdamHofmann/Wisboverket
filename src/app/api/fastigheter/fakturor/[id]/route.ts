@@ -14,14 +14,21 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     const body = await request.json()
     const sb = await createClient()
 
+    const status = body.status as string
     const { data, error } = await sb
       .from('f_faktura')
-      .update({ status: body.status as string })
+      .update({ status })
       .eq('id', id)
       .select()
       .single()
 
     if (error) throw error
+
+    // Logga statushändelse i fakturans tidslinje (skickad/betald).
+    if (status === 'skickad' || status === 'betald') {
+      await sb.from('f_faktura_handelse').insert({ faktura_id: id, typ: status })
+    }
+
     return NextResponse.json(data)
   } catch (e) {
     console.error('faktura update error:', e)

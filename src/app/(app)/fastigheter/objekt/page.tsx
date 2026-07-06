@@ -11,8 +11,11 @@
 // snake_case. Byggnadsformuläret POSTar camelCase → parseByggnadBody() översätter.
 
 import { useEffect, useState } from 'react'
+import { useIsMobile } from '@/hooks/useMediaQuery'
 import { useBolag } from '@/components/fastigheter/BolagContext'
 import SlideOver from '@/components/fastigheter/SlideOver'
+import Sokfalt from '@/components/Sokfalt'
+import { useConfirm } from '@/components/ConfirmDialog'
 import { C, inp, lbl, fo, fb, btnPrimary, btnGhost, btnDanger, fmtKvm, energiColor } from '@/components/fastigheter/styles'
 
 interface Byggnad {
@@ -89,6 +92,7 @@ const secLabel: React.CSSProperties = { fontSize: 11, fontWeight: 700, letterSpa
 const gridInput: React.CSSProperties = { ...inp, background: C.panel }
 
 export default function FastigheterObjektPage() {
+  const isMobile = useIsMobile()
   const [items, setItems] = useState<Fastighet[]>([])
   const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState(false)
@@ -97,6 +101,10 @@ export default function FastigheterObjektPage() {
   const [saving, setSaving] = useState(false)
   const [nyaBeteckningar, setNyaBeteckningar] = useState<{ beteckning: string; taxeringsvarde: string }[]>([{ beteckning: '', taxeringsvarde: '' }])
   const { bolagLista, valtBolagId } = useBolag()
+  const confirm = useConfirm()
+  const [search, setSearch] = useState('')
+  const [sortCol, setSortCol] = useState<string>('namn')
+  const [sortDir, setSortDir] = useState<1 | -1>(1)
 
   const [byggnader, setByggnader] = useState<Byggnad[]>([])
   const [addingByggnad, setAddingByggnad] = useState(false)
@@ -174,7 +182,7 @@ export default function FastigheterObjektPage() {
   }
 
   const remove = async (id: string) => {
-    if (!confirm('Ta bort fastighet? Alla tillhörande lokaler och byggnader tas också bort.')) return
+    if (!(await confirm({ message: 'Ta bort fastighet? Alla tillhörande lokaler och byggnader tas också bort.', danger: true, confirmLabel: 'Ta bort' }))) return
     await fetch(`/api/fastigheter/objekt/${id}`, { method: 'DELETE' })
     setOpen(false)
     load()
@@ -212,7 +220,7 @@ export default function FastigheterObjektPage() {
   }
 
   const deleteByggnad = async (id: string) => {
-    if (!confirm('Ta bort byggnad?')) return
+    if (!(await confirm({ message: 'Ta bort byggnad?', danger: true, confirmLabel: 'Ta bort' }))) return
     await fetch(`/api/fastigheter/byggnader/${id}`, { method: 'DELETE' })
     setByggnader(prev => prev.filter(b => b.id !== id))
     load()
@@ -252,15 +260,91 @@ export default function FastigheterObjektPage() {
     fontSize: 11, background: bg, color, borderRadius: 6, padding: '2px 6px',
   })
 
+  // Sammanlagt taxeringsvärde per fastighet (summan av beteckningarnas värden, annars fältet).
+  const taxSumma = (f: Fastighet) =>
+    (f.beteckningar || []).reduce((s, b) => s + (b.taxeringsvarde ?? 0), 0) || (f.taxeringsvarde ?? 0)
+
+  // Filtrera på sökord (namn, beteckning, adress, ort). Bolagsfiltret sköts redan
+  // serverside via valtBolagId i load(), men vi respekterar det även här som skydd.
+  const q = search.trim().toLowerCase()
+  const filtered = items.filter(f => {
+    if (valtBolagId && (f.bolag_id || '') !== valtBolagId) return false
+    if (!q) return true
+    const beteckningar = (f.beteckningar?.map(b => b.beteckning).join(' ') || '') + ' ' + (f.fastighetsbeteckning || '')
+    return [f.namn, f.adress, f.stad, f.postnummer, beteckningar]
+      .some(v => (v || '').toLowerCase().includes(q))
+  })
+
+  const toggleSort = (col: string) => {
+    if (sortCol === col) setSortDir(d => (d === 1 ? -1 : 1))
+    else { setSortCol(col); setSortDir(1) }
+  }
+
+  const sorted = [...filtered].sort((a, b) => {
+    let av: string | number = '', bv: string | number = ''
+    switch (sortCol) {
+      case 'namn': av = a.namn || ''; bv = b.namn || ''; break
+      case 'adress': av = a.adress || ''; bv = b.adress || ''; break
+      case 'stad': av = a.stad || ''; bv = b.stad || ''; break
+      case 'byggnader': av = a.byggnader?.length ?? 0; bv = b.byggnader?.length ?? 0; break
+      case 'lokaler': av = a.lokaler?.length ?? 0; bv = b.lokaler?.length ?? 0; break
+      case 'tax': av = taxSumma(a); bv = taxSumma(b); break
+    }
+    if (typeof av === 'string' && typeof bv === 'string') {
+      return av.localeCompare(bv, 'sv') * sortDir
+    }
+    return av < bv ? -sortDir : av > bv ? sortDir : 0
+  })
+
+  const sortKnappar = [
+    { key: 'namn', label: 'Namn' },
+    { key: 'adress', label: 'Adress' },
+    { key: 'stad', label: 'Ort' },
+    { key: 'byggnader', label: 'Byggnader' },
+    { key: 'lokaler', label: 'Lokaler' },
+    { key: 'tax', label: 'Tax.värde' },
+  ] as const
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, ...(isMobile ? { overflowX: 'hidden' } : {}) }}>
+      <div style={{ display: 'flex', ...(isMobile ? { flexDirection: 'column', alignItems: 'stretch', gap: 12 } : { alignItems: 'center', justifyContent: 'space-between' }) }}>
         <div>
           <h2 style={{ fontSize: 20, fontWeight: 700, color: C.text, margin: 0 }}>Fastigheter</h2>
-          <p style={{ fontSize: 13, color: C.muted, marginTop: 2 }}>{items.length} fastigheter registrerade</p>
+          <p style={{ fontSize: 13, color: C.muted, marginTop: 2 }}>
+            {q || (valtBolagId && filtered.length !== items.length)
+              ? `${filtered.length} av ${items.length} fastigheter`
+              : `${items.length} fastigheter registrerade`}
+          </p>
         </div>
-        <button onClick={openNew} style={btnPrimary}>+ Ny fastighet</button>
+        <button onClick={openNew} style={isMobile ? { ...btnPrimary, width: '100%' } : btnPrimary}>+ Ny fastighet</button>
       </div>
+
+      {/* Sök + sortering */}
+      {(items.length > 0 || q) && !loading && (
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', ...(isMobile ? { flexDirection: 'column', alignItems: 'stretch' } : {}) }}>
+          <Sokfalt value={search} onChange={setSearch} placeholder="Sök namn, beteckning, adress, ort..." style={{ width: isMobile ? '100%' : 280 }} />
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', ...(isMobile ? { width: '100%' } : {}) }}>
+            {sortKnappar.map(s => {
+              const active = sortCol === s.key
+              return (
+                <button
+                  key={s.key}
+                  onClick={() => toggleSort(s.key)}
+                  style={{
+                    flex: isMobile ? '1 1 auto' : undefined,
+                    padding: '8px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                    borderRadius: 8, border: `1px solid ${active ? C.gold : C.border}`,
+                    background: active ? C.goldSoft : 'transparent',
+                    color: active ? C.gold : C.muted, whiteSpace: 'nowrap',
+                  }}
+                >
+                  {s.label}{active ? (sortDir === 1 ? ' ▲' : ' ▼') : ''}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: '48px 0', color: C.muted2 }}>Laddar...</div>
@@ -270,9 +354,13 @@ export default function FastigheterObjektPage() {
           <p style={{ color: C.muted }}>Inga fastigheter ännu</p>
           <button onClick={openNew} style={{ ...btnGhost, marginTop: 16, color: C.gold, borderColor: C.gold }}>Lägg till din första fastighet</button>
         </div>
+      ) : sorted.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '48px 0', color: C.muted2 }}>
+          Inga fastigheter matchar {q ? `sökningen "${search}"` : 'valt bolag'}.
+        </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}>
-          {items.map((f) => {
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}>
+          {sorted.map((f) => {
             const bBTA = (f.byggnader || []).reduce((s, b) => s + (b.totalyta ?? 0), 0)
             const bLOA = (f.byggnader || []).reduce((s, b) => s + (b.uthyrbar_yta ?? 0), 0)
             const anyHiss = (f.byggnader || []).some(b => b.hiss)
@@ -360,10 +448,10 @@ export default function FastigheterObjektPage() {
           {/* Grunduppgifter */}
           <section style={section}>
             <h4 style={secLabel}>Grunduppgifter</h4>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16 }}>
               <div style={{ gridColumn: '1 / -1' }}>
                 <label style={lbl}>Fastighetens namn</label>
-                <input style={inp} onFocus={fo} onBlur={fb} value={form.namn} onChange={e => set('namn', e.target.value)} placeholder="T.ex. Storgatan 12" />
+                <input spellCheck={false} style={inp} onFocus={fo} onBlur={fb} value={form.namn} onChange={e => set('namn', e.target.value)} placeholder="T.ex. Storgatan 12" />
               </div>
               <div style={{ gridColumn: '1 / -1' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -384,9 +472,9 @@ export default function FastigheterObjektPage() {
                 )}
 
                 {editing && (
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <input style={{ ...inp, flex: 1 }} onFocus={fo} onBlur={fb} value={form.fastighetsbeteckning} onChange={e => set('fastighetsbeteckning', e.target.value)} placeholder="Ny beteckning" />
-                    <input type="number" style={{ ...inp, width: 140 }} onFocus={fo} onBlur={fb} value={form.taxeringsvarde} onChange={e => set('taxeringsvarde', e.target.value)} placeholder="Tax.värde" />
+                  <div style={{ display: 'flex', gap: 8, ...(isMobile ? { flexDirection: 'column', alignItems: 'stretch' } : {}) }}>
+                    <input spellCheck={false} style={{ ...inp, flex: 1 }} onFocus={fo} onBlur={fb} value={form.fastighetsbeteckning} onChange={e => set('fastighetsbeteckning', e.target.value)} placeholder="Ny beteckning" />
+                    <input spellCheck={false} type="number" style={{ ...inp, ...(isMobile ? { width: '100%' } : { width: 140 }) }} onFocus={fo} onBlur={fb} value={form.taxeringsvarde} onChange={e => set('taxeringsvarde', e.target.value)} placeholder="Tax.värde" />
                     {form.fastighetsbeteckning && (
                       <button type="button" onClick={async () => {
                         await fetch('/api/fastigheter/beteckningar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fastighetId: editing.id, beteckning: form.fastighetsbeteckning, taxeringsvarde: form.taxeringsvarde }) })
@@ -401,9 +489,9 @@ export default function FastigheterObjektPage() {
                 {!editing && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {nyaBeteckningar.map((b, i) => (
-                      <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                        <input style={{ ...inp, flex: 1 }} onFocus={fo} onBlur={fb} value={b.beteckning} onChange={e => setNyaBeteckningar(prev => prev.map((x, j) => j === i ? { ...x, beteckning: e.target.value } : x))} placeholder="T.ex. Indelningen 1" />
-                        <input type="number" style={{ ...inp, width: 140 }} onFocus={fo} onBlur={fb} value={b.taxeringsvarde} onChange={e => setNyaBeteckningar(prev => prev.map((x, j) => j === i ? { ...x, taxeringsvarde: e.target.value } : x))} placeholder="Tax.värde" />
+                      <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', ...(isMobile ? { flexDirection: 'column', alignItems: 'stretch' } : {}) }}>
+                        <input spellCheck={false} style={{ ...inp, flex: 1 }} onFocus={fo} onBlur={fb} value={b.beteckning} onChange={e => setNyaBeteckningar(prev => prev.map((x, j) => j === i ? { ...x, beteckning: e.target.value } : x))} placeholder="T.ex. Indelningen 1" />
+                        <input spellCheck={false} type="number" style={{ ...inp, ...(isMobile ? { width: '100%' } : { width: 140 }) }} onFocus={fo} onBlur={fb} value={b.taxeringsvarde} onChange={e => setNyaBeteckningar(prev => prev.map((x, j) => j === i ? { ...x, taxeringsvarde: e.target.value } : x))} placeholder="Tax.värde" />
                         {nyaBeteckningar.length > 1 && (
                           <button type="button" onClick={() => setNyaBeteckningar(prev => prev.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', color: C.muted2, cursor: 'pointer' }}>✕</button>
                         )}
@@ -421,15 +509,15 @@ export default function FastigheterObjektPage() {
               </div>
               <div style={{ gridColumn: '1 / -1' }}>
                 <label style={lbl}>Adress</label>
-                <input style={inp} onFocus={fo} onBlur={fb} value={form.adress} onChange={e => set('adress', e.target.value)} placeholder="Gatuadress" />
+                <input spellCheck={false} style={inp} onFocus={fo} onBlur={fb} value={form.adress} onChange={e => set('adress', e.target.value)} placeholder="Gatuadress" />
               </div>
               <div>
                 <label style={lbl}>Postnummer</label>
-                <input style={inp} onFocus={fo} onBlur={fb} value={form.postnummer} onChange={e => set('postnummer', e.target.value)} placeholder="123 45" />
+                <input spellCheck={false} style={inp} onFocus={fo} onBlur={fb} value={form.postnummer} onChange={e => set('postnummer', e.target.value)} placeholder="123 45" />
               </div>
               <div>
                 <label style={lbl}>Stad</label>
-                <input style={inp} onFocus={fo} onBlur={fb} value={form.stad} onChange={e => set('stad', e.target.value)} placeholder="Stockholm" />
+                <input spellCheck={false} style={inp} onFocus={fo} onBlur={fb} value={form.stad} onChange={e => set('stad', e.target.value)} placeholder="Stockholm" />
               </div>
             </div>
           </section>
@@ -491,10 +579,10 @@ export default function FastigheterObjektPage() {
               {addingByggnad && (
                 <div style={{ borderRadius: 8, border: `1px solid ${C.border}`, background: C.field, padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
                   <p style={{ fontSize: 12, fontWeight: 700, color: C.gold, margin: 0 }}>{editingByggnadId ? 'Redigera byggnad' : 'Ny byggnad'}</p>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
                     <div style={{ gridColumn: '1 / -1' }}>
                       <label style={lbl}>Namn *</label>
-                      <input style={gridInput} onFocus={fo} onBlur={fb} value={byggnadForm.namn} onChange={e => setByggnadForm(f => ({ ...f, namn: e.target.value }))} placeholder="T.ex. Hus A, Lagerhall" autoFocus />
+                      <input spellCheck={false} style={gridInput} onFocus={fo} onBlur={fb} value={byggnadForm.namn} onChange={e => setByggnadForm(f => ({ ...f, namn: e.target.value }))} placeholder="T.ex. Hus A, Lagerhall" autoFocus />
                     </div>
                     {(editing?.beteckningar?.length ?? 0) > 0 && (
                       <div style={{ gridColumn: '1 / -1' }}>
@@ -507,12 +595,12 @@ export default function FastigheterObjektPage() {
                     )}
                     <div style={{ gridColumn: '1 / -1' }}>
                       <label style={lbl}>Adress</label>
-                      <input style={gridInput} onFocus={fo} onBlur={fb} value={byggnadForm.adress} onChange={e => setByggnadForm(f => ({ ...f, adress: e.target.value }))} placeholder="T.ex. Storgatan 12 A" />
+                      <input spellCheck={false} style={gridInput} onFocus={fo} onBlur={fb} value={byggnadForm.adress} onChange={e => setByggnadForm(f => ({ ...f, adress: e.target.value }))} placeholder="T.ex. Storgatan 12 A" />
                     </div>
-                    <div><label style={lbl}>Byggår</label><input type="number" style={gridInput} onFocus={fo} onBlur={fb} value={byggnadForm.byggnadsar} onChange={e => setByggnadForm(f => ({ ...f, byggnadsar: e.target.value }))} placeholder="1985" /></div>
-                    <div><label style={lbl}>Ombyggnadsår</label><input type="number" style={gridInput} onFocus={fo} onBlur={fb} value={byggnadForm.ombyggnadsAr} onChange={e => setByggnadForm(f => ({ ...f, ombyggnadsAr: e.target.value }))} placeholder="2010" /></div>
-                    <div><label style={lbl}>Total area BTA (kvm)</label><input type="number" style={gridInput} onFocus={fo} onBlur={fb} value={byggnadForm.totalyta} onChange={e => setByggnadForm(f => ({ ...f, totalyta: e.target.value }))} placeholder="2 500" /></div>
-                    <div><label style={lbl}>Uthyrbar area LOA (kvm)</label><input type="number" style={gridInput} onFocus={fo} onBlur={fb} value={byggnadForm.uthyrbarYta} onChange={e => setByggnadForm(f => ({ ...f, uthyrbarYta: e.target.value }))} placeholder="2 000" /></div>
+                    <div><label style={lbl}>Byggår</label><input spellCheck={false} type="number" style={gridInput} onFocus={fo} onBlur={fb} value={byggnadForm.byggnadsar} onChange={e => setByggnadForm(f => ({ ...f, byggnadsar: e.target.value }))} placeholder="1985" /></div>
+                    <div><label style={lbl}>Ombyggnadsår</label><input spellCheck={false} type="number" style={gridInput} onFocus={fo} onBlur={fb} value={byggnadForm.ombyggnadsAr} onChange={e => setByggnadForm(f => ({ ...f, ombyggnadsAr: e.target.value }))} placeholder="2010" /></div>
+                    <div><label style={lbl}>Total area BTA (kvm)</label><input spellCheck={false} type="number" style={gridInput} onFocus={fo} onBlur={fb} value={byggnadForm.totalyta} onChange={e => setByggnadForm(f => ({ ...f, totalyta: e.target.value }))} placeholder="2 500" /></div>
+                    <div><label style={lbl}>Uthyrbar area LOA (kvm)</label><input spellCheck={false} type="number" style={gridInput} onFocus={fo} onBlur={fb} value={byggnadForm.uthyrbarYta} onChange={e => setByggnadForm(f => ({ ...f, uthyrbarYta: e.target.value }))} placeholder="2 000" /></div>
                     <div>
                       <label style={lbl}>Energiklass</label>
                       <select style={gridInput} onFocus={fo} onBlur={fb} value={byggnadForm.energiklass} onChange={e => setByggnadForm(f => ({ ...f, energiklass: e.target.value }))}>
@@ -549,15 +637,15 @@ export default function FastigheterObjektPage() {
                         </label>
                       ))}
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                      <div><label style={lbl}>🚪 Manuella portar</label><input type="number" style={gridInput} onFocus={fo} onBlur={fb} value={byggnadForm.manuellaportar} onChange={e => setByggnadForm(f => ({ ...f, manuellaportar: e.target.value }))} placeholder="0" /></div>
-                      <div><label style={lbl}>⚡ El-portar</label><input type="number" style={gridInput} onFocus={fo} onBlur={fb} value={byggnadForm.elportar} onChange={e => setByggnadForm(f => ({ ...f, elportar: e.target.value }))} placeholder="0" /></div>
+                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
+                      <div><label style={lbl}>🚪 Manuella portar</label><input spellCheck={false} type="number" style={gridInput} onFocus={fo} onBlur={fb} value={byggnadForm.manuellaportar} onChange={e => setByggnadForm(f => ({ ...f, manuellaportar: e.target.value }))} placeholder="0" /></div>
+                      <div><label style={lbl}>⚡ El-portar</label><input spellCheck={false} type="number" style={gridInput} onFocus={fo} onBlur={fb} value={byggnadForm.elportar} onChange={e => setByggnadForm(f => ({ ...f, elportar: e.target.value }))} placeholder="0" /></div>
                     </div>
                   </div>
 
                   <div>
                     <label style={lbl}>Beskrivning</label>
-                    <input style={gridInput} onFocus={fo} onBlur={fb} value={byggnadForm.beskrivning} onChange={e => setByggnadForm(f => ({ ...f, beskrivning: e.target.value }))} placeholder="T.ex. Kontorsbyggnad 3 plan" />
+                    <input spellCheck={true} style={gridInput} onFocus={fo} onBlur={fb} value={byggnadForm.beskrivning} onChange={e => setByggnadForm(f => ({ ...f, beskrivning: e.target.value }))} placeholder="T.ex. Kontorsbyggnad 3 plan" />
                   </div>
 
                   <div style={{ display: 'flex', gap: 8 }}>
@@ -584,7 +672,7 @@ export default function FastigheterObjektPage() {
           {/* Anteckningar */}
           <section>
             <h4 style={secLabel}>Anteckningar</h4>
-            <textarea rows={4} style={{ ...inp, resize: 'none' }} onFocus={fo} onBlur={fb} value={form.kommentar} onChange={e => set('kommentar', e.target.value)} placeholder="Fritext om fastigheten, t.ex. tillstånd, planstatus, särskilda villkor..." />
+            <textarea spellCheck={true} rows={4} style={{ ...inp, resize: 'none' }} onFocus={fo} onBlur={fb} value={form.kommentar} onChange={e => set('kommentar', e.target.value)} placeholder="Fritext om fastigheten, t.ex. tillstånd, planstatus, särskilda villkor..." />
           </section>
         </div>
       </SlideOver>

@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useConfirm } from '@/components/ConfirmDialog'
+import { useIsMobile } from '@/hooks/useMediaQuery'
 import type { Order, Customer } from '@/types'
 import SendModal from '@/components/SendModal'
 import NyOrderModal from '@/components/NyOrderModal'
@@ -50,6 +52,8 @@ const ContactRow = ({ icon, href, value, fontSize, last }: { icon: string; href:
 )
 
 export default function OrderPanel({ orderId, onClose, onUpdated }: Props) {
+  const m = useIsMobile()
+  const confirm = useConfirm()
   const [order, setOrder] = useState<Order & { customer?: Customer } | null>(null)
   const [kommunikation, setKommunikation] = useState<Kommunikation[]>([])
   const [loading, setLoading] = useState(true)
@@ -93,6 +97,17 @@ export default function OrderPanel({ orderId, onClose, onUpdated }: Props) {
     fetchAll(); onUpdated()
   }
 
+  const stangUtanFakturering = async () => {
+    await createClient().from('orders').update({ faktureras_inte: true, updated_at: new Date().toISOString() }).eq('id', orderId)
+    await fetchAll(); onUpdated()
+  }
+
+  const lasUpp = async () => {
+    if (order?.fakturerat && !(await confirm({ message: 'Ordern har en faktura — lås upp ändå?', confirmLabel: 'Lås upp' }))) return
+    await createClient().from('orders').update({ faktureras_inte: false, fakturerat: false, updated_at: new Date().toISOString() }).eq('id', orderId)
+    await fetchAll(); onUpdated()
+  }
+
   const sparaBetygFn = async () => {
     setSparaBetyg(true)
     await createClient().from('orders').update({ betyg, betyg_kommentar: betygKommentar }).eq('id', orderId)
@@ -112,7 +127,7 @@ export default function OrderPanel({ orderId, onClose, onUpdated }: Props) {
     return (
       <>
         <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200 }} />
-        <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 760, background: BG, zIndex: 201, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: m ? '100%' : 760, maxWidth: '100vw', background: BG, zIndex: 201, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <span style={{ color: TEXT_MUTED }}>{loading ? 'Laddar...' : 'Hittades inte'}</span>
         </div>
       </>
@@ -122,6 +137,7 @@ export default function OrderPanel({ orderId, onClose, onUpdated }: Props) {
   const orderNr = order.order_number ? `#${String(order.order_number).padStart(4, '0')}` : `#${orderId.slice(0, 6).toUpperCase()}`
   const statusColor = STATUS_COLOR[order.status] || '#888'
   const prioColor = PRIO_COLOR[order.prioritet || 'normal'] || '#aaa'
+  const last = !!(order.fakturerat || order.faktureras_inte)
 
   const adressDelar = [order.fastighet, order.postnummer, order.ort].filter(Boolean)
   const mapsUrl = adressDelar.length > 0
@@ -132,14 +148,14 @@ export default function OrderPanel({ orderId, onClose, onUpdated }: Props) {
     <>
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200 }} />
 
-      <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 760, background: BG, zIndex: 201, display: 'flex', flexDirection: 'column', boxShadow: '-8px 0 40px rgba(0,0,0,0.5)' }}>
+      <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: m ? '100%' : 760, maxWidth: '100vw', background: BG, zIndex: 201, display: 'flex', flexDirection: 'column', boxShadow: '-8px 0 40px rgba(0,0,0,0.5)' }}>
 
         {/* Scrollbart innehåll */}
         <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 80 }}>
 
           {/* Toprad */}
-          <div style={{ padding: '16px 20px', borderBottom: `1px solid ${BORDER}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, background: BG_TOP, zIndex: 10 }}>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ padding: '16px 20px', borderBottom: `1px solid ${BORDER}`, display: 'flex', alignItems: m ? 'flex-start' : 'center', justifyContent: 'space-between', gap: m ? 8 : 0, position: 'sticky', top: 0, background: BG_TOP, zIndex: 10 }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', minWidth: 0, flex: m ? 1 : undefined }}>
               <span style={{ fontSize: 13, fontWeight: 800, color: '#E8C96A' }}>{orderNr}</span>
               <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: statusColor + '33', color: statusColor, border: `1px solid ${statusColor}66` }}>
                 {STATUS_LABEL[order.status] || order.status}
@@ -148,8 +164,15 @@ export default function OrderPanel({ orderId, onClose, onUpdated }: Props) {
                 {PRIO_LABEL[order.prioritet || 'normal'] || order.prioritet}
               </span>
               {order.kategori && <span style={{ fontSize: 11, color: TEXT_MUTED }}>{KAT_ICON[order.kategori] || ''} {order.kategori}</span>}
+              {last && (
+                order.fakturerat ? (
+                  <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: 'rgba(232,201,106,0.15)', color: '#E8C96A', border: '1px solid #E8C96A66' }}>🔒 Fakturerad</span>
+                ) : (
+                  <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: 'rgba(251,146,60,0.15)', color: '#fb923c', border: '1px solid #fb923c66' }}>🔒 Ej deb.</span>
+                )
+              )}
             </div>
-            <button onClick={onClose} style={{ background: 'none', border: 'none', color: TEXT_MUTED, fontSize: 24, cursor: 'pointer', lineHeight: 1, padding: '0 4px' }}>×</button>
+            <button onClick={onClose} style={{ background: 'none', border: 'none', color: TEXT_MUTED, fontSize: 24, cursor: 'pointer', lineHeight: 1, padding: '0 4px', flexShrink: 0 }}>×</button>
           </div>
 
           {/* Titel & meta */}
@@ -198,7 +221,7 @@ export default function OrderPanel({ orderId, onClose, onUpdated }: Props) {
                   const tb = intakt - ekonomi.kostnad
                   const tbColor = tb >= 0 ? '#4ade80' : '#f87171'
                   return (
-                    <div style={{ background: BG_CARD, borderRadius: 12, padding: '14px 16px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                    <div style={{ background: BG_CARD, borderRadius: 12, padding: '14px 16px', display: 'grid', gridTemplateColumns: m ? '1fr' : '1fr 1fr 1fr', gap: 10 }}>
                       <div>
                         <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.2, color: TEXT_MUTED, marginBottom: 4 }}>INTÄKT</div>
                         <div style={{ fontSize: 15, fontWeight: 800, color: order.fakturerat ? '#4ade80' : TEXT_MUTED }}>{intakt > 0 ? fmtKr(intakt) : '—'}</div>
@@ -245,7 +268,7 @@ export default function OrderPanel({ orderId, onClose, onUpdated }: Props) {
                             const vald = order.tilldelad?.includes(p)
                             return (
                               <button key={p} onClick={() => toggleTilldelad(p)} disabled={tilldeladSaving}
-                                style={{ padding: '6px 12px', borderRadius: 20, fontSize: 13, fontWeight: 600,
+                                style={{ padding: m ? '12px 16px' : '6px 12px', minHeight: m ? 44 : undefined, borderRadius: 20, fontSize: 13, fontWeight: 600,
                                   cursor: tilldeladSaving ? 'default' : 'pointer', opacity: tilldeladSaving ? 0.6 : 1,
                                   border: `1px solid ${vald ? '#E8C96A' : BORDER}`,
                                   background: vald ? 'rgba(232,201,106,0.15)' : 'transparent',
@@ -346,7 +369,7 @@ export default function OrderPanel({ orderId, onClose, onUpdated }: Props) {
                   ))}
                   {betyg > 0 && <span style={{ fontSize: 14, color: '#E8C96A', alignSelf: 'center', marginLeft: 6 }}>{betyg}/5</span>}
                 </div>
-                <textarea value={betygKommentar} onChange={e => setBetygKommentar(e.target.value)} placeholder="Kommentar från kunden..."
+                <textarea spellCheck={true} value={betygKommentar} onChange={e => setBetygKommentar(e.target.value)} placeholder="Kommentar från kunden..."
                   style={{ background: '#2c2c2e', border: '1px solid #48484a', borderRadius: 8, padding: '10px 12px', color: TEXT_PRIMARY, fontSize: 14, outline: 'none', width: '100%', boxSizing: 'border-box', resize: 'vertical', minHeight: 90 }}
                   onFocus={e => e.currentTarget.style.borderColor = '#E8C96A'} onBlur={e => e.currentTarget.style.borderColor = '#48484a'} />
                 <button onClick={sparaBetygFn} disabled={sparaBetyg}
@@ -357,7 +380,7 @@ export default function OrderPanel({ orderId, onClose, onUpdated }: Props) {
             )}
 
             {tab === 'offert' && <OffertTab orderId={order.id} />}
-            {tab === 'tid' && <TidFaktureringTab orderId={order.id} onUpdated={() => { fetchAll(); onUpdated() }} />}
+            {tab === 'tid' && <TidFaktureringTab orderId={order.id} last={last} onUpdated={() => { fetchAll(); onUpdated() }} />}
             {tab === 'inkop' && <InkopTab orderId={order.id} />}
             {tab === 'ekonomi' && <EkonomiTab orderId={order.id} faktureradeBelopp={order.fakturerat_belopp} />}
             {tab === 'fakturor' && <FakturorTab orderId={order.id} />}
@@ -366,22 +389,32 @@ export default function OrderPanel({ orderId, onClose, onUpdated }: Props) {
         </div>
 
         {/* Action-bar */}
-        <div style={{ borderTop: `1px solid ${BORDER}`, display: 'flex', background: BG_TOP, flexShrink: 0 }}>
-          {[
-            { label: 'Kontakta kund', icon: '📬', action: () => setShowSend(true), color: '#a78bfa' },
-            { label: 'Redigera', icon: '✏️', action: () => setShowEdit(true), color: '#E8C96A' },
-            { label: 'Duplicera', icon: '📋', action: () => {}, color: '#60a5fa' },
-            { label: order.status === 'inaktiv' ? 'Aktivera' : 'Inaktivera', icon: order.status === 'inaktiv' ? '▶' : '🚫', action: () => updateStatus(order.status === 'inaktiv' ? 'ny' : 'inaktiv'), color: order.status === 'inaktiv' ? '#4ade80' : '#f87171' },
-          ].map((btn, i) => (
-            <button key={btn.label} onClick={btn.action}
-              style={{ flex: 1, background: 'none', border: 'none', borderRight: i < 3 ? `1px solid ${BORDER}` : 'none', padding: '14px 8px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}
-              onMouseEnter={e => e.currentTarget.style.background = '#3a3a3c'}
-              onMouseLeave={e => e.currentTarget.style.background = 'none'}>
-              <span style={{ fontSize: 20 }}>{btn.icon}</span>
-              <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.5, color: btn.color }}>{btn.label.toUpperCase()}</span>
-            </button>
-          ))}
-        </div>
+        {(() => {
+          const bar = [
+            { label: 'Kontakta kund', icon: '📬', action: () => setShowSend(true), color: '#a78bfa', disabled: false },
+            { label: 'Redigera', icon: '✏️', action: () => setShowEdit(true), color: '#E8C96A', disabled: last },
+            { label: last ? 'Lås upp' : 'Stäng utan fakt.', icon: last ? '🔓' : '🚷', action: last ? lasUpp : stangUtanFakturering, color: last ? '#4ade80' : '#fb923c', disabled: false },
+            { label: order.status === 'inaktiv' ? 'Aktivera' : 'Inaktivera', icon: order.status === 'inaktiv' ? '▶' : '🚫', action: () => updateStatus(order.status === 'inaktiv' ? 'ny' : 'inaktiv'), color: order.status === 'inaktiv' ? '#4ade80' : '#f87171', disabled: false },
+          ]
+          return (
+            <div style={{ borderTop: `1px solid ${BORDER}`, background: BG_TOP, flexShrink: 0,
+              ...(m ? { display: 'grid', gridTemplateColumns: '1fr 1fr', position: 'sticky', bottom: 0, zIndex: 10 } : { display: 'flex', flexDirection: 'row' }) }}>
+              {bar.map((btn, i) => (
+                <button key={btn.label} onClick={btn.disabled ? undefined : btn.action} disabled={btn.disabled}
+                  style={{ flex: m ? undefined : 1, background: 'none', border: 'none',
+                    borderRight: m ? (i % 2 === 0 ? `1px solid ${BORDER}` : 'none') : (i < bar.length - 1 ? `1px solid ${BORDER}` : 'none'),
+                    borderTop: m && i >= 2 ? `1px solid ${BORDER}` : 'none',
+                    padding: m ? '10px 6px' : '14px 8px', cursor: btn.disabled ? 'not-allowed' : 'pointer', opacity: btn.disabled ? 0.4 : 1,
+                    display: 'flex', flexDirection: m ? 'row' : 'column', justifyContent: m ? 'center' : undefined, alignItems: 'center', gap: m ? 7 : 5 }}
+                  onMouseEnter={e => { if (!btn.disabled) e.currentTarget.style.background = '#3a3a3c' }}
+                  onMouseLeave={e => e.currentTarget.style.background = 'none'}>
+                  <span style={{ fontSize: m ? 15 : 20 }}>{btn.icon}</span>
+                  <span style={{ fontSize: m ? 11 : 10, fontWeight: 700, letterSpacing: 0.3, color: btn.color }}>{btn.label.toUpperCase()}</span>
+                </button>
+              ))}
+            </div>
+          )
+        })()}
       </div>
 
       {showEdit && (

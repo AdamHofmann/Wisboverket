@@ -1,9 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { withLogg } from '@/lib/withLogg'
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-export async function POST(req: NextRequest) {
+async function postHandler(req: Request) {
   const body = await req.json().catch(() => null)
   const prompt = typeof body?.prompt === 'string' ? body.prompt.trim() : ''
 
@@ -28,3 +29,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Okänt fel' }, { status: 500 })
   }
 }
+
+export const POST = withLogg('api/ai-meddelande', postHandler)

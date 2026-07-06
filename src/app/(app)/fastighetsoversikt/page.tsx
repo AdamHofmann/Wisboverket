@@ -1,9 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import type { Fastighet, FastighetUnderhall, Order } from '@/types'
 import AdressInput from '@/components/AdressInput'
+import { useIsMobile } from '@/hooks/useMediaQuery'
 
 const PRIO_COLOR: Record<string, string> = { låg: '#636366', normal: '#60a5fa', hög: '#fb923c', akut: '#f87171' }
 const STATUS_ICON: Record<string, string> = { öppen: '🔴', pågående: '🟡', stängd: '✅' }
@@ -17,6 +19,7 @@ const fmtKr = (n: number) => n.toLocaleString('sv-SE') + ' kr'
 type FastighetMedStats = Fastighet & { _ordrar: number; _underhall: number; _intakt: number; _kostnad: number; _tb: number }
 
 export default function FastigheterPage() {
+  const isMobile = useIsMobile()
   const [fastigheter, setFastigheter] = useState<FastighetMedStats[]>([])
   const [vald, setVald] = useState<Fastighet | null>(null)
   const [showModal, setShowModal] = useState(false)
@@ -65,7 +68,7 @@ export default function FastigheterPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+      <div style={{ display: 'flex', ...(isMobile ? { flexDirection: 'column', alignItems: 'stretch', gap: 12 } : { justifyContent: 'space-between', alignItems: 'center' }), marginBottom: 24 }}>
         <div style={{ fontSize: 22, fontWeight: 800, color: '#E8C96A' }}>
           Fastigheter <span style={{ fontSize: 14, color: '#555', fontWeight: 400 }}>({fastigheter.length})</span>
         </div>
@@ -109,7 +112,7 @@ export default function FastigheterPage() {
                   <div style={{ fontSize: 20, fontWeight: 800, color: f._underhall > 0 ? '#fb923c' : '#636366' }}>{f._underhall}</div>
                 </div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginTop: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: 8, marginTop: 8 }}>
                 <div style={{ background: '#0d0d0d', borderRadius: 8, padding: '8px 10px' }}>
                   <div style={{ fontSize: 10, color: '#555', letterSpacing: 1, marginBottom: 3 }}>INTÄKT</div>
                   <div style={{ fontSize: 14, fontWeight: 800, color: '#4ade80' }}>{fmtKr(f._intakt)}</div>
@@ -133,10 +136,10 @@ export default function FastigheterPage() {
 
       {/* Sidopanel */}
       {vald && <div onClick={() => setVald(null)} style={{ position: 'fixed', inset: 0, zIndex: 199 }} />}
-      {vald && <FastighetPanel fastighet={vald} onClose={() => setVald(null)} onUpdated={fetchFastigheter} />}
+      {vald && <FastighetPanel fastighet={vald} isMobile={isMobile} onClose={() => setVald(null)} onUpdated={fetchFastigheter} />}
 
       {showModal && (
-        <FastighetModal fastighet={editTarget} onClose={() => setShowModal(false)}
+        <FastighetModal fastighet={editTarget} isMobile={isMobile} onClose={() => setShowModal(false)}
           onSaved={() => { setShowModal(false); fetchFastigheter() }} />
       )}
     </div>
@@ -144,7 +147,7 @@ export default function FastigheterPage() {
 }
 
 // ─── Panel ────────────────────────────────────────────────────────────────────
-function FastighetPanel({ fastighet, onClose, onUpdated }: { fastighet: Fastighet; onClose: () => void; onUpdated: () => void }) {
+function FastighetPanel({ fastighet, isMobile, onClose, onUpdated }: { fastighet: Fastighet; isMobile: boolean; onClose: () => void; onUpdated: () => void }) {
   const [tab, setTab] = useState<'ordrar' | 'underhall'>('ordrar')
   const [ordrar, setOrdrar] = useState<any[]>([])
   const [underhall, setUnderhall] = useState<FastighetUnderhall[]>([])
@@ -187,7 +190,7 @@ function FastighetPanel({ fastighet, onClose, onUpdated }: { fastighet: Fastighe
   const STATUS_COLOR: Record<string, string> = { aktiv: '#4ade80', slutförd: '#60a5fa', inaktiv: '#555' }
 
   return (
-    <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 680, background: '#1a1a1a', zIndex: 200, display: 'flex', flexDirection: 'column', boxShadow: '-8px 0 40px rgba(0,0,0,0.6)', borderLeft: '1px solid #222' }}>
+    <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, left: isMobile ? 0 : undefined, width: isMobile ? '100%' : 680, maxWidth: isMobile ? '100vw' : undefined, background: '#1a1a1a', zIndex: 200, display: 'flex', flexDirection: 'column', boxShadow: '-8px 0 40px rgba(0,0,0,0.6)', borderLeft: isMobile ? 'none' : '1px solid #222' }}>
       <div style={{ padding: '20px 24px', borderBottom: '1px solid #222', flexShrink: 0 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
@@ -214,7 +217,10 @@ function FastighetPanel({ fastighet, onClose, onUpdated }: { fastighet: Fastighe
           ordrar.length === 0
             ? <div style={{ textAlign: 'center', padding: 40, color: '#444' }}>Inga ordrar kopplade till denna fastighet</div>
             : ordrar.map((o: any) => (
-              <div key={o.id} style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: 10, padding: '12px 16px', marginBottom: 8 }}>
+              <Link key={o.id} href={`/ordrar?order=${o.id}`}
+                style={{ display: 'block', textDecoration: 'none', background: '#141414', border: '1px solid #1e1e1e', borderRadius: 10, padding: '12px 16px', marginBottom: 8, cursor: 'pointer', transition: 'border-color 0.15s' }}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = '#E8C96A55')}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = '#1e1e1e')}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 700, color: '#f2f2f7' }}>{o.titel}</div>
@@ -228,7 +234,7 @@ function FastighetPanel({ fastighet, onClose, onUpdated }: { fastighet: Fastighe
                     {o.status}
                   </span>
                 </div>
-              </div>
+              </Link>
             ))
         )}
 
@@ -241,9 +247,9 @@ function FastighetPanel({ fastighet, onClose, onUpdated }: { fastighet: Fastighe
 
             {nyUnderhall && (
               <div style={{ background: '#141414', border: '1px solid #2a2a2a', borderRadius: 10, padding: '16px', marginBottom: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <input style={inp} placeholder="Titel *" value={uForm.titel} onChange={e => setUForm(f => ({ ...f, titel: e.target.value }))} onFocus={fo} onBlur={fb} />
-                <textarea style={{ ...inp, minHeight: 70, resize: 'vertical' }} placeholder="Beskrivning..." value={uForm.beskrivning} onChange={e => setUForm(f => ({ ...f, beskrivning: e.target.value }))} onFocus={fo} onBlur={fb} />
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <input spellCheck={true} style={inp} placeholder="Titel *" value={uForm.titel} onChange={e => setUForm(f => ({ ...f, titel: e.target.value }))} onFocus={fo} onBlur={fb} />
+                <textarea spellCheck={true} style={{ ...inp, minHeight: 70, resize: 'vertical' }} placeholder="Beskrivning..." value={uForm.beskrivning} onChange={e => setUForm(f => ({ ...f, beskrivning: e.target.value }))} onFocus={fo} onBlur={fb} />
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10 }}>
                   <select style={inp} value={uForm.prioritet} onChange={e => setUForm(f => ({ ...f, prioritet: e.target.value }))} onFocus={fo} onBlur={fb}>
                     <option value="låg">Låg</option>
                     <option value="normal">Normal</option>
@@ -301,7 +307,7 @@ function SBtn({ label, color, onClick }: { label: string; color: string; onClick
 }
 
 // ─── Modal ────────────────────────────────────────────────────────────────────
-function FastighetModal({ fastighet, onClose, onSaved }: { fastighet: Fastighet | null; onClose: () => void; onSaved: () => void }) {
+function FastighetModal({ fastighet, isMobile, onClose, onSaved }: { fastighet: Fastighet | null; isMobile: boolean; onClose: () => void; onSaved: () => void }) {
   const [form, setForm] = useState({ namn: fastighet?.namn || '', adress: fastighet?.adress || '', postnummer: fastighet?.postnummer || '', ort: fastighet?.ort || '', beteckning: fastighet?.beteckning || '', anteckningar: fastighet?.anteckningar || '' })
   const [saving, setSaving] = useState(false)
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
@@ -318,18 +324,18 @@ function FastighetModal({ fastighet, onClose, onSaved }: { fastighet: Fastighet 
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1500, display: 'flex', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'center', padding: isMobile ? 0 : 20 }}
       onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 14, width: '100%', maxWidth: 500 }}>
+      <div style={{ background: '#1a1a1a', border: isMobile ? 'none' : '1px solid #2a2a2a', borderRadius: isMobile ? 0 : 14, width: '100%', maxWidth: isMobile ? '100vw' : 500, ...(isMobile ? { display: 'flex', flexDirection: 'column' } : {}) }}>
         <div style={{ padding: '18px 22px', borderBottom: '1px solid #222', display: 'flex', justifyContent: 'space-between' }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: '#e0e0e0' }}>{fastighet ? 'Redigera fastighet' : 'Ny fastighet'}</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#666', fontSize: 20, cursor: 'pointer' }}>×</button>
         </div>
-        <div style={{ padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 12, ...(isMobile ? { flex: 1, overflow: 'auto' } : {}) }}>
           {[['NAMN *', 'namn', 'Vägmästarvägen 7'], ['FASTIGHETSBETECKNING', 'beteckning', 't.ex. Indelningen 1:1']].map(([lbl, key, ph]) => (
             <div key={key}>
               <label style={{ fontSize: 11, fontWeight: 600, color: '#555', display: 'block', marginBottom: 5 }}>{lbl}</label>
-              <input style={inp} value={(form as any)[key]} placeholder={ph} onChange={e => set(key, e.target.value)} onFocus={fo} onBlur={fb} />
+              <input spellCheck={false} style={inp} value={(form as any)[key]} placeholder={ph} onChange={e => set(key, e.target.value)} onFocus={fo} onBlur={fb} />
             </div>
           ))}
           <div>
@@ -343,20 +349,20 @@ function FastighetModal({ fastighet, onClose, onSaved }: { fastighet: Fastighet 
               onBlur={fb}
             />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 2fr', gap: 10 }}>
             {[['POSTNUMMER', 'postnummer'], ['ORT', 'ort']].map(([lbl, key]) => (
               <div key={key}>
                 <label style={{ fontSize: 11, fontWeight: 600, color: '#555', display: 'block', marginBottom: 5 }}>{lbl}</label>
-                <input style={inp} value={(form as any)[key]} onChange={e => set(key, e.target.value)} onFocus={fo} onBlur={fb} />
+                <input spellCheck={false} style={inp} value={(form as any)[key]} onChange={e => set(key, e.target.value)} onFocus={fo} onBlur={fb} />
               </div>
             ))}
           </div>
           <div>
             <label style={{ fontSize: 11, fontWeight: 600, color: '#555', display: 'block', marginBottom: 5 }}>ANTECKNINGAR</label>
-            <textarea style={{ ...inp, minHeight: 80, resize: 'vertical' }} value={form.anteckningar} onChange={e => set('anteckningar', e.target.value)} onFocus={fo} onBlur={fb} />
+            <textarea spellCheck={true} style={{ ...inp, minHeight: 80, resize: 'vertical' }} value={form.anteckningar} onChange={e => set('anteckningar', e.target.value)} onFocus={fo} onBlur={fb} />
           </div>
         </div>
-        <div style={{ padding: '14px 22px', borderTop: '1px solid #222', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+        <div style={{ padding: '14px 22px', borderTop: '1px solid #222', display: 'flex', gap: 8, justifyContent: 'flex-end', ...(isMobile ? { position: 'sticky', bottom: 0, background: '#1a1a1a', flexShrink: 0 } : {}) }}>
           <button onClick={onClose} style={{ padding: '9px 20px', background: 'none', border: '1px solid #2a2a2a', borderRadius: 8, color: '#888', cursor: 'pointer', fontSize: 13 }}>Avbryt</button>
           <button onClick={spara} disabled={saving || !form.namn || !form.adress}
             style={{ padding: '9px 24px', background: '#E8C96A', border: 'none', borderRadius: 8, color: '#000', fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: !form.namn || !form.adress ? 0.5 : 1 }}>

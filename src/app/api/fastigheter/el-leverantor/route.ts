@@ -10,8 +10,9 @@
 //    för att behålla käll-UI:ts form.
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { withLogg } from '@/lib/withLogg'
 
-export async function GET() {
+async function getHandler() {
   try {
     const sb = await createClient()
     const { data, error } = await sb
@@ -38,7 +39,7 @@ export async function GET() {
   }
 }
 
-export async function POST(request: Request) {
+async function postHandler(request: Request) {
   try {
     const sb = await createClient()
     const body = await request.json()
@@ -61,6 +62,8 @@ export async function POST(request: Request) {
         total_belopp: totalBelopp,
         pris_per_kwh: prisPerKwh,
         fakturanummer: body.fakturanummer || null,
+        leverantor: body.leverantor || null,
+        typ: body.typ || null,
       })
       .select()
       .single()
@@ -69,6 +72,10 @@ export async function POST(request: Request) {
     return NextResponse.json(faktura, { status: 201 })
   } catch (e) {
     console.error('POST el-leverantor:', e)
-    return NextResponse.json({ error: 'Kunde inte skapa' }, { status: 500 })
+    const msg = e instanceof Error ? e.message : (e && typeof e === 'object' && 'message' in e ? String((e as { message: unknown }).message) : 'Kunde inte skapa')
+    return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
+
+export const GET = withLogg('api/fastigheter/el-leverantor', getHandler)
+export const POST = withLogg('api/fastigheter/el-leverantor', postHandler)

@@ -2,15 +2,16 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useIsMobile } from '@/hooks/useMediaQuery'
 import type { Customer } from '@/types'
 import AdressInput from '@/components/AdressInput'
+import Sokfalt from '@/components/Sokfalt'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const S: Record<string, any> = {
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   title: { fontSize: 22, fontWeight: 800, color: '#E8C96A' },
   newBtn: { background: '#E8C96A', color: '#000', border: 'none', borderRadius: 8, padding: '8px 18px', fontWeight: 700, fontSize: 13, cursor: 'pointer' },
-  search: { background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 8, padding: '8px 14px', color: '#e0e0e0', fontSize: 13, width: 280, outline: 'none' },
   table: { width: '100%', borderCollapse: 'collapse' as const },
   th: { textAlign: 'left' as const, padding: '8px 14px', fontSize: 10, fontWeight: 700, letterSpacing: 1, color: '#555', borderBottom: '1px solid #1e1e1e' },
   td: { padding: '12px 14px', borderBottom: '1px solid #1a1a1a', fontSize: 13, color: '#d0d0d0', verticalAlign: 'middle' as const },
@@ -28,6 +29,7 @@ function SynkBadge({ synkad }: { synkad: boolean }) {
 }
 
 export default function KunderPage() {
+  const isMobile = useIsMobile()
   const [kunder, setKunder] = useState<Customer[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -53,25 +55,74 @@ export default function KunderPage() {
   }), [kunder, search])
 
   return (
-    <div>
-      <div style={S.header}>
+    <div style={isMobile ? { overflowX: 'hidden' as const } : undefined}>
+      <div style={isMobile ? { ...S.header, flexDirection: 'column', alignItems: 'stretch', gap: 12 } : S.header}>
         <div style={S.title}>Kunder <span style={{ fontSize: 14, color: '#555', fontWeight: 400 }}>({filtered.length})</span></div>
-        <button style={S.newBtn} onClick={() => { setEditKund(null); setShowModal(true) }}>+ Ny kund</button>
+        <button style={isMobile ? { ...S.newBtn, width: '100%', padding: '12px 18px' } : S.newBtn} onClick={() => { setEditKund(null); setShowModal(true) }}>+ Ny kund</button>
       </div>
 
       <div style={{ marginBottom: 16 }}>
-        <input placeholder="Sök namn, e-post, org.nr..." value={search} onChange={e => setSearch(e.target.value)}
-          style={S.search}
-          onFocus={e => e.currentTarget.style.borderColor = '#E8C96A'}
-          onBlur={e => e.currentTarget.style.borderColor = '#2a2a2a'} />
+        <Sokfalt value={search} onChange={setSearch} placeholder="Sök namn, e-post, org.nr..."
+          style={{ width: isMobile ? '100%' : 280 }} />
       </div>
 
-      <div style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: 10, overflow: 'hidden' }}>
+      <div style={isMobile
+        ? (loading || filtered.length === 0 ? { background: '#141414', border: '1px solid #1e1e1e', borderRadius: 10, overflow: 'hidden' } : {})
+        : { background: '#141414', border: '1px solid #1e1e1e', borderRadius: 10, overflow: 'hidden' }}>
         {loading ? (
           <div style={{ textAlign: 'center', padding: 60, color: '#555' }}>Laddar...</div>
         ) : filtered.length === 0 ? (
           <div style={{ textAlign: 'center', padding: 60, color: '#555' }}>
             {kunder.length === 0 ? 'Inga kunder ännu — lägg till din första kund' : 'Inga träffar'}
+          </div>
+        ) : isMobile ? (
+          <div>
+            {filtered.map(k => (
+              <div key={k.id}
+                style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: 10, padding: '12px 14px', marginBottom: 8, cursor: 'pointer' }}
+                onClick={() => setVald(k)}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, color: '#e0e0e0', fontSize: 14, wordBreak: 'break-word' as const }}>{k.namn}</div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 3, flexWrap: 'wrap' as const, alignItems: 'center' }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: '#2a2a2a', color: '#888' }}>{k.typ}</span>
+                      {k.kundnummer && <span style={{ fontSize: 11, color: '#E8C96A', fontWeight: 700 }}>#{k.kundnummer}</span>}
+                      {k.orgnummer && <span style={{ fontSize: 11, color: '#555' }}>{k.orgnummer}</span>}
+                    </div>
+                  </div>
+                  <button onClick={e => { e.stopPropagation(); setEditKund(k); setShowModal(true) }}
+                    style={{ background: 'none', border: '1px solid #2a2a2a', borderRadius: 6, padding: '4px 10px', color: '#888', fontSize: 11, cursor: 'pointer', whiteSpace: 'nowrap' as const, flexShrink: 0 }}>
+                    Redigera
+                  </button>
+                </div>
+                <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column' as const, gap: 6 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                    <span style={{ fontSize: 11, color: '#555' }}>Telefon</span>
+                    <span style={{ fontSize: 12, textAlign: 'right' as const, minWidth: 0, wordBreak: 'break-word' as const }}>
+                      {k.telefon
+                        ? <a href={`tel:${k.telefon}`} style={{ color: '#60a5fa', textDecoration: 'none' }} onClick={e => e.stopPropagation()}>{k.telefon}</a>
+                        : <span style={{ color: '#333' }}>—</span>}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                    <span style={{ fontSize: 11, color: '#555' }}>E-post</span>
+                    <span style={{ fontSize: 12, textAlign: 'right' as const, minWidth: 0, wordBreak: 'break-word' as const }}>
+                      {k.epost
+                        ? <a href={`mailto:${k.epost}`} style={{ color: '#60a5fa', textDecoration: 'none' }} onClick={e => e.stopPropagation()}>{k.epost}</a>
+                        : <span style={{ color: '#333' }}>—</span>}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                    <span style={{ fontSize: 11, color: '#555' }}>Ort</span>
+                    <span style={{ fontSize: 12, color: '#d0d0d0', textAlign: 'right' as const }}>{k.ort || <span style={{ color: '#333' }}>—</span>}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                    <span style={{ fontSize: 11, color: '#555' }}>Betalvillkor</span>
+                    <span style={{ fontSize: 12, color: '#d0d0d0', textAlign: 'right' as const }}>{k.betalvillkor ? `${k.betalvillkor} dagar` : '30 dagar'}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         ) : (
           <table style={S.table}>
@@ -94,7 +145,10 @@ export default function KunderPage() {
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                   <td style={S.td}>
                     <div style={{ fontWeight: 600, color: '#e0e0e0' }}>{k.namn}</div>
-                    {k.orgnummer && <div style={{ fontSize: 11, color: '#555', marginTop: 1 }}>{k.orgnummer}</div>}
+                    <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>
+                      {k.kundnummer && <span style={{ fontSize: 11, color: '#E8C96A', fontWeight: 700 }}>#{k.kundnummer}</span>}
+                      {k.orgnummer && <span style={{ fontSize: 11, color: '#555' }}>{k.orgnummer}</span>}
+                    </div>
                   </td>
                   <td style={S.td}>
                     <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: '#2a2a2a', color: '#888' }}>{k.typ}</span>
@@ -140,6 +194,7 @@ type Prisavtal = { id: string; artikel_id: string; avtalspris: number; artikel?:
 type ArtikelOpt = { id: string; namn: string; enhet: string; a_pris: number }
 
 function KundDetailModal({ kund, onClose, onEdit }: { kund: Customer; onClose: () => void; onEdit: () => void }) {
+  const isMobile = useIsMobile()
   const [ordrar, setOrdrar] = useState<any[]>([])
   const [prisavtal, setPrisavtal] = useState<Prisavtal[]>([])
   const [artiklar, setArtiklar] = useState<ArtikelOpt[]>([])
@@ -192,13 +247,14 @@ function KundDetailModal({ kund, onClose, onEdit }: { kund: Customer; onClose: (
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 1000, display: 'flex', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'center', padding: isMobile ? 0 : 20 }}
       onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 14, width: '100%', maxWidth: 580, maxHeight: '85vh', overflow: 'auto' }}>
+      <div style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: isMobile ? 0 : 14, width: '100%', maxWidth: isMobile ? '100vw' : 580, maxHeight: isMobile ? '100vh' : '85vh', overflow: 'auto' }}>
         <div style={{ padding: '18px 22px', borderBottom: '1px solid #222', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <div style={{ fontSize: 18, fontWeight: 800, color: '#E8C96A' }}>{kund.namn}</div>
             <div style={{ fontSize: 11, color: '#555', marginTop: 2 }}>
+              {kund.kundnummer ? `Kundnr #${kund.kundnummer} · ` : ''}
               {kund.typ === 'företag' ? `Företag${kund.orgnummer ? ` · ${kund.orgnummer}` : ''}` : 'Privatkund'}
             </div>
           </div>
@@ -208,7 +264,7 @@ function KundDetailModal({ kund, onClose, onEdit }: { kund: Customer; onClose: (
           </div>
         </div>
 
-        <div style={{ padding: '18px 22px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div style={{ padding: '18px 22px', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
           <div style={{ background: '#111', border: '1px solid #1e1e1e', borderRadius: 8, padding: '12px 14px' }}>
             <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, color: '#555', marginBottom: 10 }}>KONTAKT</div>
             {kund.telefon && <KVRow label="Telefon"><a href={`tel:${kund.telefon}`} style={{ color: '#60a5fa', textDecoration: 'none' }}>{kund.telefon}</a></KVRow>}
@@ -226,7 +282,7 @@ function KundDetailModal({ kund, onClose, onEdit }: { kund: Customer; onClose: (
             {kund.leveranssatt === 'peppol' && kund.peppol_id && <KVRow label="Peppol-ID">{kund.peppol_id}</KVRow>}
           </div>
 
-          <div style={{ background: '#111', border: '1px solid #1e1e1e', borderRadius: 8, padding: '12px 14px', gridColumn: '1 / -1', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          <div style={{ background: '#111', border: '1px solid #1e1e1e', borderRadius: 8, padding: '12px 14px', gridColumn: '1 / -1', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' as const }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, color: '#555' }}>HOGIA</span>
               <SynkBadge synkad={!!kund.hogia_synkad_at} />
@@ -258,11 +314,11 @@ function KundDetailModal({ kund, onClose, onEdit }: { kund: Customer; onClose: (
               const tbProc = p.avtalspris > 0 ? ((p.avtalspris - kostnad) / p.avtalspris) * 100 : 0
               const tbFarg = tbProc >= 30 ? '#4ade80' : tbProc >= 15 ? '#fb923c' : '#f87171'
               return (
-              <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #1a1a1a' }}>
-                <div style={{ fontSize: 12, color: '#d0d0d0' }}>
+              <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' as const, padding: '5px 0', borderBottom: '1px solid #1a1a1a' }}>
+                <div style={{ fontSize: 12, color: '#d0d0d0', minWidth: 0, wordBreak: 'break-word' as const }}>
                   {p.artikel?.namn} <span style={{ color: '#444' }}>({p.artikel?.a_pris} kr std · kostn {kostnad} kr)</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
                   <span title={`Avtalspris ${p.avtalspris} kr vs kostnad ${kostnad} kr`}
                     style={{ fontSize: 11, fontWeight: 700, color: tbFarg, background: tbFarg + '1a', border: `1px solid ${tbFarg}44`, borderRadius: 6, padding: '2px 7px' }}>
                     TB {tbProc.toFixed(0)}%
@@ -273,15 +329,15 @@ function KundDetailModal({ kund, onClose, onEdit }: { kund: Customer; onClose: (
               </div>
               )
             })}
-            <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+            <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: isMobile ? 'wrap' as const : undefined }}>
               <select value={nyAvtalArt} onChange={e => setNyAvtalArt(e.target.value)}
-                style={{ flex: 1, background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 6, padding: '6px 8px', color: '#e0e0e0', fontSize: 12 }}>
+                style={{ flex: isMobile ? '1 1 100%' : 1, background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 6, padding: '6px 8px', color: '#e0e0e0', fontSize: 12, minWidth: 0 }}>
                 <option value="">Välj artikel...</option>
                 {artiklar.map(a => <option key={a.id} value={a.id}>{a.namn} ({a.a_pris} kr)</option>)}
               </select>
-              <input type="number" placeholder="Avtalspris" value={nyAvtalPris} onChange={e => setNyAvtalPris(e.target.value)}
-                style={{ width: 90, background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 6, padding: '6px 8px', color: '#e0e0e0', fontSize: 12 }} />
-              <button onClick={laggTillAvtal} style={{ background: '#E8C96A', border: 'none', borderRadius: 6, padding: '6px 14px', color: '#000', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>+ Lägg till</button>
+              <input spellCheck={false} type="number" placeholder="Avtalspris" value={nyAvtalPris} onChange={e => setNyAvtalPris(e.target.value)}
+                style={{ flex: isMobile ? 1 : undefined, width: isMobile ? undefined : 90, minWidth: 0, background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 6, padding: '6px 8px', color: '#e0e0e0', fontSize: 12, boxSizing: 'border-box' as const }} />
+              <button onClick={laggTillAvtal} style={{ background: '#E8C96A', border: 'none', borderRadius: 6, padding: '6px 14px', color: '#000', fontWeight: 700, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' as const }}>+ Lägg till</button>
             </div>
           </div>
         </div>
@@ -314,6 +370,7 @@ function KVRow({ label, children }: { label: string; children: React.ReactNode }
 const EMPTY_FORM: Partial<Customer> = { namn: '', typ: 'företag', telefon: '', epost: '', fakturamail: '', orgnummer: '', adress: '', postnummer: '', ort: '', betalvillkor: 30, anteckningar: '', leveranssatt: 'epost', peppol_id: '' }
 
 function KundModal({ kund, onClose, onSaved }: { kund: Customer | null; onClose: () => void; onSaved: () => void }) {
+  const isMobile = useIsMobile()
   const [form, setForm] = useState<Partial<Customer>>(kund ? { ...kund } : { ...EMPTY_FORM })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -351,7 +408,7 @@ function KundModal({ kund, onClose, onSaved }: { kund: Customer | null; onClose:
     if (!form.namn?.trim()) { setError('Namn krävs'); return }
     setSaving(true); setError('')
     const sb = createClient()
-    const payload = { ...form, updated_at: new Date().toISOString() }
+    const payload = { ...form }
     delete (payload as any).id
     delete (payload as any).created_at
     const { error: err } = kund
@@ -367,16 +424,16 @@ function KundModal({ kund, onClose, onSaved }: { kund: Customer | null; onClose:
   const inp = { background: '#111', border: '1px solid #2a2a2a', borderRadius: 8, padding: '8px 12px', color: '#e0e0e0', fontSize: 13, outline: 'none', width: '100%', boxSizing: 'border-box' as const }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1100, display: 'flex', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'center', padding: isMobile ? 0 : 20 }}
       onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 14, width: '100%', maxWidth: 540, maxHeight: '90vh', overflow: 'auto' }}>
+      <div style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: isMobile ? 0 : 14, width: '100%', maxWidth: isMobile ? '100vw' : 540, maxHeight: isMobile ? '100vh' : '90vh', overflow: 'auto' }}>
         <div style={{ padding: '18px 22px', borderBottom: '1px solid #222', display: 'flex', justifyContent: 'space-between' }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: '#e0e0e0' }}>{kund ? 'Redigera kund' : 'Ny kund'}</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#666', fontSize: 20, cursor: 'pointer' }}>×</button>
         </div>
 
         <div style={{ padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10 }}>
             <MF label="TYP">
               <select style={inp} value={form.typ} onChange={e => set('typ', e.target.value)} onFocus={fo} onBlur={fb}>
                 <option value="företag">Företag</option>
@@ -384,14 +441,14 @@ function KundModal({ kund, onClose, onSaved }: { kund: Customer | null; onClose:
               </select>
             </MF>
             <MF label="ORG.NUMMER">
-              <input style={inp} value={form.orgnummer || ''} onChange={e => set('orgnummer', e.target.value)} placeholder="556123-4567" onFocus={fo} onBlur={fb} />
+              <input spellCheck={false} style={inp} value={form.orgnummer || ''} onChange={e => set('orgnummer', e.target.value)} placeholder="556123-4567" onFocus={fo} onBlur={fb} />
             </MF>
           </div>
 
           <MF label="NAMN *">
             <div style={{ position: 'relative' }}>
               <div style={{ display: 'flex', gap: 6 }}>
-                <input style={{ ...inp, flex: 1 }} value={form.namn || ''} onChange={e => set('namn', e.target.value)}
+                <input spellCheck={false} style={{ ...inp, flex: 1 }} value={form.namn || ''} onChange={e => set('namn', e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); slaUppNamn() } }}
                   placeholder="Namn" onFocus={fo} onBlur={fb} />
                 <button onClick={slaUppNamn} disabled={slarUppNamn} type="button"
@@ -425,17 +482,17 @@ function KundModal({ kund, onClose, onSaved }: { kund: Customer | null; onClose:
             </div>
           </MF>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10 }}>
             <MF label="TELEFON">
-              <input style={inp} value={form.telefon || ''} onChange={e => set('telefon', e.target.value)} placeholder="07X-XXX XX XX" onFocus={fo} onBlur={fb} />
+              <input spellCheck={false} style={inp} value={form.telefon || ''} onChange={e => set('telefon', e.target.value)} placeholder="07X-XXX XX XX" onFocus={fo} onBlur={fb} />
             </MF>
             <MF label="E-POST">
-              <input style={inp} value={form.epost || ''} onChange={e => set('epost', e.target.value)} placeholder="kontakt@ex.se" onFocus={fo} onBlur={fb} />
+              <input spellCheck={false} style={inp} value={form.epost || ''} onChange={e => set('epost', e.target.value)} placeholder="kontakt@ex.se" onFocus={fo} onBlur={fb} />
             </MF>
           </div>
 
           <MF label="FAKTURAMAIL (om annan)">
-            <input style={inp} value={form.fakturamail || ''} onChange={e => set('fakturamail', e.target.value)} placeholder="faktura@ex.se" onFocus={fo} onBlur={fb} />
+            <input spellCheck={false} style={inp} value={form.fakturamail || ''} onChange={e => set('fakturamail', e.target.value)} placeholder="faktura@ex.se" onFocus={fo} onBlur={fb} />
           </MF>
 
           <MF label="ADRESS">
@@ -452,14 +509,14 @@ function KundModal({ kund, onClose, onSaved }: { kund: Customer | null; onClose:
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 10 }}>
             <MF label="POSTNUMMER">
-              <input style={inp} value={form.postnummer || ''} onChange={e => set('postnummer', e.target.value)} placeholder="611 34" onFocus={fo} onBlur={fb} />
+              <input spellCheck={false} style={inp} value={form.postnummer || ''} onChange={e => set('postnummer', e.target.value)} placeholder="611 34" onFocus={fo} onBlur={fb} />
             </MF>
             <MF label="ORT">
-              <input style={inp} value={form.ort || ''} onChange={e => set('ort', e.target.value)} placeholder="Nyköping" onFocus={fo} onBlur={fb} />
+              <input spellCheck={false} style={inp} value={form.ort || ''} onChange={e => set('ort', e.target.value)} placeholder="Nyköping" onFocus={fo} onBlur={fb} />
             </MF>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10 }}>
             <MF label="BETALVILLKOR">
               <select style={inp} value={form.betalvillkor || 30} onChange={e => set('betalvillkor', parseInt(e.target.value))} onFocus={fo} onBlur={fb}>
                 {[10, 20, 30, 45, 60].map(d => <option key={d} value={d}>{d} dagar</option>)}
@@ -476,12 +533,12 @@ function KundModal({ kund, onClose, onSaved }: { kund: Customer | null; onClose:
 
           {form.leveranssatt === 'peppol' && (
             <MF label="PEPPOL-ID">
-              <input style={inp} value={form.peppol_id || ''} onChange={e => set('peppol_id', e.target.value)} placeholder="0007:5561234567" onFocus={fo} onBlur={fb} />
+              <input spellCheck={false} style={inp} value={form.peppol_id || ''} onChange={e => set('peppol_id', e.target.value)} placeholder="0007:5561234567" onFocus={fo} onBlur={fb} />
             </MF>
           )}
 
           <MF label="ANTECKNINGAR">
-            <textarea style={{ ...inp, minHeight: 70, resize: 'vertical' as const }} value={form.anteckningar || ''} onChange={e => set('anteckningar', e.target.value)} placeholder="Interna anteckningar..." onFocus={fo} onBlur={fb} />
+            <textarea spellCheck={true} style={{ ...inp, minHeight: 70, resize: 'vertical' as const }} value={form.anteckningar || ''} onChange={e => set('anteckningar', e.target.value)} placeholder="Interna anteckningar..." onFocus={fo} onBlur={fb} />
           </MF>
 
           {error && <div style={{ fontSize: 12, color: '#f87171', background: '#f8717111', padding: '8px 12px', borderRadius: 8 }}>{error}</div>}

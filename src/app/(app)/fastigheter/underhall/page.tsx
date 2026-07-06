@@ -12,13 +12,17 @@
 import { useEffect, useState } from 'react'
 import SlideOver from '@/components/fastigheter/SlideOver'
 import { C, inp, lbl, fo, fb, btnPrimary, btnGhost } from '@/components/fastigheter/styles'
+import { useIsMobile } from '@/hooks/useMediaQuery'
+import { useConfirm } from '@/components/ConfirmDialog'
+import { useBolag } from '@/components/fastigheter/BolagContext'
+import Sokfalt from '@/components/Sokfalt'
 
 interface Byggnad {
   id: string; namn: string
   hiss: boolean; oljeavskiljare: boolean; sprinkler: boolean
   fiber: boolean; manuellaportar: number | null; elportar: number | null
 }
-interface Fastighet { id: string; namn: string; byggnader?: Byggnad[] }
+interface Fastighet { id: string; namn: string; bolag_id?: string | null; byggnader?: Byggnad[] }
 interface LoggPost { datum: string; utford_av: string; kommentar: string | null; kostnad: number | null }
 interface Arende {
   id: string; typ: string; namn: string; beskrivning: string | null
@@ -60,11 +64,17 @@ const statusChip = (status: string): React.CSSProperties => ({
 })
 
 export default function UnderhallPage() {
+  const isMobile = useIsMobile()
+  const confirm = useConfirm()
+  const { valtBolagId } = useBolag()
   const [arenden, setArenden] = useState<Arende[]>([])
   const [fastigheter, setFastigheter] = useState<Fastighet[]>([])
   const [loading, setLoading] = useState(true)
   const [filterTyp, setFilterTyp] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
+  const [search, setSearch] = useState('')
+  const [sortCol, setSortCol] = useState<'namn' | 'fastighet' | 'nasta' | 'intervall' | 'status'>('nasta')
+  const [sortDir, setSortDir] = useState<1 | -1>(1)
 
   // Skapa ärende
   const [showNew, setShowNew] = useState(false)
@@ -194,37 +204,85 @@ export default function UnderhallPage() {
   }
 
   const remove = async (id: string) => {
-    if (!confirm('Ta bort ärende?')) return
+    if (!(await confirm({ message: 'Ta bort ärende?', danger: true, confirmLabel: 'Ta bort' }))) return
     await fetch(`/api/fastigheter/underhall/${id}`, { method: 'DELETE' })
     setSelected(null)
     load()
   }
 
-  let filtered = arenden
+  // Bolagsfilter: underhållsärenden hör till en fastighet → fastighetens bolag.
+  // API:t för ärenden returnerar inte bolag_id på fastigheten, men objekt-listan gör det →
+  // slå upp fastighet_id → bolag_id via den redan laddade fastighetslistan.
+  const fastighetBolag = new Map(fastigheter.map(f => [f.id, f.bolag_id ?? null]))
+  const bolagArenden = valtBolagId
+    ? arenden.filter(a => fastighetBolag.get(a.fastighet_id) === valtBolagId)
+    : arenden
+
+  const q = search.trim().toLowerCase()
+  let filtered = bolagArenden
   if (filterTyp) filtered = filtered.filter(a => a.typ === filterTyp)
   if (filterStatus) filtered = filtered.filter(a => a.status === filterStatus)
+  if (q) {
+    filtered = filtered.filter(a => {
+      const typLabel = TYPER.find(t => t.kod === a.typ)?.label ?? ''
+      return (
+        a.namn.toLowerCase().includes(q)
+        || (a.fastighet?.namn ?? '').toLowerCase().includes(q)
+        || (a.leverantor ?? '').toLowerCase().includes(q)
+        || (a.ansvarig ?? '').toLowerCase().includes(q)
+        || typLabel.toLowerCase().includes(q)
+        || (a.beskrivning ?? '').toLowerCase().includes(q)
+      )
+    })
+  }
 
-  const forsenaCount = arenden.filter(a => a.status === 'forsenad').length
-  const kommandeCount = arenden.filter(a => a.status === 'planerad' && daysUntil(a.nasta_gang) <= 30).length
+  // Sorterbara kolumner (asc/desc-toggle med pil), som i fakturering-förlagan.
+  const toggleSort = (col: typeof sortCol) => {
+    if (sortCol === col) setSortDir(d => (d === 1 ? -1 : 1))
+    else { setSortCol(col); setSortDir(1) }
+  }
+  const statusRank: Record<string, number> = { forsenad: 0, planerad: 1, utford: 2 }
+  const sorted = [...filtered].sort((a, b) => {
+    let av: string | number = '', bv: string | number = ''
+    switch (sortCol) {
+      case 'namn': av = a.namn.toLowerCase(); bv = b.namn.toLowerCase(); break
+      case 'fastighet': av = (a.fastighet?.namn ?? '').toLowerCase(); bv = (b.fastighet?.namn ?? '').toLowerCase(); break
+      case 'nasta': av = a.nasta_gang; bv = b.nasta_gang; break
+      case 'intervall': av = a.intervall_manader; bv = b.intervall_manader; break
+      case 'status': av = statusRank[a.status] ?? 9; bv = statusRank[b.status] ?? 9; break
+    }
+    return av < bv ? -sortDir : av > bv ? sortDir : 0
+  })
+
+  const forsenaCount = bolagArenden.filter(a => a.status === 'forsenad').length
+  const kommandeCount = bolagArenden.filter(a => a.status === 'planerad' && daysUntil(a.nasta_gang) <= 30).length
 
   const selStatus = selected?.status ?? ''
 
+  const sortKnappar: { key: typeof sortCol; label: string }[] = [
+    { key: 'namn', label: 'Namn' },
+    { key: 'fastighet', label: 'Fastighet' },
+    { key: 'nasta', label: 'Nästa datum' },
+    { key: 'intervall', label: 'Intervall' },
+    { key: 'status', label: 'Status' },
+  ]
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, ...(isMobile ? { overflowX: 'hidden' } : {}) }}>
+      <div style={{ display: 'flex', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, ...(isMobile ? { flexDirection: 'column' } : {}) }}>
         <div>
           <h2 style={{ fontSize: 20, fontWeight: 700, color: C.text, margin: 0 }}>Underhåll & Besiktning</h2>
           <p style={{ fontSize: 13, color: C.muted, marginTop: 2 }}>
-            {arenden.length} ärenden
+            {bolagArenden.length} ärenden
             {forsenaCount > 0 && <span style={{ color: C.danger, fontWeight: 600, marginLeft: 8 }}>{forsenaCount} försenade</span>}
             {kommandeCount > 0 && <span style={{ color: C.warn, marginLeft: 8 }}>{kommandeCount} inom 30 dagar</span>}
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={generateSuggestions} style={{ ...btnGhost, display: 'inline-flex', alignItems: 'center', gap: 8, color: C.gold, borderColor: C.gold }}>
+        <div style={{ display: 'flex', gap: 8, ...(isMobile ? { flexDirection: 'column', alignItems: 'stretch' } : {}) }}>
+          <button onClick={generateSuggestions} style={{ ...btnGhost, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, color: C.gold, borderColor: C.gold }}>
             🔧 Föreslå från fastigheter
           </button>
-          <button onClick={openNew} style={{ ...btnPrimary, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          <button onClick={openNew} style={{ ...btnPrimary, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
             + Nytt ärende
           </button>
         </div>
@@ -241,12 +299,13 @@ export default function UnderhallPage() {
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-        <select value={filterTyp} onChange={e => setFilterTyp(e.target.value)} onFocus={fo} onBlur={fb} style={{ ...inp, width: 'auto' }}>
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', ...(isMobile ? { flexDirection: 'column', alignItems: 'stretch' } : {}) }}>
+        <Sokfalt value={search} onChange={setSearch} placeholder="Sök namn, fastighet, leverantör..." style={{ width: isMobile ? '100%' : 260 }} />
+        <select value={filterTyp} onChange={e => setFilterTyp(e.target.value)} onFocus={fo} onBlur={fb} style={{ ...inp, width: isMobile ? '100%' : 'auto' }}>
           <option value="">Alla typer</option>
           {TYPER.map(t => <option key={t.kod} value={t.kod}>{t.icon} {t.label}</option>)}
         </select>
-        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} onFocus={fo} onBlur={fb} style={{ ...inp, width: 'auto' }}>
+        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} onFocus={fo} onBlur={fb} style={{ ...inp, width: isMobile ? '100%' : 'auto' }}>
           <option value="">Alla statusar</option>
           <option value="forsenad">Försenade</option>
           <option value="planerad">Planerade</option>
@@ -254,17 +313,43 @@ export default function UnderhallPage() {
         </select>
       </div>
 
+      {/* Sorterbara "kolumner" — listan är kortbaserad, så sorteringen styrs via klickbara chippar (asc/desc-toggle med pil), som i fakturering-förlagan. */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.6, color: C.muted2, textTransform: 'uppercase', ...(isMobile ? { width: '100%' } : {}) }}>Sortera</span>
+        {sortKnappar.map(k => {
+          const active = sortCol === k.key
+          return (
+            <button
+              key={k.key}
+              onClick={() => toggleSort(k.key)}
+              style={{
+                padding: '6px 12px', fontSize: 12, fontWeight: 600, borderRadius: 8, cursor: 'pointer',
+                border: `1px solid ${active ? C.gold : C.border}`,
+                background: active ? 'rgba(232,201,106,0.12)' : 'transparent',
+                color: active ? C.gold : C.muted,
+                userSelect: 'none',
+                ...(isMobile ? { flex: '1 1 auto', textAlign: 'center' } : {}),
+              }}
+            >
+              {k.label}{active ? (sortDir === 1 ? ' ▲' : ' ▼') : ''}
+            </button>
+          )
+        })}
+      </div>
+
       {loading ? (
         <div style={{ textAlign: 'center', padding: '48px 0', color: C.muted2 }}>Laddar...</div>
-      ) : filtered.length === 0 ? (
+      ) : sorted.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '64px 0', background: C.panel, borderRadius: 12, border: `1px solid ${C.borderSoft}` }}>
           <div style={{ fontSize: 40, marginBottom: 12 }}>🔧</div>
-          <p style={{ color: C.muted }}>Inga underhållsärenden</p>
-          <button onClick={openNew} style={{ ...btnGhost, marginTop: 16, color: C.gold, borderColor: C.gold }}>Skapa första ärendet</button>
+          <p style={{ color: C.muted }}>{search || filterTyp || filterStatus || valtBolagId ? 'Inga ärenden matchar filtret' : 'Inga underhållsärenden'}</p>
+          {!(search || filterTyp || filterStatus || valtBolagId) && (
+            <button onClick={openNew} style={{ ...btnGhost, marginTop: 16, color: C.gold, borderColor: C.gold }}>Skapa första ärendet</button>
+          )}
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {filtered.map(a => {
+          {sorted.map(a => {
             const days = daysUntil(a.nasta_gang)
             const typ = TYPER.find(t => t.kod === a.typ)
             const isForsenad = a.status === 'forsenad'
@@ -321,7 +406,7 @@ export default function UnderhallPage() {
           </div>
           <div>
             <label style={lbl}>Namn</label>
-            <input style={inp} onFocus={fo} onBlur={fb} value={newForm.namn} onChange={e => setNewForm({ ...newForm, namn: e.target.value })} placeholder="T.ex. Oljeavskiljare Hus A" />
+            <input spellCheck={true} style={inp} onFocus={fo} onBlur={fb} value={newForm.namn} onChange={e => setNewForm({ ...newForm, namn: e.target.value })} placeholder="T.ex. Oljeavskiljare Hus A" />
           </div>
           <div>
             <label style={lbl}>Fastighet</label>
@@ -330,29 +415,29 @@ export default function UnderhallPage() {
               {fastigheter.map(f => <option key={f.id} value={f.id}>{f.namn}</option>)}
             </select>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16 }}>
             <div>
               <label style={lbl}>Intervall (månader)</label>
-              <input type="number" min="1" style={inp} onFocus={fo} onBlur={fb} value={newForm.intervallManader} onChange={e => setNewForm({ ...newForm, intervallManader: e.target.value })} />
+              <input spellCheck={false} type="number" min="1" style={inp} onFocus={fo} onBlur={fb} value={newForm.intervallManader} onChange={e => setNewForm({ ...newForm, intervallManader: e.target.value })} />
             </div>
             <div>
               <label style={lbl}>Nästa datum</label>
-              <input type="date" min="2000-01-01" max="2099-12-31" style={inp} onFocus={fo} onBlur={fb} value={newForm.nastaGang} onChange={e => setNewForm({ ...newForm, nastaGang: e.target.value })} />
+              <input spellCheck={false} type="date" min="2000-01-01" max="2099-12-31" style={inp} onFocus={fo} onBlur={fb} value={newForm.nastaGang} onChange={e => setNewForm({ ...newForm, nastaGang: e.target.value })} />
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16 }}>
             <div>
               <label style={lbl}>Ansvarig</label>
-              <input style={inp} onFocus={fo} onBlur={fb} value={newForm.ansvarig} onChange={e => setNewForm({ ...newForm, ansvarig: e.target.value })} placeholder="Namn" />
+              <input spellCheck={false} style={inp} onFocus={fo} onBlur={fb} value={newForm.ansvarig} onChange={e => setNewForm({ ...newForm, ansvarig: e.target.value })} placeholder="Namn" />
             </div>
             <div>
               <label style={lbl}>Leverantör</label>
-              <input style={inp} onFocus={fo} onBlur={fb} value={newForm.leverantor} onChange={e => setNewForm({ ...newForm, leverantor: e.target.value })} placeholder="T.ex. KONE Hissar" />
+              <input spellCheck={false} style={inp} onFocus={fo} onBlur={fb} value={newForm.leverantor} onChange={e => setNewForm({ ...newForm, leverantor: e.target.value })} placeholder="T.ex. KONE Hissar" />
             </div>
           </div>
           <div>
             <label style={lbl}>Kommentar</label>
-            <textarea rows={2} style={{ ...inp, resize: 'none' }} onFocus={fo} onBlur={fb} value={newForm.kommentar} onChange={e => setNewForm({ ...newForm, kommentar: e.target.value })} placeholder="Eventuella anteckningar..." />
+            <textarea spellCheck={true} rows={2} style={{ ...inp, resize: 'none' }} onFocus={fo} onBlur={fb} value={newForm.kommentar} onChange={e => setNewForm({ ...newForm, kommentar: e.target.value })} placeholder="Eventuella anteckningar..." />
           </div>
         </div>
       </SlideOver>
@@ -426,23 +511,23 @@ export default function UnderhallPage() {
             {selected.status !== 'utford' && (
               <div>
                 <h4 style={secLabel}>Registrera utfört</h4>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
                   <div>
                     <label style={lbl}>Datum</label>
-                    <input type="date" min="2000-01-01" max="2099-12-31" style={inp} onFocus={fo} onBlur={fb} value={markForm.datum} onChange={e => setMarkForm({ ...markForm, datum: e.target.value })} />
+                    <input spellCheck={false} type="date" min="2000-01-01" max="2099-12-31" style={inp} onFocus={fo} onBlur={fb} value={markForm.datum} onChange={e => setMarkForm({ ...markForm, datum: e.target.value })} />
                   </div>
                   <div>
                     <label style={lbl}>Utfört av</label>
-                    <input style={inp} onFocus={fo} onBlur={fb} value={markForm.utfordAv} onChange={e => setMarkForm({ ...markForm, utfordAv: e.target.value })} placeholder="Namn / företag" />
+                    <input spellCheck={false} style={inp} onFocus={fo} onBlur={fb} value={markForm.utfordAv} onChange={e => setMarkForm({ ...markForm, utfordAv: e.target.value })} placeholder="Namn / företag" />
                   </div>
                   <div>
                     <label style={lbl}>Kostnad (kr)</label>
-                    <input type="number" style={inp} onFocus={fo} onBlur={fb} value={markForm.kostnad} onChange={e => setMarkForm({ ...markForm, kostnad: e.target.value })} placeholder="0" />
+                    <input spellCheck={false} type="number" style={inp} onFocus={fo} onBlur={fb} value={markForm.kostnad} onChange={e => setMarkForm({ ...markForm, kostnad: e.target.value })} placeholder="0" />
                   </div>
                 </div>
                 <div style={{ marginTop: 12 }}>
                   <label style={lbl}>Kommentar</label>
-                  <textarea rows={2} style={{ ...inp, resize: 'none' }} onFocus={fo} onBlur={fb} value={markForm.kommentar} onChange={e => setMarkForm({ ...markForm, kommentar: e.target.value })} placeholder="Anteckningar om utfört arbete..." />
+                  <textarea spellCheck={true} rows={2} style={{ ...inp, resize: 'none' }} onFocus={fo} onBlur={fb} value={markForm.kommentar} onChange={e => setMarkForm({ ...markForm, kommentar: e.target.value })} placeholder="Anteckningar om utfört arbete..." />
                 </div>
               </div>
             )}

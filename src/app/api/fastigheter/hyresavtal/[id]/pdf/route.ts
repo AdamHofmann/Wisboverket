@@ -14,12 +14,13 @@
 //
 // SIDOEFFEKTER: pdf-lib PDF-generering porterad rakt av (server-side, oförändrad layout).
 //
-// TODO (minnesregel/PLAN R4): Wisboverket-loggan ska med på alla utskrivbara dokument.
-//   Käll-footern "Genererat av Hofmanns Fastigheter" bör bytas mot Wisboverket-logga
-//   (embedPng från Storage-bucket 'fastigheter') + korrekt avsändartext. Kräver att
-//   loggan finns i Storage — lämnas som manuell uppföljning. Se även R4: svenska tecken
-//   (å/ä/ö) med StandardFonts.Helvetica renderas dåligt; överväg inbäddad TTF + fontkit.
+// Wisboverket-loggan (public/logo.png) bäddas in i sidhuvudet på sida 1 (minnesregel:
+//   loggan ska med på alla utskrivbara dokument). Inbäddningen är robust — saknas filen
+//   genereras PDF:en ändå (try/catch). Se även R4: svenska tecken (å/ä/ö) med
+//   StandardFonts.Helvetica renderas dåligt; överväg inbäddad TTF + fontkit.
 import { NextResponse } from 'next/server'
+import { promises as fs } from 'fs'
+import path from 'path'
 import { createClient } from '@/lib/supabase/server'
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 
@@ -102,6 +103,17 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const drawLine = (yPos: number) => {
       page.drawLine({ start: { x: 40, y: yPos }, end: { x: width - 40, y: yPos }, thickness: 0.5, color: rgb(0.8, 0.8, 0.8) })
       return yPos - 5
+    }
+
+    // Wisboverket-logga i sidhuvudet (robust: PDF genereras även om filen saknas).
+    try {
+      const logoBytes = await fs.readFile(path.join(process.cwd(), 'public', 'logo.png'))
+      const logoImage = await pdf.embedPng(logoBytes)
+      const logoHeight = 48
+      const logoWidth = (logoImage.width / logoImage.height) * logoHeight
+      page.drawImage(logoImage, { x: 40, y: y - logoHeight + 10, width: logoWidth, height: logoHeight })
+    } catch (logoErr) {
+      console.warn('Wisboverket-logga kunde inte bäddas in i PDF:en:', logoErr)
     }
 
     // Header
@@ -340,8 +352,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     page.drawLine({ start: { x: 60, y }, end: { x: 250, y }, thickness: 0.5, color: black })
     page.drawLine({ start: { x: 320, y }, end: { x: 510, y }, thickness: 0.5, color: black })
 
-    // Footer
-    // TODO (minnesregel): byt till Wisboverket-logga/avsändare på utskrivbara dokument.
+    // Footer (loggan ligger i sidhuvudet på sida 1).
     page.drawText('Genererat av Wisboverket', {
       x: 40, y: 25, font, size: 6, color: rgb(0.6, 0.6, 0.6),
     })

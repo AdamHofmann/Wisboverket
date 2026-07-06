@@ -32,6 +32,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       .select(`
         *,
         rader:f_fakturarad (*),
+        hyresgast:f_hyresgast (*),
+        bolag:f_bolag (*),
         hyresavtal:f_hyresavtal (
           *,
           lokaler:f_hyresavtal_lokal (
@@ -63,8 +65,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
     const lokaler = (faktura.hyresavtal?.lokaler ?? []) as Array<{ lokal: any }>
     const forstaLokal = lokaler[0]?.lokal
-    const bolag = forstaLokal?.fastighet?.bolag
-    const hg = faktura.hyresavtal?.hyresgast
+    // Manuella fakturor saknar hyresavtal → fall tillbaka på fakturans direkta bolag/hyresgäst.
+    const bolag = forstaLokal?.fastighet?.bolag ?? faktura.bolag
+    const hg = faktura.hyresavtal?.hyresgast ?? faktura.hyresgast
     const fastighet = forstaLokal?.fastighet
 
     // numeric(14,2) kommer som number (parseFloat som skyddsnät)
@@ -73,9 +76,25 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const totalInkl = Math.round((subtotal + momsBelopp) * 100) / 100
     const r2 = (n: number) => Math.round(n * 100) / 100
 
+    // Fakturameddelande per bolag (t.ex. "OBS! Nytt bankgiro" eller "God Jul") — visas
+    // som en tydlig noteringsruta högst upp. Lagras i f_bolag.faktura_prefix_text.
+    const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    const meddelande = bolag?.faktura_prefix_text
+      ? `<div class="notice">${esc(String(bolag.faktura_prefix_text)).replace(/\n/g, '<br>')}</div>`
+      : ''
+
     const raderHTML = rader
       .filter(r => r.artikelkod !== 'ORE' || parseFloat(String(r.belopp)) !== 0)
-      .map(r => `
+      .map(r => {
+        // Fritextrad: bara text över hela bredden, inga belopp.
+        if (r.artikelkod === 'TEXT') {
+          return `
+        <tr>
+          <td colspan="5" style="color:#555; font-style:italic;">${esc(String(r.beskrivning))}</td>
+        </tr>
+      `
+        }
+        return `
         <tr>
           <td>${r.beskrivning}</td>
           <td class="right">${r.antal}</td>
@@ -83,7 +102,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
           <td class="right">${parseFloat(String(r.moms)) > 0 ? parseFloat(String(r.moms)) + '%' : '—'}</td>
           <td class="right bold">${fmtSEK(parseFloat(String(r.belopp)))}</td>
         </tr>
-      `).join('')
+      `
+      }).join('')
 
     const html = `<!DOCTYPE html>
 <html lang="sv">
@@ -120,6 +140,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   .payment-grid .label { color: #666; }
   .payment-grid .value { font-weight: 600; }
   .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #ddd; font-size: 8pt; color: #999; text-align: center; }
+  .notice { margin-bottom: 28px; padding: 12px 16px; background: #fdf6e3; border-left: 4px solid #c9a840; border-radius: 4px; font-size: 10pt; color: #1a1a1a; }
   .print-btn { position: fixed; top: 20px; right: 20px; padding: 10px 24px; background: #0071e3; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; z-index: 100; }
   .print-btn:hover { background: #005bb5; }
 </style>
@@ -142,6 +163,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     ${bolag?.telefon ? `<p>${bolag.telefon}</p>` : ''}
   </div>
 </div>
+
+${meddelande}
 
 <div class="parties">
   <div>

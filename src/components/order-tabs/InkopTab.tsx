@@ -112,7 +112,17 @@ export default function InkopTab({ orderId }: { orderId: string }) {
   const sparaNyLeverantor = async () => {
     if (!nyLevNamn.trim()) return
     setSpararLev(true)
-    const { data } = await createClient().from('suppliers').insert({ namn: nyLevNamn, typ: nyLevTyp }).select().single()
+    // Förifyll levkortet med det AI:n läste av från fakturan (om något)
+    const s = scanResultat || {}
+    const { data } = await createClient().from('suppliers').insert({
+      namn: nyLevNamn,
+      typ: nyLevTyp,
+      kategori: nyLevTyp,
+      orgnummer: s.leverantor_orgnummer || null,
+      telefon: s.leverantor_telefon || null,
+      epost: s.leverantor_epost || null,
+      adress: s.leverantor_adress || null,
+    }).select().single()
     if (data) {
       setLeverantorer(l => [...l, data])
       setLeverantor(data.namn)
@@ -212,10 +222,19 @@ export default function InkopTab({ orderId }: { orderId: string }) {
             <div style={{ fontSize: 12, fontWeight: 700, color: '#E8C96A', marginBottom: 10 }}>
               🏪 Ny leverantör: &ldquo;{nyLevNamn}&rdquo; finns inte — vill du lägga till den?
             </div>
+            {(scanResultat?.leverantor_orgnummer || scanResultat?.leverantor_telefon || scanResultat?.leverantor_epost || scanResultat?.leverantor_adress) && (
+              <div style={{ fontSize: 11, color: '#8e8e93', marginBottom: 10, lineHeight: 1.6 }}>
+                AI läste av från fakturan (sparas på levkortet):
+                {scanResultat.leverantor_orgnummer && <span style={{ color: '#aeaeb2' }}> · {scanResultat.leverantor_orgnummer}</span>}
+                {scanResultat.leverantor_telefon && <span style={{ color: '#aeaeb2' }}> · {scanResultat.leverantor_telefon}</span>}
+                {scanResultat.leverantor_epost && <span style={{ color: '#aeaeb2' }}> · {scanResultat.leverantor_epost}</span>}
+                {scanResultat.leverantor_adress && <span style={{ color: '#aeaeb2' }}> · {scanResultat.leverantor_adress}</span>}
+              </div>
+            )}
             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr auto auto', gap: 8, alignItems: 'end' }}>
               <div>
                 <label style={lbl}>NAMN</label>
-                <input style={inp} value={nyLevNamn} onChange={e => setNyLevNamn(e.target.value)} onFocus={fo} onBlur={fb} />
+                <input spellCheck={false} style={inp} value={nyLevNamn} onChange={e => setNyLevNamn(e.target.value)} onFocus={fo} onBlur={fb} />
               </div>
               <div>
                 <label style={lbl}>TYP</label>
@@ -242,27 +261,27 @@ export default function InkopTab({ orderId }: { orderId: string }) {
         {/* Formulärfält */}
         <div style={{ marginBottom: 10 }}>
           <label style={lbl}>BESKRIVNING</label>
-          <input style={inp} value={beskrivning} onChange={e => setBeskrivning(e.target.value)} placeholder="Vad köptes in?" onFocus={fo} onBlur={fb} />
+          <input spellCheck={true} style={inp} value={beskrivning} onChange={e => setBeskrivning(e.target.value)} placeholder="Vad köptes in?" onFocus={fo} onBlur={fb} />
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
           <div>
             <label style={lbl}>LEVERANTÖR</label>
-            <input style={inp} value={leverantor} onChange={e => setLeverantor(e.target.value)} placeholder="Bauhaus, Ahlsell..." list="lev-lista" onFocus={fo} onBlur={fb} />
+            <input spellCheck={false} style={inp} value={leverantor} onChange={e => setLeverantor(e.target.value)} placeholder="Bauhaus, Ahlsell..." list="lev-lista" onFocus={fo} onBlur={fb} />
             <datalist id="lev-lista">
               {leverantorer.map(l => <option key={l.id} value={l.namn} />)}
             </datalist>
           </div>
           <div>
             <label style={lbl}>BELOPP (ex. moms)</label>
-            <input type="number" style={inp} value={belopp} onChange={e => setBelopp(e.target.value)} placeholder="0" onFocus={fo} onBlur={fb} />
+            <input spellCheck={false} type="number" style={inp} value={belopp} onChange={e => setBelopp(e.target.value)} placeholder="0" onFocus={fo} onBlur={fb} />
           </div>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
           <div>
             <label style={lbl}>DATUM</label>
-            <input type="date" style={inp} value={datum} onChange={e => setDatum(e.target.value)} onFocus={fo} onBlur={fb} />
+            <input spellCheck={false} type="date" style={inp} value={datum} onChange={e => setDatum(e.target.value)} onFocus={fo} onBlur={fb} />
           </div>
           <div>
             <label style={lbl}>KATEGORI</label>

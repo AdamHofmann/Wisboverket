@@ -11,6 +11,7 @@ const TABS = [
   { href: '/installningar/integration', label: 'Integration' },
   { href: '/installningar/kontoplan', label: 'Kontoplan' },
   { href: '/installningar/moms', label: 'Moms' },
+  { href: '/installningar/systemlogg', label: 'Systemlogg' },
 ]
 
 export default function InstallningarLayout({ children }: { children: React.ReactNode }) {

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Order, Invoice } from '@/types'
 import Link from 'next/link'
+import { useIsMobile } from '@/hooks/useMediaQuery'
 
 const S: Record<string, React.CSSProperties> = {
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16, marginBottom: 24 },
@@ -28,6 +29,7 @@ const fmt = (n: number) => n.toLocaleString('sv-SE') + ' kr'
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })
 
 export default function DashboardPage() {
+  const isMobile = useIsMobile()
   const [orders, setOrders] = useState<Order[]>([])
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
@@ -48,7 +50,7 @@ export default function DashboardPage() {
   const ejPlanerade = orders.filter(o => (o.status === 'ny' || o.status === 'pågående') && !o.bokad_datum)
   // Planerade jobb (har datum) men saknar tilldelad resurs
   const ejTilldelad = orders.filter(o => (o.status === 'ny' || o.status === 'pågående') && o.bokad_datum && (!o.tilldelad || o.tilldelad.length === 0))
-  const attFakturera = orders.filter(o => o.status === 'klar' && !o.fakturerat)
+  const attFakturera = orders.filter(o => o.status === 'klar' && !o.fakturerat && !o.faktureras_inte)
   const idag = new Date().toISOString().split('T')[0]
   const faktureratIdag = invoices.filter(i => i.created_at?.startsWith(idag)).reduce((s, i) => s + (i.total_incl_moms || 0), 0)
   const manad = new Date().toLocaleString('sv-SE', { month: 'short' }).toUpperCase()
@@ -70,21 +72,21 @@ export default function DashboardPage() {
   if (loading) return <div style={{ color: '#555', padding: 40, textAlign: 'center' }}>Laddar...</div>
 
   return (
-    <div>
-      <div style={S.grid}>
+    <div style={isMobile ? { overflowX: 'hidden' } : undefined}>
+      <div style={isMobile ? { ...S.grid, gridTemplateColumns: '1fr' } : S.grid}>
         {statCards.map(c => (
           <Link key={c.label} href={(c as any).href} style={{ ...S.card, gridColumn: (c as any).wide ? 'span 1' : undefined, textDecoration: 'none', display: 'block', cursor: 'pointer', transition: 'border-color 0.15s' }}
             onMouseEnter={e => (e.currentTarget.style.borderColor = '#3a3a3a')}
             onMouseLeave={e => (e.currentTarget.style.borderColor = '#2a2a2a')}>
             <div style={{ ...S.cardAccent, background: c.color }} />
             <div style={S.cardLabel}>{c.label}</div>
-            <div style={{ ...S.cardValue, color: c.color }}>{c.value}</div>
+            <div style={{ ...S.cardValue, color: c.color, ...(isMobile ? { fontSize: 26, wordBreak: 'break-word' } : {}) }}>{c.value}</div>
             <div style={S.cardSub}>{c.sub}</div>
           </Link>
         ))}
       </div>
 
-      <div style={S.kbRow}>
+      <div style={isMobile ? { ...S.kbRow, gridTemplateColumns: '1fr' } : S.kbRow}>
         {/* Ej planerade */}
         <div style={S.kbCol}>
           <div style={S.kbHeader}>

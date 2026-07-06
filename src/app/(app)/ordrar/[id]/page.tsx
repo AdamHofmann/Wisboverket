@@ -13,6 +13,7 @@ import FakturorTab from '@/components/order-tabs/FakturorTab'
 import BilderTab from '@/components/order-tabs/BilderTab'
 import OffertTab from '@/components/order-tabs/OffertTab'
 import { fmtKr, STATUS_LABEL, STATUS_COLOR, PRIO_LABEL, PRIO_COLOR, KAT_ICON } from '@/components/order-tabs/shared'
+import { useConfirm } from '@/components/ConfirmDialog'
 
 type Kommunikation = {
   id: string; typ: string; kanal: string | null; mottagare: string | null; meddelande: string; created_at: string
@@ -38,6 +39,7 @@ const fmtTime = (d: string) => new Date(d).toLocaleString('sv-SE', { day: 'numer
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
+  const confirm = useConfirm()
   const [order, setOrder] = useState<Order & { customer?: Customer } | null>(null)
   const [kommunikation, setKommunikation] = useState<Kommunikation[]>([])
   const [loading, setLoading] = useState(true)
@@ -73,6 +75,17 @@ export default function OrderDetailPage() {
     fetchAll()
   }
 
+  const stangUtanFakturering = async () => {
+    await createClient().from('orders').update({ faktureras_inte: true, updated_at: new Date().toISOString() }).eq('id', id)
+    fetchAll()
+  }
+
+  const lasUpp = async () => {
+    if (order?.fakturerat && !(await confirm({ message: 'Ordern har en faktura — lås upp ändå?', confirmLabel: 'Lås upp' }))) return
+    await createClient().from('orders').update({ faktureras_inte: false, fakturerat: false, updated_at: new Date().toISOString() }).eq('id', id)
+    fetchAll()
+  }
+
   const sparaBetygFn = async () => {
     setSparaBetyg(true)
     await createClient().from('orders').update({ betyg, betyg_kommentar: betygKommentar }).eq('id', id)
@@ -85,6 +98,7 @@ export default function OrderDetailPage() {
   const statusColor = STATUS_COLOR[order.status] || '#888'
   const prioColor = PRIO_COLOR[order.prioritet || 'normal']
   const orderNr = order.order_number ? `#${String(order.order_number).padStart(4, '0')}` : `#${order.id.slice(0, 6).toUpperCase()}`
+  const last = !!(order.fakturerat || order.faktureras_inte)
 
   return (
     <div style={{ maxWidth: 780, margin: '0 auto', paddingBottom: 100 }}>
@@ -110,6 +124,13 @@ export default function OrderDetailPage() {
             </span>
             {order.kategori && (
               <span style={{ fontSize: 11, color: '#666' }}>{KAT_ICON[order.kategori] || ''} {order.kategori}</span>
+            )}
+            {last && (
+              order.fakturerat ? (
+                <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: 'rgba(232,201,106,0.15)', color: '#E8C96A', border: '1px solid #E8C96A66' }}>🔒 Fakturerad</span>
+              ) : (
+                <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: 'rgba(251,146,60,0.15)', color: '#fb923c', border: '1px solid #fb923c66' }}>🔒 Ej deb.</span>
+              )
             )}
           </div>
           <button onClick={() => router.push('/ordrar')} style={{ background: 'none', border: 'none', color: '#444', fontSize: 20, cursor: 'pointer', lineHeight: 1 }}>×</button>
@@ -266,7 +287,7 @@ export default function OrderDetailPage() {
               ))}
               {betyg > 0 && <span style={{ fontSize: 13, color: '#E8C96A', alignSelf: 'center', marginLeft: 6 }}>{betyg}/5</span>}
             </div>
-            <textarea value={betygKommentar} onChange={e => setBetygKommentar(e.target.value)} placeholder="Kommentar från kunden..."
+            <textarea spellCheck={true} value={betygKommentar} onChange={e => setBetygKommentar(e.target.value)} placeholder="Kommentar från kunden..."
               style={{ background: '#111', border: '1px solid #2a2a2a', borderRadius: 8, padding: '10px 12px', color: '#e0e0e0', fontSize: 13, outline: 'none', width: '100%', boxSizing: 'border-box', resize: 'vertical', minHeight: 100 }}
               onFocus={e => e.currentTarget.style.borderColor = '#E8C96A'} onBlur={e => e.currentTarget.style.borderColor = '#2a2a2a'} />
             <button onClick={sparaBetygFn} disabled={sparaBetyg}
@@ -277,7 +298,7 @@ export default function OrderDetailPage() {
         )}
 
         {tab === 'offert' && <OffertTab orderId={order.id} />}
-        {tab === 'tid' && <TidFaktureringTab orderId={order.id} onUpdated={fetchAll} />}
+        {tab === 'tid' && <TidFaktureringTab orderId={order.id} last={last} onUpdated={fetchAll} />}
         {tab === 'inkop' && <InkopTab orderId={order.id} />}
         {tab === 'ekonomi' && <EkonomiTab orderId={order.id} faktureradeBelopp={order.fakturerat_belopp} />}
         {tab === 'fakturor' && <FakturorTab orderId={order.id} />}
@@ -285,22 +306,27 @@ export default function OrderDetailPage() {
       </div>
 
       {/* Action-bar i botten */}
-      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#111', borderTop: '1px solid #1e1e1e', display: 'flex', zIndex: 100 }}>
-        {[
-          { label: 'Kontakta kund', icon: '📬', action: () => setShowSend(true), color: '#a78bfa' },
-          { label: 'Redigera', icon: '✏️', action: () => setShowEdit(true), color: '#E8C96A' },
-          { label: 'Duplicera', icon: '📋', action: () => {}, color: '#60a5fa' },
-          { label: order.status === 'inaktiv' ? 'Aktivera' : 'Inaktivera', icon: order.status === 'inaktiv' ? '▶' : '🚫', action: () => updateStatus(order.status === 'inaktiv' ? 'aktiv' : 'inaktiv'), color: order.status === 'inaktiv' ? '#4ade80' : '#f87171' },
-        ].map(btn => (
-          <button key={btn.label} onClick={btn.action}
-            style={{ flex: 1, background: 'none', border: 'none', borderRight: '1px solid #1e1e1e', padding: '14px 8px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}
-            onMouseEnter={e => e.currentTarget.style.background = '#1a1a1a'}
-            onMouseLeave={e => e.currentTarget.style.background = 'none'}>
-            <span style={{ fontSize: 18 }}>{btn.icon}</span>
-            <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.5, color: btn.color }}>{btn.label.toUpperCase()}</span>
-          </button>
-        ))}
-      </div>
+      {(() => {
+        const bar = [
+          { label: 'Kontakta kund', icon: '📬', action: () => setShowSend(true), color: '#a78bfa', disabled: false },
+          { label: 'Redigera', icon: '✏️', action: () => setShowEdit(true), color: '#E8C96A', disabled: last },
+          { label: last ? 'Lås upp' : 'Stäng utan fakt.', icon: last ? '🔓' : '🚷', action: last ? lasUpp : stangUtanFakturering, color: last ? '#4ade80' : '#fb923c', disabled: false },
+          { label: order.status === 'inaktiv' ? 'Aktivera' : 'Inaktivera', icon: order.status === 'inaktiv' ? '▶' : '🚫', action: () => updateStatus(order.status === 'inaktiv' ? 'aktiv' : 'inaktiv'), color: order.status === 'inaktiv' ? '#4ade80' : '#f87171', disabled: false },
+        ]
+        return (
+          <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#111', borderTop: '1px solid #1e1e1e', display: 'flex', zIndex: 100 }}>
+            {bar.map(btn => (
+              <button key={btn.label} onClick={btn.disabled ? undefined : btn.action} disabled={btn.disabled}
+                style={{ flex: 1, background: 'none', border: 'none', borderRight: '1px solid #1e1e1e', padding: '14px 8px', cursor: btn.disabled ? 'not-allowed' : 'pointer', opacity: btn.disabled ? 0.4 : 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}
+                onMouseEnter={e => { if (!btn.disabled) e.currentTarget.style.background = '#1a1a1a' }}
+                onMouseLeave={e => e.currentTarget.style.background = 'none'}>
+                <span style={{ fontSize: 18 }}>{btn.icon}</span>
+                <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.5, color: btn.color }}>{btn.label.toUpperCase()}</span>
+              </button>
+            ))}
+          </div>
+        )
+      })()}
 
       {showEdit && order && (
         <NyOrderModal order={order} onClose={() => setShowEdit(false)} onSaved={() => { fetchAll(); setShowEdit(false) }} />

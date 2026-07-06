@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useKundPrisavtal } from '@/hooks/useKundPrisavtal'
 import { fmtKr, inp, lbl, fo, fb } from './shared'
+import { useIsMobile } from '@/hooks/useMediaQuery'
 import DatumValjare from '@/components/DatumValjare'
 import { FakturaVy, type Faktura } from '@/components/order-tabs/FakturorTab'
 
@@ -13,6 +14,7 @@ type TidRad = {
   antal: number; a_pris: number; kostnad_per_enhet: number
   total_intakt: number; total_kostnad: number
   datum: string | null; start_tid: string | null; slut_tid: string | null; anteckning: string | null
+  fakturerad?: boolean
 }
 type DagRad = { datum: string; start: string; slut: string }
 type PlanRad = { id: string; resurs: string; datum: string; start: string; slut: string; artikelId: string }
@@ -32,7 +34,8 @@ function datumMellan(fran: string, till: string): string[] {
   return dagar
 }
 
-export default function TidFaktureringTab({ orderId, onUpdated }: { orderId: string; onUpdated?: () => void }) {
+export default function TidFaktureringTab({ orderId, onUpdated, last = false }: { orderId: string; onUpdated?: () => void; last?: boolean }) {
+  const m = useIsMobile()
   const [subTab, setSubTab] = useState<'tid' | 'faktura'>('tid')
   const [artiklar, setArtiklar] = useState<Artikel[]>([])
   const [rader, setRader] = useState<TidRad[]>([])
@@ -107,6 +110,7 @@ export default function TidFaktureringTab({ orderId, onUpdated }: { orderId: str
   const { prisavtal, artikelPris } = useKundPrisavtal(orderInfo?.customer_id, artiklar)
 
   const laggTillTid = async () => {
+    if (last) return
     if (!artikelId || dagRader.length === 0) return
     setSaving(true)
     const sb = createClient()
@@ -153,6 +157,7 @@ export default function TidFaktureringTab({ orderId, onUpdated }: { orderId: str
   }
 
   const laggTillAllaPlan = async () => {
+    if (last) return
     setSavingPlan(true)
     const sb = createClient()
     for (const r of planRader) {
@@ -184,6 +189,8 @@ export default function TidFaktureringTab({ orderId, onUpdated }: { orderId: str
   }
 
   const taBortRad = async (id: string) => {
+    if (last) return
+    if (rader.find(r => r.id === id)?.fakturerad) return
     const sb = createClient()
     await sb.from('order_tid_rader').delete().eq('id', id)
     await fetchRader()
@@ -196,17 +203,19 @@ export default function TidFaktureringTab({ orderId, onUpdated }: { orderId: str
 
   // Faktura-logik
   const addFakturaRad = () => {
+    if (last) return
     const id = crypto.randomUUID()
     newRowRef.current = id
     setFakturaRader(r => [...r, { id, typ: 'artikel', artikel_id: '', text: '', antal: 1, resurser: 1, apris: 0, enhet: 'tim' }])
   }
-  const updateFakturaRad = (id: string, k: string, v: any) => setFakturaRader(r => r.map(row => row.id === id ? { ...row, [k]: v } : row))
-  const removeFakturaRad = (id: string) => setFakturaRader(r => r.filter(row => row.id !== id))
+  const updateFakturaRad = (id: string, k: string, v: any) => { if (last) return; setFakturaRader(r => r.map(row => row.id === id ? { ...row, [k]: v } : row)) }
+  const removeFakturaRad = (id: string) => { if (last) return; setFakturaRader(r => r.filter(row => row.id !== id)) }
 
   // Bygg fakturarader från inrapporterade tidposter — grupperat per datum, med en
   // datum-rubrik ovanför varje dags rader. Artikelrader använder artikel_id så att
   // à-priset följer kundens prisavtal (annars artikelpriset) via artikelPris().
   const hamtaFranTid = () => {
+    if (last) return
     if (rader.length === 0) return
     const perDatum = new Map<string, Map<string, { namn: string; enhet: string; artikelId: string; apris: number; antal: number }>>()
     for (const r of rader) {
@@ -258,6 +267,7 @@ export default function TidFaktureringTab({ orderId, onUpdated }: { orderId: str
   const fakturaTotalt = fakturaSubtotal + fakturaMoms
 
   const skapaFakturaFn = async () => {
+    if (last) return
     if (fakturaRader.length === 0) return
     setSkaparFaktura(true)
     const sb = createClient()
@@ -294,6 +304,9 @@ export default function TidFaktureringTab({ orderId, onUpdated }: { orderId: str
       // Fakturerad order räknas som klar (rör inte manuellt inaktiverade ordrar)
       status: orderInfo?.status === 'inaktiv' ? 'inaktiv' : 'klar',
     }).eq('id', orderId)
+    // Markera orderns alla tidposter som fakturerade (låser dem)
+    await sb.from('order_tid_rader').update({ fakturerad: true }).eq('order_id', orderId)
+    await fetchRader()
     setOrderInfo((o: any) => o ? { ...o, fakturerat: true, status: o.status === 'inaktiv' ? 'inaktiv' : 'klar' } : o)
     setSkaparFaktura(false)
     setFakturaSkapad(true)
@@ -317,30 +330,37 @@ export default function TidFaktureringTab({ orderId, onUpdated }: { orderId: str
         </button>
       </div>
 
+      {/* Låst-notis */}
+      {last && (
+        <div style={{ background: '#1c1c1e', border: '1px solid #E8C96A', borderRadius: 10, padding: '10px 14px', marginBottom: 12, fontSize: 13, fontWeight: 600, color: '#E8C96A' }}>
+          🔒 Ordern är låst (fakturerad/ej deb) — ekonomi kan inte ändras.
+        </div>
+      )}
+
       {/* ── TIDRAPPORTERING ── */}
       {subTab === 'tid' && (
         <div>
           {/* Formulär */}
           <div style={{ background: '#252528', borderRadius: 12, padding: '16px' }}>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: m ? '1fr' : '1fr 1fr', gap: 10, marginBottom: 12 }}>
               <div>
                 <div style={lbl}>RESURSER</div>
-                <select style={inp} value={resurs} onChange={e => setResurs(e.target.value)} onFocus={fo} onBlur={fb}>
+                <select style={{ ...inp, opacity: last ? 0.5 : 1 }} disabled={last} value={resurs} onChange={e => setResurs(e.target.value)} onFocus={fo} onBlur={fb}>
                   <option value="">— Välj —</option>
                   {PERSONAL.map(p => <option key={p} value={p}>{p.toUpperCase()}</option>)}
                 </select>
               </div>
               <div>
                 <div style={lbl}>ARTIKEL / TJÄNST</div>
-                <select style={inp} value={artikelId} onChange={e => setArtikelId(e.target.value)} onFocus={fo} onBlur={fb}>
+                <select style={{ ...inp, opacity: last ? 0.5 : 1 }} disabled={last} value={artikelId} onChange={e => setArtikelId(e.target.value)} onFocus={fo} onBlur={fb}>
                   <option value="">— Välj —</option>
                   {artiklar.map(a => <option key={a.id} value={a.id}>{a.namn} · {a.a_pris} kr/{a.enhet}</option>)}
                 </select>
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: m ? '1fr' : '1fr 1fr', gap: 10, marginBottom: 12, ...(last ? { opacity: 0.5, pointerEvents: 'none' as const } : {}) }}>
               <div>
                 <div style={lbl}>FRÅN DATUM</div>
                 <DatumValjare value={franDatum} onChange={setFranDatum} style={inp} />
@@ -355,12 +375,12 @@ export default function TidFaktureringTab({ orderId, onUpdated }: { orderId: str
             {dagRader.length > 0 && (
               <div style={{ marginBottom: 12 }}>
                 {dagRader.map((r, i) => (
-                  <div key={r.datum} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: 8, marginBottom: 6, alignItems: 'center' }}>
-                    <div style={{ fontSize: 13, color: '#aeaeb2', padding: '8px 12px', background: '#1c1c1e', borderRadius: 8 }}>{fmtDag(r.datum)}</div>
-                    <input type="time" style={inp} value={r.start}
+                  <div key={r.datum} style={{ display: 'grid', gridTemplateColumns: m ? '1fr 1fr auto' : '2fr 1fr 1fr auto', gap: 8, marginBottom: 6, alignItems: 'center' }}>
+                    <div style={{ fontSize: 13, color: '#aeaeb2', padding: '8px 12px', background: '#1c1c1e', borderRadius: 8, ...(m ? { gridColumn: '1 / -1' } : {}) }}>{fmtDag(r.datum)}</div>
+                    <input spellCheck={false} type="time" style={inp} value={r.start}
                       onChange={e => setDagRader(dr => dr.map((d, j) => j === i ? { ...d, start: e.target.value } : d))}
                       onFocus={fo} onBlur={fb} />
-                    <input type="time" style={inp} value={r.slut}
+                    <input spellCheck={false} type="time" style={inp} value={r.slut}
                       onChange={e => setDagRader(dr => dr.map((d, j) => j === i ? { ...d, slut: e.target.value } : d))}
                       onFocus={fo} onBlur={fb} />
                     <button onClick={() => setDagRader(dr => dr.filter((_, j) => j !== i))}
@@ -374,26 +394,26 @@ export default function TidFaktureringTab({ orderId, onUpdated }: { orderId: str
             {orderInfo?.tilldelad?.length > 0 && orderInfo?.bokad_datum && (
               <div style={{ marginBottom: 12 }}>
                 {planRader.length === 0 ? (
-                  <button onClick={genereraPlanRader}
-                    style={{ width: '100%', padding: '10px', background: '#1c1c1e', color: '#E8C96A', border: '1px solid #3a3a3c', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+                  <button onClick={genereraPlanRader} disabled={last}
+                    style={{ width: '100%', padding: '10px', background: '#1c1c1e', color: '#E8C96A', border: '1px solid #3a3a3c', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: last ? 'not-allowed' : 'pointer', opacity: last ? 0.5 : 1 }}>
                     ⚡ Fyll i från planering
                   </button>
                 ) : (
                   <>
                     <div style={{ ...lbl, marginBottom: 8 }}>FRÅN PLANERING ({planRader.length})</div>
                     {planRader.map((r, i) => (
-                      <div key={r.id} style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 2fr auto', gap: 8, marginBottom: 6, alignItems: 'center' }}>
-                        <div style={{ fontSize: 13, padding: '8px 12px', background: '#1c1c1e', borderRadius: 8 }}>
+                      <div key={r.id} style={{ display: 'grid', gridTemplateColumns: m ? '1fr 1fr auto' : '1.2fr 1fr 1fr 2fr auto', gap: 8, marginBottom: m ? 12 : 6, alignItems: 'center' }}>
+                        <div style={{ fontSize: 13, padding: '8px 12px', background: '#1c1c1e', borderRadius: 8, ...(m ? { gridColumn: '1 / -1' } : {}) }}>
                           <div style={{ fontWeight: 700, color: '#f2f2f7' }}>{r.resurs}</div>
                           <div style={{ fontSize: 11, color: '#8e8e93', marginTop: 2 }}>{fmtDag(r.datum)}</div>
                         </div>
-                        <input type="time" style={inp} value={r.start}
+                        <input spellCheck={false} type="time" style={inp} value={r.start}
                           onChange={e => setPlanRader(pr => pr.map((d, j) => j === i ? { ...d, start: e.target.value } : d))}
                           onFocus={fo} onBlur={fb} />
-                        <input type="time" style={inp} value={r.slut}
+                        <input spellCheck={false} type="time" style={inp} value={r.slut}
                           onChange={e => setPlanRader(pr => pr.map((d, j) => j === i ? { ...d, slut: e.target.value } : d))}
                           onFocus={fo} onBlur={fb} />
-                        <select style={inp} value={r.artikelId}
+                        <select style={{ ...inp, ...(m ? { gridColumn: '1 / -1' } : {}) }} value={r.artikelId}
                           onChange={e => setPlanRader(pr => pr.map((d, j) => j === i ? { ...d, artikelId: e.target.value } : d))}
                           onFocus={fo} onBlur={fb}>
                           <option value="">— Välj —</option>
@@ -403,8 +423,8 @@ export default function TidFaktureringTab({ orderId, onUpdated }: { orderId: str
                           style={{ background: 'none', border: '1px solid #3a3a3c', borderRadius: 8, padding: '7px 10px', color: '#f87171', cursor: 'pointer', fontSize: 14 }}>×</button>
                       </div>
                     ))}
-                    <button onClick={laggTillAllaPlan} disabled={savingPlan || !planRader.some(r => r.artikelId)}
-                      style={{ width: '100%', padding: '10px', marginTop: 2, background: 'none', color: '#E8C96A', border: '1px dashed #3a3a3c', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', opacity: savingPlan || !planRader.some(r => r.artikelId) ? 0.5 : 1 }}>
+                    <button onClick={laggTillAllaPlan} disabled={last || savingPlan || !planRader.some(r => r.artikelId)}
+                      style={{ width: '100%', padding: '10px', marginTop: 2, background: 'none', color: '#E8C96A', border: '1px dashed #3a3a3c', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: last ? 'not-allowed' : 'pointer', opacity: last || savingPlan || !planRader.some(r => r.artikelId) ? 0.5 : 1 }}>
                       {savingPlan ? 'Sparar...' : '➕ Lägg till alla planerade tidposter'}
                     </button>
                   </>
@@ -414,11 +434,11 @@ export default function TidFaktureringTab({ orderId, onUpdated }: { orderId: str
 
             <div style={{ marginBottom: 12 }}>
               <div style={lbl}>ANTECKNING</div>
-              <input style={inp} value={anteckning} onChange={e => setAnteckning(e.target.value)} placeholder="t.ex. inkl. restid" onFocus={fo} onBlur={fb} />
+              <input spellCheck={true} style={{ ...inp, opacity: last ? 0.5 : 1 }} disabled={last} value={anteckning} onChange={e => setAnteckning(e.target.value)} placeholder="t.ex. inkl. restid" onFocus={fo} onBlur={fb} />
             </div>
 
-            <button onClick={laggTillTid} disabled={saving || !artikelId || dagRader.length === 0}
-              style={{ width: '100%', padding: '11px', background: '#E8C96A', color: '#000', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', opacity: saving || !artikelId || dagRader.length === 0 ? 0.5 : 1 }}>
+            <button onClick={laggTillTid} disabled={last || saving || !artikelId || dagRader.length === 0}
+              style={{ width: '100%', padding: '11px', background: '#E8C96A', color: '#000', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: last ? 'not-allowed' : 'pointer', opacity: last || saving || !artikelId || dagRader.length === 0 ? 0.5 : 1 }}>
               {saving ? 'Sparar...' : '+ LÄGG TILL TIDPOST'}
             </button>
           </div>
@@ -430,7 +450,10 @@ export default function TidFaktureringTab({ orderId, onUpdated }: { orderId: str
               {rader.map(r => (
                 <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#1c1c1e', borderRadius: 8, marginBottom: 6 }}>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#f2f2f7' }}>{r.artikel_namn}{r.resurs ? ` – ${r.resurs}` : ''}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#f2f2f7', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {r.fakturerad && <span title="Fakturerad – låst">🔒</span>}
+                      {r.artikel_namn}{r.resurs ? ` – ${r.resurs}` : ''}
+                    </div>
                     <div style={{ fontSize: 11, color: '#8e8e93', marginTop: 2 }}>
                       {r.antal.toFixed(1)} {r.enhet}
                       {r.datum ? ` · ${fmtDag(r.datum)}` : ''}
@@ -442,8 +465,10 @@ export default function TidFaktureringTab({ orderId, onUpdated }: { orderId: str
                     <div style={{ fontSize: 13, fontWeight: 700, color: '#4ade80' }}>{fmtKr(r.total_intakt || 0)}</div>
                     <div style={{ fontSize: 11, color: '#f87171' }}>kostnad {fmtKr(r.total_kostnad || 0)}</div>
                   </div>
-                  <button onClick={() => taBortRad(r.id)}
-                    style={{ background: 'none', border: '1px solid #3a3a3c', borderRadius: 6, padding: '4px 10px', color: '#f87171', fontSize: 11, cursor: 'pointer', marginLeft: 10 }}>✕</button>
+                  {!r.fakturerad && (
+                    <button onClick={() => taBortRad(r.id)}
+                      style={{ background: 'none', border: '1px solid #3a3a3c', borderRadius: 6, padding: '4px 10px', color: '#f87171', fontSize: 11, cursor: 'pointer', marginLeft: 10 }}>✕</button>
+                  )}
                 </div>
               ))}
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 12px 0', borderTop: '1px solid #3a3a3c', marginTop: 8 }}>
@@ -467,7 +492,7 @@ export default function TidFaktureringTab({ orderId, onUpdated }: { orderId: str
           {/* Fakturainfo */}
           <div style={{ background: '#252528', borderRadius: 12, padding: '14px 16px', marginBottom: 12 }}>
             <div style={{ ...lbl, marginBottom: 12 }}>FAKTURAINFO</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: m ? '1fr' : '1fr 1fr 1fr', gap: 12 }}>
               <div>
                 <div style={{ fontSize: 11, color: '#8e8e93', marginBottom: 4 }}>Fakturanr</div>
                 <div style={{ fontSize: 16, fontWeight: 800, color: '#E8C96A' }}>{nextFakturaNr}</div>
@@ -484,10 +509,10 @@ export default function TidFaktureringTab({ orderId, onUpdated }: { orderId: str
           </div>
 
           {/* Moms + referens */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 10, marginBottom: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: m ? '1fr' : '1fr 2fr', gap: 10, marginBottom: 12 }}>
             <div>
               <div style={lbl}>MOMS (%)</div>
-              <select style={inp} value={momsProc} onChange={e => setMomsProc(Number(e.target.value))} onFocus={fo} onBlur={fb}>
+              <select style={{ ...inp, opacity: last ? 0.5 : 1 }} disabled={last} value={momsProc} onChange={e => setMomsProc(Number(e.target.value))} onFocus={fo} onBlur={fb}>
                 <option value={25}>25%</option>
                 <option value={12}>12%</option>
                 <option value={6}>6%</option>
@@ -496,7 +521,7 @@ export default function TidFaktureringTab({ orderId, onUpdated }: { orderId: str
             </div>
             <div>
               <div style={lbl}>FAKTURAREFERENS (ER REF.)</div>
-              <input style={inp} value={fakturaRef} onChange={e => setFakturaRef(e.target.value)} placeholder="t.ex. PO-12345" onFocus={fo} onBlur={fb} />
+              <input spellCheck={false} style={{ ...inp, opacity: last ? 0.5 : 1 }} disabled={last} value={fakturaRef} onChange={e => setFakturaRef(e.target.value)} placeholder="t.ex. PO-12345" onFocus={fo} onBlur={fb} />
             </div>
           </div>
 
@@ -505,27 +530,31 @@ export default function TidFaktureringTab({ orderId, onUpdated }: { orderId: str
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <div style={lbl}>FAKTURARADER</div>
               {rader.length > 0 && (
-                <button onClick={hamtaFranTid}
-                  style={{ background: 'none', border: '1px solid #3a3a3c', borderRadius: 8, padding: '5px 12px', color: '#E8C96A', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                <button onClick={hamtaFranTid} disabled={last}
+                  style={{ background: 'none', border: '1px solid #3a3a3c', borderRadius: 8, padding: '5px 12px', color: '#E8C96A', fontSize: 12, fontWeight: 700, cursor: last ? 'not-allowed' : 'pointer', opacity: last ? 0.5 : 1 }}>
                   ⬇ Hämta från tidrapportering ({rader.length})
                 </button>
               )}
             </div>
 
-            {/* Header */}
-            <div style={{ display: 'grid', gridTemplateColumns: '28px 3fr 60px 60px 80px 80px 90px 32px', gap: 6, padding: '0 4px 6px', borderBottom: '1px solid #3a3a3c', marginBottom: 4 }}>
-              {['', 'Beskrivning / Artikel', 'Res.', 'Antal', 'À-pris', 'Enhet', 'Belopp', ''].map((h, i) => (
-                <div key={i} style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1, color: '#636366', textAlign: i >= 2 ? 'center' : 'left' }}>{h}</div>
-              ))}
-            </div>
+            {/* Header — döljs på mobil (kortvy istället) */}
+            {!m && (
+              <div style={{ display: 'grid', gridTemplateColumns: '28px 3fr 60px 60px 80px 80px 90px 32px', gap: 6, padding: '0 4px 6px', borderBottom: '1px solid #3a3a3c', marginBottom: 4 }}>
+                {['', 'Beskrivning / Artikel', 'Res.', 'Antal', 'À-pris', 'Enhet', 'Belopp', ''].map((h, i) => (
+                  <div key={i} style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1, color: '#636366', textAlign: i >= 2 ? 'center' : 'left' }}>{h}</div>
+                ))}
+              </div>
+            )}
 
             {fakturaRader.map((r, idx) => {
               if (r.typ === 'datum') {
                 return (
                   <div key={r.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '10px 4px 4px', marginTop: idx > 0 ? 6 : 0, borderTop: idx > 0 ? '1px solid #3a3a3c' : 'none' }}>
                     <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 0.5, color: '#E8C96A', textTransform: 'capitalize' }}>📅 {r.text}</div>
-                    <button onClick={() => removeFakturaRad(r.id)}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#636366', fontSize: 16, padding: 0, lineHeight: 1 }}>×</button>
+                    {!last && (
+                      <button onClick={() => removeFakturaRad(r.id)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#636366', fontSize: 16, padding: 0, lineHeight: 1 }}>×</button>
+                    )}
                   </div>
                 )
               }
@@ -544,6 +573,105 @@ export default function TidFaktureringTab({ orderId, onUpdated }: { orderId: str
               }
               const cellFo = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => { e.target.style.borderColor = '#E8C96A' }
               const cellFb = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => { e.target.style.borderColor = 'transparent' }
+              const cellL = last ? { ...cell, opacity: 0.5 } : cell
+
+              // Beskrivningsfält (artikel-select eller fritext) — återanvänds i desktop-grid och mobil-kortvy
+              const beskrivningEl = r.typ === 'artikel' ? (
+                <select ref={el => { rowRefs.current[r.id] = el }} disabled={last} style={{ ...cellL, textAlign: 'left' as const }} value={r.artikel_id}
+                  onChange={e => {
+                    const a = artiklar.find(a => a.id === e.target.value)
+                    updateFakturaRad(r.id, 'artikel_id', e.target.value)
+                    if (a) { updateFakturaRad(r.id, 'enhet', a.enhet); updateFakturaRad(r.id, 'apris', a.a_pris) }
+                  }} onFocus={cellFo} onBlur={cellFb}>
+                  <option value="">— Välj artikel —</option>
+                  {artiklar.map(a => <option key={a.id} value={a.id}>{a.namn}</option>)}
+                </select>
+              ) : (
+                <input spellCheck={true} ref={el => { rowRefs.current[r.id] = el }} disabled={last} style={{ ...cellL, textAlign: 'left' as const }} value={r.text}
+                  placeholder="Fritext beskrivning..."
+                  onChange={e => updateFakturaRad(r.id, 'text', e.target.value)} onFocus={cellFo} onBlur={cellFb} />
+              )
+
+              // Resurser-input (visas bara för tim/dag)
+              const resurserEl = (
+                <input spellCheck={false} type="number" min="1" disabled={last} style={{ ...cellL, display: visaResurser ? undefined : 'flex' as const, visibility: visaResurser ? 'visible' : 'hidden', color: '#aeaeb2' }}
+                  value={r.resurser || 1}
+                  onChange={e => updateFakturaRad(r.id, 'resurser', parseInt(e.target.value) || 1)}
+                  onFocus={cellFo} onBlur={cellFb} />
+              )
+
+              // Antal-input
+              const antalEl = (
+                <input spellCheck={false} type="number" step="0.5" min="0" disabled={last} style={cellL}
+                  value={r.antal}
+                  onChange={e => updateFakturaRad(r.id, 'antal', parseFloat(e.target.value) || 0)}
+                  onFocus={cellFo} onBlur={cellFb} />
+              )
+
+              // À-pris (input för fritext, annars visning av avtalspris)
+              const aprisEl = r.typ === 'fritext' ? (
+                <input spellCheck={false} type="number" min="0" disabled={last} style={cellL}
+                  value={r.apris}
+                  onChange={e => updateFakturaRad(r.id, 'apris', parseFloat(e.target.value) || 0)}
+                  onFocus={cellFo} onBlur={cellFb} />
+              ) : (
+                <div title={prisavtal[r.artikel_id] !== undefined ? 'Kundens avtalspris' : undefined}
+                  style={{ ...cell, color: prisavtal[r.artikel_id] !== undefined ? '#E8C96A' : '#8e8e93', fontWeight: prisavtal[r.artikel_id] !== undefined ? 700 : 400, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {apris > 0 ? apris : '—'}
+                </div>
+              )
+
+              // ── Mobil: staplad kortvy (etikett–värde) istället för bred grid ──
+              if (m) {
+                const flabel: React.CSSProperties = { fontSize: 10, fontWeight: 700, letterSpacing: 1, color: '#636366', marginBottom: 4 }
+                return (
+                  <div key={r.id} style={{ background: '#1c1c1e', border: '1px solid #2c2c2e', borderRadius: 10, padding: '10px 12px', marginBottom: 8 }}>
+                    {/* Rad 1: typ-ikon + beskrivning + ta bort */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                      <button
+                        title={r.typ === 'artikel' ? 'Byt till fritext' : 'Byt till artikel'}
+                        disabled={last}
+                        onClick={() => updateFakturaRad(r.id, 'typ', r.typ === 'artikel' ? 'fritext' : 'artikel')}
+                        style={{ background: 'none', border: 'none', cursor: last ? 'not-allowed' : 'pointer', fontSize: 16, color: r.typ === 'artikel' ? '#E8C96A' : '#8e8e93', padding: 0, flexShrink: 0, opacity: last ? 0.5 : 1 }}>
+                        {r.typ === 'artikel' ? '🏷' : '✏️'}
+                      </button>
+                      <div style={{ flex: 1, minWidth: 0 }}>{beskrivningEl}</div>
+                      {!last && (
+                        <button onClick={() => removeFakturaRad(r.id)}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#636366', fontSize: 18, padding: 0, lineHeight: 1, flexShrink: 0 }}>×</button>
+                      )}
+                    </div>
+
+                    {/* Rad 2: numeriska fält som etikett–värde */}
+                    <div style={{ display: 'grid', gridTemplateColumns: visaResurser ? '1fr 1fr 1fr' : '1fr 1fr', gap: 8 }}>
+                      {visaResurser && (
+                        <div>
+                          <div style={flabel}>RES.</div>
+                          {resurserEl}
+                        </div>
+                      )}
+                      <div>
+                        <div style={flabel}>ANTAL</div>
+                        {antalEl}
+                      </div>
+                      <div>
+                        <div style={flabel}>À-PRIS</div>
+                        {aprisEl}
+                      </div>
+                    </div>
+
+                    {/* Rad 3: enhet + belopp */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, paddingTop: 8, borderTop: '1px solid #2c2c2e' }}>
+                      <div style={{ fontSize: 12, color: '#636366' }}>
+                        {visaResurser && r.resurser > 1 ? `${totalAntal} ${enhet}` : enhet}
+                      </div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: belopp > 0 ? '#4ade80' : '#636366' }}>
+                        {belopp > 0 ? fmtKr(belopp) : '—'}
+                      </div>
+                    </div>
+                  </div>
+                )
+              }
 
               return (
                 <div key={r.id} style={{ display: 'grid', gridTemplateColumns: '28px 3fr 60px 60px 80px 80px 90px 32px', gap: 6, padding: '4px', borderRadius: 8, marginBottom: 2,
@@ -552,52 +680,23 @@ export default function TidFaktureringTab({ orderId, onUpdated }: { orderId: str
                   {/* Typ-ikon */}
                   <button
                     title={r.typ === 'artikel' ? 'Byt till fritext' : 'Byt till artikel'}
+                    disabled={last}
                     onClick={() => updateFakturaRad(r.id, 'typ', r.typ === 'artikel' ? 'fritext' : 'artikel')}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: r.typ === 'artikel' ? '#E8C96A' : '#8e8e93', padding: 0, textAlign: 'center' as const }}>
+                    style={{ background: 'none', border: 'none', cursor: last ? 'not-allowed' : 'pointer', fontSize: 14, color: r.typ === 'artikel' ? '#E8C96A' : '#8e8e93', padding: 0, textAlign: 'center' as const, opacity: last ? 0.5 : 1 }}>
                     {r.typ === 'artikel' ? '🏷' : '✏️'}
                   </button>
 
                   {/* Artikel / fritext */}
-                  {r.typ === 'artikel' ? (
-                    <select ref={el => { rowRefs.current[r.id] = el }} style={{ ...cell, textAlign: 'left' as const }} value={r.artikel_id}
-                      onChange={e => {
-                        const a = artiklar.find(a => a.id === e.target.value)
-                        updateFakturaRad(r.id, 'artikel_id', e.target.value)
-                        if (a) { updateFakturaRad(r.id, 'enhet', a.enhet); updateFakturaRad(r.id, 'apris', a.a_pris) }
-                      }} onFocus={cellFo} onBlur={cellFb}>
-                      <option value="">— Välj artikel —</option>
-                      {artiklar.map(a => <option key={a.id} value={a.id}>{a.namn}</option>)}
-                    </select>
-                  ) : (
-                    <input ref={el => { rowRefs.current[r.id] = el }} style={{ ...cell, textAlign: 'left' as const }} value={r.text}
-                      placeholder="Fritext beskrivning..."
-                      onChange={e => updateFakturaRad(r.id, 'text', e.target.value)} onFocus={cellFo} onBlur={cellFb} />
-                  )}
+                  {beskrivningEl}
 
                   {/* Resurser */}
-                  <input type="number" min="1" style={{ ...cell, display: visaResurser ? undefined : 'flex' as const, visibility: visaResurser ? 'visible' : 'hidden', color: '#aeaeb2' }}
-                    value={r.resurser || 1}
-                    onChange={e => updateFakturaRad(r.id, 'resurser', parseInt(e.target.value) || 1)}
-                    onFocus={cellFo} onBlur={cellFb} />
+                  {resurserEl}
 
                   {/* Antal */}
-                  <input type="number" step="0.5" min="0" style={cell}
-                    value={r.antal}
-                    onChange={e => updateFakturaRad(r.id, 'antal', parseFloat(e.target.value) || 0)}
-                    onFocus={cellFo} onBlur={cellFb} />
+                  {antalEl}
 
                   {/* À-pris */}
-                  {r.typ === 'fritext' ? (
-                    <input type="number" min="0" style={cell}
-                      value={r.apris}
-                      onChange={e => updateFakturaRad(r.id, 'apris', parseFloat(e.target.value) || 0)}
-                      onFocus={cellFo} onBlur={cellFb} />
-                  ) : (
-                    <div title={prisavtal[r.artikel_id] !== undefined ? 'Kundens avtalspris' : undefined}
-                      style={{ ...cell, color: prisavtal[r.artikel_id] !== undefined ? '#E8C96A' : '#8e8e93', fontWeight: prisavtal[r.artikel_id] !== undefined ? 700 : 400, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {apris > 0 ? apris : '—'}
-                    </div>
-                  )}
+                  {aprisEl}
 
                   {/* Enhet */}
                   <div style={{ ...cell, color: '#636366', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }}>
@@ -610,16 +709,18 @@ export default function TidFaktureringTab({ orderId, onUpdated }: { orderId: str
                   </div>
 
                   {/* Ta bort */}
-                  <button onClick={() => removeFakturaRad(r.id)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#636366', fontSize: 16, padding: 0, lineHeight: 1, textAlign: 'center' as const }}
-                    onMouseEnter={e => (e.currentTarget.style.color = '#f87171')}
-                    onMouseLeave={e => (e.currentTarget.style.color = '#636366')}>×</button>
+                  {last ? <div /> : (
+                    <button onClick={() => removeFakturaRad(r.id)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#636366', fontSize: 16, padding: 0, lineHeight: 1, textAlign: 'center' as const }}
+                      onMouseEnter={e => (e.currentTarget.style.color = '#f87171')}
+                      onMouseLeave={e => (e.currentTarget.style.color = '#636366')}>×</button>
+                  )}
                 </div>
               )
             })}
 
-            <button onClick={addFakturaRad}
-              style={{ width: '100%', padding: '8px', background: 'none', border: '1px dashed #3a3a3c', borderRadius: 8, color: '#636366', cursor: 'pointer', fontSize: 13, marginTop: 8 }}>
+            <button onClick={addFakturaRad} disabled={last}
+              style={{ width: '100%', padding: '8px', background: 'none', border: '1px dashed #3a3a3c', borderRadius: 8, color: '#636366', cursor: last ? 'not-allowed' : 'pointer', fontSize: 13, marginTop: 8, opacity: last ? 0.5 : 1 }}>
               + Lägg till rad
             </button>
           </div>
@@ -640,9 +741,9 @@ export default function TidFaktureringTab({ orderId, onUpdated }: { orderId: str
             </div>
           </div>
 
-          <button onClick={skapaFakturaFn} disabled={skaparFaktura || fakturaRader.length === 0}
-            style={{ width: '100%', padding: '13px', background: fakturaSkapad ? '#4ade80' : '#E8C96A', color: '#000', border: 'none', borderRadius: 10, fontWeight: 800, fontSize: 14, cursor: 'pointer', opacity: skaparFaktura ? 0.6 : 1 }}>
-            {fakturaSkapad ? '✓ Skapad & skickad!' : skaparFaktura ? 'Skapar...' : `📧 Skapa & skicka faktura – ${fmtKr(fakturaTotalt)}`}
+          <button onClick={skapaFakturaFn} disabled={last || skaparFaktura || fakturaRader.length === 0}
+            style={{ width: '100%', padding: '13px', background: fakturaSkapad ? '#4ade80' : '#E8C96A', color: '#000', border: 'none', borderRadius: 10, fontWeight: 800, fontSize: 14, cursor: last ? 'not-allowed' : 'pointer', opacity: last || skaparFaktura ? 0.6 : 1 }}>
+            {last ? '🔒 Ordern är låst' : fakturaSkapad ? '✓ Skapad & skickad!' : skaparFaktura ? 'Skapar...' : `📧 Skapa & skicka faktura – ${fmtKr(fakturaTotalt)}`}
           </button>
         </div>
       )}

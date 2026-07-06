@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useIsMobile } from '@/hooks/useMediaQuery'
 
 type FakturaRad = { order_id: string | null; customer_id: string | null; kund_namn: string | null; totalt: number; fakturadatum: string; typ: string }
 type OrderRad = { id: string; kategori: string | null; fastighet: string | null; created_at: string; status: string }
@@ -12,7 +13,7 @@ const G = '#E8C96A'
 
 export default function StatistikPage() {
   return (
-    <div>
+    <div style={{ overflowX: 'hidden' }}>
       <div style={{ fontSize: 22, fontWeight: 800, color: G, marginBottom: 20 }}>Statistik</div>
       <EkonomiTab />
     </div>
@@ -20,6 +21,7 @@ export default function StatistikPage() {
 }
 
 function EkonomiTab() {
+  const isMobile = useIsMobile()
   const [loading, setLoading] = useState(true)
   const [fakturor, setFakturor] = useState<FakturaRad[]>([])
   const [orders, setOrders] = useState<OrderRad[]>([])
@@ -69,7 +71,8 @@ function EkonomiTab() {
   const perFastighet = useMemo(() => grupp(fakturerade, f => (f.order_id && orderById[f.order_id]?.fastighet) || '(ingen fastighet)', kostnadPerOrder), [fakturerade, orderById, kostnadPerOrder])
 
   const chip = (active: boolean) => ({
-    padding: '5px 12px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+    padding: isMobile ? '8px 14px' : '5px 12px', borderRadius: 20, fontSize: isMobile ? 12 : 11, fontWeight: 600, cursor: 'pointer',
+    whiteSpace: 'nowrap' as const,
     border: `1px solid ${active ? G : '#2a2a2a'}`,
     background: active ? 'rgba(232,201,106,0.1)' : '#1a1a1a',
     color: active ? G : '#888',
@@ -79,20 +82,20 @@ function EkonomiTab() {
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: 6, marginBottom: 20 }}>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap' }}>
         {[{ k: 'manad', l: 'Denna månad' }, { k: 'ar', l: 'Detta år' }, { k: 'allt', l: 'Allt' }].map(p => (
           <div key={p.k} style={chip(period === p.k)} onClick={() => setPeriod(p.k as any)}>{p.l}</div>
         ))}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 28 }}>
-        <KPI icon="💰" label="Fakturerat" value={fmtKr(totalIntakt)} color={G} />
-        <KPI icon="🧾" label="Kostnader" value={fmtKr(totalKostnad)} color="#f87171" />
-        <KPI icon="📈" label="Bruttovinst" value={fmtKr(bruttovinst)} color={bruttovinst >= 0 ? '#4ade80' : '#f87171'} />
-        <KPI icon="📊" label="Marginal" value={marginal === null ? '—' : marginal + '%'} color={marginal !== null && marginal >= 20 ? '#4ade80' : '#fb923c'} />
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 12, marginBottom: 28 }}>
+        <KPI icon="💰" label="Fakturerat" value={fmtKr(totalIntakt)} color={G} isMobile={isMobile} />
+        <KPI icon="🧾" label="Kostnader" value={fmtKr(totalKostnad)} color="#f87171" isMobile={isMobile} />
+        <KPI icon="📈" label="Bruttovinst" value={fmtKr(bruttovinst)} color={bruttovinst >= 0 ? '#4ade80' : '#f87171'} isMobile={isMobile} />
+        <KPI icon="📊" label="Marginal" value={marginal === null ? '—' : marginal + '%'} color={marginal !== null && marginal >= 20 ? '#4ade80' : '#fb923c'} isMobile={isMobile} />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 16 }}>
         <BreakdownTable title="Per kund" rows={perKund} />
         <BreakdownTable title="Per kategori" rows={perKategori} />
         <BreakdownTable title="Per fastighet" rows={perFastighet} />
@@ -113,11 +116,11 @@ function grupp(fakturor: FakturaRad[], keyFn: (f: FakturaRad) => string, kostnad
   return Object.values(m).sort((a, b) => b.intakt - a.intakt)
 }
 
-function KPI({ icon, label, value, color }: { icon: string; label: string; value: string; color: string }) {
+function KPI({ icon, label, value, color, isMobile }: { icon: string; label: string; value: string; color: string; isMobile?: boolean }) {
   return (
-    <div style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: 12, padding: 18 }}>
+    <div style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: 12, padding: isMobile ? 14 : 18 }}>
       <div style={{ fontSize: 20, marginBottom: 8 }}>{icon}</div>
-      <div style={{ fontSize: 24, fontWeight: 900, color, lineHeight: 1, marginBottom: 4 }}>{value}</div>
+      <div style={{ fontSize: isMobile ? 20 : 24, fontWeight: 900, color, lineHeight: 1, marginBottom: 4, wordBreak: 'break-word' as const }}>{value}</div>
       <div style={{ fontSize: 9, color: '#555', fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase' as const }}>{label}</div>
     </div>
   )
@@ -130,12 +133,12 @@ function BreakdownTable({ title, rows }: { title: string; rows: { name: string; 
       {rows.length === 0 ? (
         <div style={{ padding: 24, textAlign: 'center', color: '#444', fontSize: 12 }}>Ingen data</div>
       ) : rows.slice(0, 8).map((r, i) => (
-        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 16px', borderBottom: '1px solid #1a1a1a' }}>
-          <div>
-            <div style={{ fontSize: 12, color: '#d0d0d0', fontWeight: 600 }}>{r.name}</div>
+        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '10px 16px', borderBottom: '1px solid #1a1a1a' }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 12, color: '#d0d0d0', fontWeight: 600, wordBreak: 'break-word' }}>{r.name}</div>
             <div style={{ fontSize: 10, color: '#555' }}>{r.antal} fakturor</div>
           </div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: G }}>{fmtKr(r.intakt)}</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: G, whiteSpace: 'nowrap' }}>{fmtKr(r.intakt)}</div>
         </div>
       ))}
     </div>

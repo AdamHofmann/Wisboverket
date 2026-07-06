@@ -41,3 +41,18 @@ select:-webkit-autofill:focus {
   caret-color: #e0e0e0;
   transition: background-color 9999s ease-in-out 0s;
 }
+
+/* Fas 1 — globala mobilanpassnings-regler */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+img, video {
+  max-width: 100%;
+}
+
+@media (max-width: 768px) {
+  main {
+    padding: 16px 12px;
+  }
+}

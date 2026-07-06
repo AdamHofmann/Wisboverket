@@ -13,6 +13,8 @@
 import { useEffect, useState } from 'react'
 import SlideOver from '@/components/fastigheter/SlideOver'
 import { C, inp, lbl, fo, fb, btnPrimary, btnGhost, btnDanger } from '@/components/fastigheter/styles'
+import { useIsMobile } from '@/hooks/useMediaQuery'
+import { useConfirm } from '@/components/ConfirmDialog'
 
 interface Byggnad { uthyrbar_yta?: number | null }
 interface Bolag { id: string; namn: string; fastighetsskattesats?: number }
@@ -49,6 +51,12 @@ interface Hyresavtal {
 
 interface Dokument {
   id: string; namn: string; typ: string; filnamn: string; filstorlek: number; sokvag: string; created_at: string
+}
+
+// Artikel ur artikelregistret (f_artikel) — används för att autofylla avtalsrader.
+interface Artikel {
+  id: string; kod: string; benamning: string
+  apris: number | null; moms: number
 }
 
 const statusColors: Record<string, { bg: string; color: string }> = {
@@ -88,6 +96,8 @@ const tabBtn = (active: boolean): React.CSSProperties => ({
 const radInp: React.CSSProperties = { ...inp, background: C.panel, padding: '6px 10px', fontSize: 12 }
 
 export default function HyresavtalPage() {
+  const isMobile = useIsMobile()
+  const confirm = useConfirm()
   const [items, setItems] = useState<Hyresavtal[]>([])
   const [loading, setLoading] = useState(true)
   const [indexAvtal, setIndexAvtal] = useState<Hyresavtal | null>(null)
@@ -121,6 +131,7 @@ export default function HyresavtalPage() {
   const [editAnvandIndex, setEditAnvandIndex] = useState(true)
   const [dokument, setDokument] = useState<Dokument[]>([])
   const [uploadingDok, setUploadingDok] = useState(false)
+  const [artiklar, setArtiklar] = useState<Artikel[]>([])
   const MONTHS_SV = ['Januari', 'Februari', 'Mars', 'April', 'Maj', 'Juni', 'Juli', 'Augusti', 'September', 'Oktober', 'November', 'December']
   const AVTALSRAD_TYPER = [
     { kod: 'HYR', label: 'Hyra' },
@@ -138,6 +149,14 @@ export default function HyresavtalPage() {
   }
 
   useEffect(() => { load() }, [])
+
+  // Hämta aktiva artiklar ur artikelregistret för radväljaren (autofyller beskrivning/á-pris/moms).
+  useEffect(() => {
+    fetch('/api/fastigheter/artiklar')
+      .then(r => r.json())
+      .then((data: Artikel[]) => { if (Array.isArray(data)) setArtiklar(data.filter(a => (a as unknown as { aktiv: boolean }).aktiv !== false)) })
+      .catch(() => {})
+  }, [])
 
   const openIndex = (a: Hyresavtal) => { setIndexAvtal(a); setIndexProcent('') }
 
@@ -286,7 +305,7 @@ export default function HyresavtalPage() {
   }
 
   const deleteDokument = async (id: string) => {
-    if (!confirm('Ta bort dokument?')) return
+    if (!(await confirm({ message: 'Ta bort dokument?', danger: true, confirmLabel: 'Ta bort' }))) return
     await fetch(`/api/fastigheter/avtalsdokument?id=${id}`, { method: 'DELETE' })
     setDokument(prev => prev.filter(d => d.id !== id))
   }
@@ -411,11 +430,13 @@ export default function HyresavtalPage() {
   const [showColPicker, setShowColPicker] = useState(false)
   const toggleCol = (key: ColKey) => setVisibleCols(prev => { const next = new Set(prev); next.has(key) ? next.delete(key) : next.add(key); return next })
 
-  const selectStyle: React.CSSProperties = { ...inp, width: 'auto', minWidth: 150, fontWeight: 500 }
+  const selectStyle: React.CSSProperties = isMobile
+    ? { ...inp, width: '100%', fontWeight: 500 }
+    : { ...inp, width: 'auto', minWidth: 150, fontWeight: 500 }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, ...(isMobile ? { overflowX: 'hidden' } : {}) }}>
+      <div style={{ display: 'flex', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', flexDirection: isMobile ? 'column' : 'row' }}>
         <div>
           <h2 style={{ fontSize: 20, fontWeight: 700, color: C.text, margin: 0 }}>Hyresavtal</h2>
           <p style={{ fontSize: 13, color: C.muted, marginTop: 2 }}>{aktivaCount} aktiva avtal · {items.length} totalt</p>
@@ -423,7 +444,7 @@ export default function HyresavtalPage() {
         <p style={{ fontSize: 12, color: C.muted2, fontStyle: 'italic', margin: 0 }}>Avtal skapas från Hyresgäster-sidan</p>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: isMobile ? 'stretch' : 'center', gap: 12, flexWrap: 'wrap', flexDirection: isMobile ? 'column' : 'row' }}>
         {bolagAlternativ.length > 1 && (
           <select value={filterBolag} onChange={e => setFilterBolag(e.target.value)} onFocus={fo} onBlur={fb} style={selectStyle}>
             <option value="">Alla bolag</option>
@@ -436,7 +457,7 @@ export default function HyresavtalPage() {
           <option value="uppsagd">Uppsagda</option>
           <option value="galler-inte">Gäller inte</option>
         </select>
-        <div style={{ position: 'relative', marginLeft: 'auto' }}>
+        <div style={{ position: 'relative', marginLeft: isMobile ? 0 : 'auto' }}>
           <button onClick={() => setShowColPicker(!showColPicker)} style={{ ...btnGhost, display: 'flex', alignItems: 'center', gap: 6 }}>
             🎚️ Kolumner
           </button>
@@ -455,6 +476,86 @@ export default function HyresavtalPage() {
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: '48px 0', color: C.muted2 }}>Laddar...</div>
+      ) : isMobile ? (
+        filtered.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '48px 0', color: C.muted2, borderRadius: 12, border: `1px solid ${C.borderSoft}`, background: C.panel }}>Inga hyresavtal</div>
+        ) : (
+          <div>
+            {filtered.map((a) => {
+              const arshyra = a.arshyra ?? a.bashyra * 12
+              const originalHyra = a.indexhojningar && a.indexhojningar.length > 0
+                ? a.indexhojningar[a.indexhojningar.length - 1].bashyra_gammal
+                : null
+              const hyraForandring = originalHyra ? ((a.bashyra - originalHyra) / originalHyra * 100) : null
+              const sc = statusColors[a.status] || { bg: C.field, color: C.muted }
+              const hc = hyrestidColors[a.hyrestid] || { bg: C.field, color: C.muted }
+              const rowLbl: React.CSSProperties = { fontSize: 12, color: C.muted, flexShrink: 0 }
+              const rowWrap: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }
+              return (
+                <div key={a.id} onClick={() => openEditAvtal(a)} style={{ borderRadius: 10, border: `1px solid ${C.borderSoft}`, background: C.panel, padding: 12, marginBottom: 8, cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>{a.hyresgast.namn}</div>
+                    {visibleCols.has('status') && <span style={pill(sc.bg, sc.color)}>{statusLabels[a.status] || a.status}</span>}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {visibleCols.has('avtalsnr') && (
+                      <div style={rowWrap}><span style={rowLbl}>Avtalsnr</span><span style={{ fontSize: 13, color: C.muted, textAlign: 'right' }}>{a.avtalsnummer || '—'}</span></div>
+                    )}
+                    {visibleCols.has('lokal') && (
+                      <div style={rowWrap}><span style={rowLbl}>Lokal</span><span style={{ fontSize: 13, color: C.text2, textAlign: 'right' }}>{a.lokaler.map(l => l.lokal.namn).join(', ')}<div style={{ fontSize: 12, color: C.muted2 }}>{a.lokaler[0]?.lokal.fastighet.namn}</div></span></div>
+                    )}
+                    {visibleCols.has('period') && (
+                      <div style={rowWrap}><span style={rowLbl}>Period</span><span style={{ fontSize: 13, color: C.text2, textAlign: 'right' }}>{formatDate(a.startdatum)}<div style={{ fontSize: 12, color: C.muted2 }}>{a.slutdatum ? `Slutar ${formatDate(a.slutdatum)}` : 'Tillsvidare'}</div></span></div>
+                    )}
+                    {visibleCols.has('hyrestid') && (
+                      <div style={rowWrap}><span style={rowLbl}>Hyrestid</span><span style={{ textAlign: 'right' }}><span style={pill(hc.bg, hc.color)}>{hyrestidLabels[a.hyrestid] || a.hyrestid}</span>{a.forlangning ? <div style={{ fontSize: 12, color: C.muted2, marginTop: 2 }}>{a.forlangning} år förl.</div> : null}</span></div>
+                    )}
+                    {visibleCols.has('bashyra') && (
+                      <div style={rowWrap}><span style={rowLbl}>Bashyra/mån</span><span style={{ textAlign: 'right' }}><div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{formatSEK(a.bashyra)}</div><div style={{ fontSize: 12, color: '#a78bfa' }}>{a.faktureringsfrekvens === 'kvartalsvis' ? 'Kvartalsvis' : 'Månadsvis'}</div></span></div>
+                    )}
+                    {visibleCols.has('arshyra') && (
+                      <div style={rowWrap}><span style={rowLbl}>Årshyra</span><span style={{ fontSize: 13, fontWeight: 600, color: C.text, textAlign: 'right' }}>{formatSEK(arshyra)}</span></div>
+                    )}
+                    {visibleCols.has('hyresutveckling') && (
+                      <div style={rowWrap}><span style={rowLbl}>Utveckling</span><span style={{ textAlign: 'right' }}>{originalHyra ? (<><div style={{ fontSize: 12, color: C.muted2 }}>Start: {formatSEK(originalHyra)}</div><div style={{ fontSize: 12, fontWeight: 600, color: hyraForandring && hyraForandring > 0 ? C.ok : C.muted }}>{hyraForandring !== null ? `${hyraForandring > 0 ? '+' : ''}${hyraForandring.toFixed(1)}%` : '—'}</div></>) : <span style={{ fontSize: 12, color: C.muted2 }}>Ingen höjning</span>}</span></div>
+                    )}
+                    {visibleCols.has('index') && (
+                      <div style={rowWrap}><span style={rowLbl}>Index</span><span style={{ fontSize: 13, color: C.muted, textAlign: 'right' }}>{a.anvand_index ? (a.basindex_varde ? `${a.basindex_varde}` : 'Aktiv') : 'Av'}</span></div>
+                    )}
+                    {visibleCols.has('uppsagn') && (
+                      <div style={rowWrap}><span style={rowLbl}>Uppsägn.</span><span style={{ fontSize: 13, color: C.muted, textAlign: 'right' }}>{a.uppsagningstid_hg ?? a.uppsagningstid} mån</span></div>
+                    )}
+                    {visibleCols.has('fakturering') && (
+                      <div style={rowWrap}><span style={rowLbl}>Fakturering</span><span style={{ fontSize: 13, color: C.muted, textAlign: 'right' }}>{a.faktureringsfrekvens === 'kvartalsvis' ? 'Kvartal' : 'Månad'}</span></div>
+                    )}
+                    {visibleCols.has('status') && a.slutdatum && (() => {
+                      const dagar = Math.ceil((new Date(a.slutdatum).getTime() - Date.now()) / 86400000)
+                      if (dagar <= 0) return null
+                      const manad = Math.round(dagar / 30.5)
+                      return (
+                        <div style={rowWrap}><span style={rowLbl}>Kvar</span><span style={{ fontSize: 12, color: C.muted2, textAlign: 'right' }}>{manad >= 2 ? `${manad} mån kvar` : `${dagar} dagar kvar`}</span></div>
+                      )
+                    })()}
+                  </div>
+                  {a.status === 'aktiv' && (
+                    <div style={{ display: 'flex', gap: 8, borderTop: `1px solid ${C.borderSoft}`, paddingTop: 8 }}>
+                      <button onClick={(e) => { e.stopPropagation(); openIndex(a) }} style={{ ...btnGhost, flex: 1, fontSize: 12 }}>📈 Indexhöjning</button>
+                      <button onClick={(e) => {
+                        e.stopPropagation()
+                        setSagaUpAvtal(a)
+                        setSagaUpForm({
+                          uppsagningsdatum: new Date().toISOString().split('T')[0],
+                          slutdatum: beraknaSlutdatum(a),
+                          kommentar: '',
+                        })
+                      }} style={{ ...btnGhost, flex: 1, fontSize: 12 }}>🚫 Säg upp</button>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )
       ) : (
         <div style={{ borderRadius: 12, border: `1px solid ${C.borderSoft}`, background: C.panel, overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -591,7 +692,7 @@ export default function HyresavtalPage() {
             </div>
             <div>
               <label style={smallLbl}>Höjning (%)</label>
-              <input type="number" step="0.01" style={inp} onFocus={fo} onBlur={fb} value={indexProcent} onChange={e => setIndexProcent(e.target.value)} placeholder="t.ex. 3.5" autoFocus />
+              <input spellCheck={false} type="number" step="0.01" style={inp} onFocus={fo} onBlur={fb} value={indexProcent} onChange={e => setIndexProcent(e.target.value)} placeholder="t.ex. 3.5" autoFocus />
             </div>
             {indexProcent && parseFloat(indexProcent) > 0 && (
               <div style={{ borderRadius: 8, background: C.goldSoft, border: `1px solid rgba(232,201,106,0.25)`, padding: '12px 16px' }}>
@@ -655,17 +756,17 @@ export default function HyresavtalPage() {
             })()}
             <div>
               <label style={smallLbl}>Uppsägningsdatum</label>
-              <input type="date" value={sagaUpForm.uppsagningsdatum} onChange={e => setSagaUpForm(f => ({ ...f, uppsagningsdatum: e.target.value }))} style={inp} onFocus={fo} onBlur={fb} />
+              <input spellCheck={false} type="date" value={sagaUpForm.uppsagningsdatum} onChange={e => setSagaUpForm(f => ({ ...f, uppsagningsdatum: e.target.value }))} style={inp} onFocus={fo} onBlur={fb} />
               <p style={{ marginTop: 4, fontSize: 12, color: C.muted2 }}>Datum när uppsägningen lämnades in</p>
             </div>
             <div>
               <label style={smallLbl}>Sista hyresdag (slutdatum)</label>
-              <input type="date" value={sagaUpForm.slutdatum} onChange={e => setSagaUpForm(f => ({ ...f, slutdatum: e.target.value }))} style={inp} onFocus={fo} onBlur={fb} />
+              <input spellCheck={false} type="date" value={sagaUpForm.slutdatum} onChange={e => setSagaUpForm(f => ({ ...f, slutdatum: e.target.value }))} style={inp} onFocus={fo} onBlur={fb} />
               <p style={{ marginTop: 4, fontSize: 12, color: C.muted2 }}>Förhandsifyllt med befintligt slutdatum eller beräknad uppsägningstid</p>
             </div>
             <div>
               <label style={smallLbl}>Kommentar (valfritt)</label>
-              <textarea value={sagaUpForm.kommentar} onChange={e => setSagaUpForm(f => ({ ...f, kommentar: e.target.value }))} placeholder="t.ex. Överenskommelse om avflyttning vid årsskiftet" rows={2} style={{ ...inp, resize: 'none' }} onFocus={fo} onBlur={fb} />
+              <textarea spellCheck={true} value={sagaUpForm.kommentar} onChange={e => setSagaUpForm(f => ({ ...f, kommentar: e.target.value }))} placeholder="t.ex. Överenskommelse om avflyttning vid årsskiftet" rows={2} style={{ ...inp, resize: 'none' }} onFocus={fo} onBlur={fb} />
             </div>
           </div>
         )}
@@ -762,10 +863,10 @@ export default function HyresavtalPage() {
               {/* Kontraktstid */}
               <div>
                 <h4 style={secH}>Kontraktstid</h4>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
                   <div>
                     <label style={smallLbl}>Avtalsdatum <span style={{ color: C.muted2, fontWeight: 400 }}>(valfritt)</span></label>
-                    <input type="date" min="2000-01-01" max="2099-12-31" style={inp} onFocus={fo} onBlur={fb} value={editForm.avtalsdatum} onChange={e => setEditForm({ ...editForm, avtalsdatum: e.target.value })} />
+                    <input spellCheck={false} type="date" min="2000-01-01" max="2099-12-31" style={inp} onFocus={fo} onBlur={fb} value={editForm.avtalsdatum} onChange={e => setEditForm({ ...editForm, avtalsdatum: e.target.value })} />
                   </div>
                   <div>
                     <label style={smallLbl}>Hyrestid</label>
@@ -777,23 +878,23 @@ export default function HyresavtalPage() {
                   </div>
                   <div>
                     <label style={smallLbl}>Kontraktsstart</label>
-                    <input type="date" min="2000-01-01" max="2099-12-31" style={inp} onFocus={fo} onBlur={fb} value={editForm.startdatum} onChange={e => setEditForm({ ...editForm, startdatum: e.target.value })} />
+                    <input spellCheck={false} type="date" min="2000-01-01" max="2099-12-31" style={inp} onFocus={fo} onBlur={fb} value={editForm.startdatum} onChange={e => setEditForm({ ...editForm, startdatum: e.target.value })} />
                   </div>
                   <div>
                     <label style={smallLbl}>Slutdatum <span style={{ color: C.muted2, fontWeight: 400 }}>(tomt = tillsvidare)</span></label>
-                    <input type="date" min="2000-01-01" max="2099-12-31" style={inp} onFocus={fo} onBlur={fb} value={editForm.slutdatum} onChange={e => setEditForm({ ...editForm, slutdatum: e.target.value })} />
+                    <input spellCheck={false} type="date" min="2000-01-01" max="2099-12-31" style={inp} onFocus={fo} onBlur={fb} value={editForm.slutdatum} onChange={e => setEditForm({ ...editForm, slutdatum: e.target.value })} />
                   </div>
                   <div>
                     <label style={smallLbl}>Förlängningstid (år)</label>
-                    <input type="number" min="1" style={inp} onFocus={fo} onBlur={fb} value={editForm.forlangning} onChange={e => setEditForm({ ...editForm, forlangning: e.target.value })} placeholder="t.ex. 3" />
+                    <input spellCheck={false} type="number" min="1" style={inp} onFocus={fo} onBlur={fb} value={editForm.forlangning} onChange={e => setEditForm({ ...editForm, forlangning: e.target.value })} placeholder="t.ex. 3" />
                   </div>
                   <div>
                     <label style={smallLbl}>Uppsägningstid hyresgäst (mån)</label>
-                    <input type="number" min="0" style={inp} onFocus={fo} onBlur={fb} value={editForm.uppsagningstidHG} onChange={e => setEditForm({ ...editForm, uppsagningstidHG: e.target.value })} />
+                    <input spellCheck={false} type="number" min="0" style={inp} onFocus={fo} onBlur={fb} value={editForm.uppsagningstidHG} onChange={e => setEditForm({ ...editForm, uppsagningstidHG: e.target.value })} />
                   </div>
                   <div>
                     <label style={smallLbl}>Uppsägningstid hyresvärd (mån)</label>
-                    <input type="number" min="0" style={inp} onFocus={fo} onBlur={fb} value={editForm.uppsagningstidHV} onChange={e => setEditForm({ ...editForm, uppsagningstidHV: e.target.value })} />
+                    <input spellCheck={false} type="number" min="0" style={inp} onFocus={fo} onBlur={fb} value={editForm.uppsagningstidHV} onChange={e => setEditForm({ ...editForm, uppsagningstidHV: e.target.value })} />
                   </div>
                   <div>
                     <label style={smallLbl}>Faktureringsintervall</label>
@@ -812,7 +913,7 @@ export default function HyresavtalPage() {
                   {editForm.forfallotyp === 'dagar_efter' && (
                     <div>
                       <label style={smallLbl}>Antal dagar</label>
-                      <input type="number" min="1" max="90" style={inp} onFocus={fo} onBlur={fb} value={editForm.forfallodagar} onChange={e => setEditForm({ ...editForm, forfallodagar: e.target.value })} placeholder="30" />
+                      <input spellCheck={false} type="number" min="1" max="90" style={inp} onFocus={fo} onBlur={fb} value={editForm.forfallodagar} onChange={e => setEditForm({ ...editForm, forfallodagar: e.target.value })} placeholder="30" />
                     </div>
                   )}
                 </div>
@@ -821,14 +922,14 @@ export default function HyresavtalPage() {
               {/* Avtalsdetaljer */}
               <div>
                 <h4 style={secH}>Avtalsdetaljer</h4>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
                   <div>
                     <label style={smallLbl}>Avtalsnummer</label>
-                    <input style={inp} onFocus={fo} onBlur={fb} value={editForm.avtalsnummer || ''} onChange={e => setEditForm({ ...editForm, avtalsnummer: e.target.value })} placeholder="Sätts automatiskt" />
+                    <input spellCheck={false} style={inp} onFocus={fo} onBlur={fb} value={editForm.avtalsnummer || ''} onChange={e => setEditForm({ ...editForm, avtalsnummer: e.target.value })} placeholder="Sätts automatiskt" />
                   </div>
                   <div>
                     <label style={smallLbl}>Användningsändamål</label>
-                    <input style={inp} onFocus={fo} onBlur={fb} value={editForm.anvandning || ''} onChange={e => setEditForm({ ...editForm, anvandning: e.target.value })} placeholder="T.ex. Kontor, Lager, Bilförädling" />
+                    <input spellCheck={true} style={inp} onFocus={fo} onBlur={fb} value={editForm.anvandning || ''} onChange={e => setEditForm({ ...editForm, anvandning: e.target.value })} placeholder="T.ex. Kontor, Lager, Bilförädling" />
                   </div>
                   <div>
                     <label style={smallLbl}>El</label>
@@ -877,7 +978,7 @@ export default function HyresavtalPage() {
                   <div>
                     <label style={smallLbl}>Kostnadsandel (%)</label>
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <input type="number" step="0.1" style={inp} onFocus={fo} onBlur={fb} value={editForm.kostnadsandel || ''} onChange={e => {
+                      <input spellCheck={false} type="number" step="0.1" style={inp} onFocus={fo} onBlur={fb} value={editForm.kostnadsandel || ''} onChange={e => {
                         const val = e.target.value
                         setEditForm(prev => ({ ...prev, kostnadsandel: val }))
                         if (val && editAvtal) {
@@ -965,11 +1066,11 @@ export default function HyresavtalPage() {
                   </div>
                   <div style={{ gridColumn: '1 / -1' }}>
                     <label style={smallLbl}>Säkerhet</label>
-                    <input style={inp} onFocus={fo} onBlur={fb} value={editForm.sakerhet || ''} onChange={e => setEditForm({ ...editForm, sakerhet: e.target.value })} placeholder="T.ex. Bankgaranti 100 000 kr" />
+                    <input spellCheck={true} style={inp} onFocus={fo} onBlur={fb} value={editForm.sakerhet || ''} onChange={e => setEditForm({ ...editForm, sakerhet: e.target.value })} placeholder="T.ex. Bankgaranti 100 000 kr" />
                   </div>
                   <div style={{ gridColumn: '1 / -1' }}>
                     <label style={smallLbl}>Särskilda villkor</label>
-                    <textarea rows={3} style={{ ...inp, resize: 'none' }} onFocus={fo} onBlur={fb} value={editForm.specialvillkor || ''} onChange={e => setEditForm({ ...editForm, specialvillkor: e.target.value })} placeholder="Fritext för särskilda avtalsvillkor..." />
+                    <textarea spellCheck={true} rows={3} style={{ ...inp, resize: 'none' }} onFocus={fo} onBlur={fb} value={editForm.specialvillkor || ''} onChange={e => setEditForm({ ...editForm, specialvillkor: e.target.value })} placeholder="Fritext för särskilda avtalsvillkor..." />
                   </div>
                 </div>
               </div>
@@ -1000,11 +1101,36 @@ export default function HyresavtalPage() {
                           <button type="button" onClick={() => setEditRader(prev => prev.filter((_, idx) => idx !== i))} style={iconBtn}>✕</button>
                         )}
                       </div>
-                      <input style={radInp} onFocus={fo} onBlur={fb} value={rad.beskrivning} onChange={e => setEditRader(prev => prev.map((r, idx) => idx === i ? { ...r, beskrivning: e.target.value } : r))} placeholder="Beskrivning" />
+                      {/* Artikelväljare — autofyller beskrivning/belopp/moms ur artikelregistret. Fälten går att redigera fritt efteråt. */}
+                      {artiklar.length > 0 && (
+                        <select
+                          style={radInp}
+                          onFocus={fo}
+                          onBlur={fb}
+                          value=""
+                          onChange={e => {
+                            const art = artiklar.find(x => x.id === e.target.value)
+                            if (!art) return
+                            const m = art.apris != null ? String(art.apris) : ''
+                            const ar = art.apris != null ? String(Math.round(art.apris * 12 * 100) / 100) : ''
+                            setEditRader(prev => prev.map((r, idx) => idx === i ? {
+                              ...r,
+                              beskrivning: art.benamning,
+                              ...(art.apris != null ? { belopp: m, arsbelopp: ar } : {}),
+                              moms: String(art.moms),
+                            } : r))
+                            if (rad.artikelkod === 'HYR' && art.apris != null) setEditForm(prev => ({ ...prev, bashyra: m }))
+                          }}
+                        >
+                          <option value="">Välj artikel...</option>
+                          {artiklar.map(a => <option key={a.id} value={a.id}>{a.kod} – {a.benamning}</option>)}
+                        </select>
+                      )}
+                      <input spellCheck={true} style={radInp} onFocus={fo} onBlur={fb} value={rad.beskrivning} onChange={e => setEditRader(prev => prev.map((r, idx) => idx === i ? { ...r, beskrivning: e.target.value } : r))} placeholder="Beskrivning" />
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                         <div>
                           <label style={{ display: 'block', fontSize: 10, color: C.muted, marginBottom: 2 }}>Per månad exkl. moms</label>
-                          <input type="number" style={radInp} onFocus={fo} onBlur={fb} value={rad.belopp} onChange={e => {
+                          <input spellCheck={false} type="number" style={radInp} onFocus={fo} onBlur={fb} value={rad.belopp} onChange={e => {
                             const m = e.target.value
                             const a = m ? String(Math.round(parseFloat(m) * 12 * 100) / 100) : ''
                             setEditRader(prev => prev.map((r, idx) => idx === i ? { ...r, belopp: m, arsbelopp: a } : r))
@@ -1013,7 +1139,7 @@ export default function HyresavtalPage() {
                         </div>
                         <div>
                           <label style={{ display: 'block', fontSize: 10, color: C.muted, marginBottom: 2 }}>Per år exkl. moms</label>
-                          <input type="number" style={radInp} onFocus={fo} onBlur={fb} value={rad.arsbelopp} onChange={e => {
+                          <input spellCheck={false} type="number" style={radInp} onFocus={fo} onBlur={fb} value={rad.arsbelopp} onChange={e => {
                             const a = e.target.value
                             const m = a ? String(Math.round(parseFloat(a) / 12 * 100) / 100) : ''
                             setEditRader(prev => prev.map((r, idx) => idx === i ? { ...r, belopp: m, arsbelopp: a } : r))
@@ -1104,10 +1230,10 @@ export default function HyresavtalPage() {
                   <p style={{ fontSize: 12, color: C.muted2, fontStyle: 'italic' }}>Indexreglering är avstängd för detta avtal.</p>
                 ) : <>
                   <p style={{ fontSize: 12, color: C.muted2, marginBottom: 12 }}>Ange basindex från kontraktsdatumet. Indextillägg beräknas automatiskt vid fakturering.</p>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: 12 }}>
                     <div>
                       <label style={smallLbl}>Basår</label>
-                      <input type="number" min="1980" max="2030" style={inp} onFocus={fo} onBlur={fb} value={editForm.basindexAr} onChange={e => {
+                      <input spellCheck={false} type="number" min="1980" max="2030" style={inp} onFocus={fo} onBlur={fb} value={editForm.basindexAr} onChange={e => {
                         const ar = e.target.value
                         setEditForm(prev => ({ ...prev, basindexAr: ar }))
                         if (ar.length === 4) fetchEditKpi(ar, editForm.basindexManad)
@@ -1125,7 +1251,7 @@ export default function HyresavtalPage() {
                     </div>
                     <div>
                       <label style={smallLbl}>Basindextal {editKpiLoading && <span style={{ color: C.gold }}>⏳</span>}</label>
-                      <input type="number" step="0.01" style={inp} onFocus={fo} onBlur={fb} value={editForm.basindexVarde} onChange={e => { setEditForm({ ...editForm, basindexVarde: e.target.value }); setEditKpiInfo(null) }} placeholder="Hämtas automatiskt" />
+                      <input spellCheck={false} type="number" step="0.01" style={inp} onFocus={fo} onBlur={fb} value={editForm.basindexVarde} onChange={e => { setEditForm({ ...editForm, basindexVarde: e.target.value }); setEditKpiInfo(null) }} placeholder="Hämtas automatiskt" />
                       {editKpiInfo && <p style={{ fontSize: 12, color: C.ok, marginTop: 4 }}>SCB: {editKpiInfo.period} = {editKpiInfo.value}</p>}
                     </div>
                   </div>

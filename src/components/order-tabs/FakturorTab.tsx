@@ -1,13 +1,16 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useIsMobile } from '@/hooks/useMediaQuery'
 import { fmtKr, fmtDatum } from './shared'
+import { SITE_EMAIL } from '@/lib/site'
 
 type Faktura = {
   id: string; fakturanummer: string; typ: string; status: string
   fakturadatum: string; totalt: number; subtotal: number; moms_belopp: number
   kund_namn: string | null; kund_epost: string | null; referens: string | null; original_faktura_id: string | null
+  original_faktura_nummer?: string | null
   hogia_faktura_id: string | null; hogia_synkad_at: string | null
   rader: Array<{ typ: string; desc: string; antal: number; apris: number; enhet: string; belopp: number }>
 }
@@ -79,6 +82,7 @@ export default function FakturorTab({ orderId }: { orderId: string }) {
       totalt: kreditTotalt,
       kund_namn: kreditModal.kund_namn,
       original_faktura_id: kreditModal.id,
+      original_faktura_nummer: kreditModal.fakturanummer,
     })
 
     // Uppdatera original
@@ -168,7 +172,7 @@ export default function FakturorTab({ orderId }: { orderId: string }) {
               {kreditMode === 'belopp' ? (
                 <div>
                   <label style={{ fontSize: 11, fontWeight: 600, color: '#555', display: 'block', marginBottom: 6 }}>KREDITBELOPP INKL. MOMS</label>
-                  <input type="number" value={kreditBelopp} onChange={e => setKreditBelopp(e.target.value)}
+                  <input spellCheck={false} type="number" value={kreditBelopp} onChange={e => setKreditBelopp(e.target.value)}
                     placeholder={`Max ${kreditModal.totalt}`}
                     style={{ background: '#111', border: '1px solid #2a2a2a', borderRadius: 8, padding: '9px 12px', color: '#e0e0e0', fontSize: 14, outline: 'none', width: '100%', boxSizing: 'border-box' as const }}
                     onFocus={e => e.currentTarget.style.borderColor = '#f87171'}
@@ -192,7 +196,7 @@ export default function FakturorTab({ orderId }: { orderId: string }) {
                           <div style={{ fontSize: 11, color: '#555', marginTop: 2 }}>{r.antal} {r.enhet} × {fmtKr(r.apris)}</div>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <input type="number" min="0" max={r.antal} step="0.5" value={kreditAntal[i] ?? ''} placeholder="0"
+                          <input spellCheck={false} type="number" min="0" max={r.antal} step="0.5" value={kreditAntal[i] ?? ''} placeholder="0"
                             onChange={e => setKreditAntal(prev => ({ ...prev, [i]: e.target.value }))}
                             style={{ width: 60, background: '#111', border: '1px solid #2a2a2a', borderRadius: 6, padding: '7px 8px', color: '#e0e0e0', fontSize: 13, outline: 'none', textAlign: 'right' as const }}
                             onFocus={e => e.currentTarget.style.borderColor = '#f87171'} onBlur={e => e.currentTarget.style.borderColor = '#2a2a2a'} />
@@ -234,9 +238,24 @@ export default function FakturorTab({ orderId }: { orderId: string }) {
 // ─── Faktura PDF-liknande vy ────────────────────────────────────────────────
 export type { Faktura }
 export function FakturaVy({ faktura: f, autoSend, onClose }: { faktura: Faktura; autoSend?: boolean; onClose: () => void }) {
+  const m = useIsMobile()
   const [emailSent, setEmailSent] = useState(false)
   const [hogiaSynkar, setHogiaSynkar] = useState(false)
   const [hogiaFel, setHogiaFel] = useState('')
+
+  // Mobil: skala A4-dokumentet (794×1123) så det får plats utan sidled-scroll.
+  const skalaRef = useRef<HTMLDivElement>(null)
+  const [skala, setSkala] = useState(1)
+  useEffect(() => {
+    if (!m) { setSkala(1); return }
+    const berakna = () => {
+      const bredd = skalaRef.current?.clientWidth || window.innerWidth
+      setSkala(Math.min(bredd / 794, 1))
+    }
+    berakna()
+    window.addEventListener('resize', berakna)
+    return () => window.removeEventListener('resize', berakna)
+  }, [m])
 
   const hogiaSync = async () => {
     setHogiaSynkar(true); setHogiaFel('')
@@ -296,33 +315,34 @@ info@wisboverket.se
       onClick={e => e.target === e.currentTarget && onClose()}>
 
       {/* Verktygsfält */}
-      <div className="no-print" style={{ background: '#1c1c1e', borderBottom: '1px solid #2a2a2a', padding: '10px 20px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+      <div className="no-print" style={{ background: '#1c1c1e', borderBottom: '1px solid #2a2a2a', padding: m ? '10px 14px' : '10px 20px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, flexWrap: m ? 'wrap' : 'nowrap' }}>
         <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#8e8e93', fontSize: 20, cursor: 'pointer', lineHeight: 1, padding: '0 4px' }}>←</button>
         <span style={{ fontSize: 14, fontWeight: 700, color: '#f2f2f7' }}>{f.fakturanummer}</span>
         <span style={{ fontSize: 12, color: '#636366', marginLeft: 4 }}>{f.kund_namn || '—'}</span>
-        <div style={{ flex: 1 }} />
+        <div style={{ flex: 1, minWidth: m ? '100%' : 0 }} />
         {emailSent && <span style={{ fontSize: 11, color: '#4ade80', fontWeight: 600, marginRight: 4 }}>✓ PDF och e-postklient öppnade!</span>}
         <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 10, background: (f.hogia_synkad_at ? '#4ade80' : '#666') + '1a', color: f.hogia_synkad_at ? '#4ade80' : '#8e8e93', border: `1px solid ${f.hogia_synkad_at ? '#4ade80' : '#666'}44` }}>
           {f.hogia_synkad_at ? 'Synkad' : 'Ej synkad'}
         </span>
         {hogiaFel && <span style={{ fontSize: 11, color: '#fb923c', maxWidth: 260 }}>{hogiaFel}</span>}
         <button onClick={hogiaSync} disabled={hogiaSynkar}
-          style={{ padding: '7px 16px', borderRadius: 8, border: '1px solid #4ade8044', background: '#4ade8011', color: '#4ade80', fontWeight: 700, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: hogiaSynkar ? 0.6 : 1 }}>
+          style={{ padding: '7px 16px', borderRadius: 8, border: '1px solid #4ade8044', background: '#4ade8011', color: '#4ade80', fontWeight: 700, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: hogiaSynkar ? 0.6 : 1, flex: m ? 1 : undefined }}>
           {hogiaSynkar ? '...' : '🔗 Synka med Hogia'}
         </button>
         <button onClick={print}
-          style={{ padding: '7px 16px', borderRadius: 8, border: '1px solid #E8C96A44', background: '#E8C96A11', color: '#E8C96A', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
+          style={{ padding: '7px 16px', borderRadius: 8, border: '1px solid #E8C96A44', background: '#E8C96A11', color: '#E8C96A', fontWeight: 700, fontSize: 12, cursor: 'pointer', flex: m ? 1 : undefined }}>
           🖨 Skriv ut / PDF
         </button>
         <button onClick={skickaMedPDF}
-          style={{ padding: '7px 16px', borderRadius: 8, border: '1px solid #60a5fa44', background: '#60a5fa11', color: '#60a5fa', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
+          style={{ padding: '7px 16px', borderRadius: 8, border: '1px solid #60a5fa44', background: '#60a5fa11', color: '#60a5fa', fontWeight: 700, fontSize: 12, cursor: 'pointer', flex: m ? 1 : undefined }}>
           📧 Skicka med PDF
         </button>
       </div>
 
       {/* Fakturadokument */}
-      <div style={{ flex: 1, overflow: 'auto', padding: '30px 20px', display: 'flex', justifyContent: 'center' }}>
-        <div id="faktura-print" style={{ background: '#fff', color: '#111', width: 794, minHeight: 1123, borderRadius: 4, padding: '60px 64px', boxShadow: '0 8px 40px rgba(0,0,0,0.5)', fontFamily: 'system-ui, sans-serif', fontSize: 13 }}>
+      <div ref={skalaRef} style={{ flex: 1, overflow: 'auto', padding: m ? '16px 0' : '30px 20px', display: 'flex', justifyContent: 'center' }}>
+       <div className="faktura-skala" style={m ? { width: 794 * skala, height: 1123 * skala, flexShrink: 0 } : undefined}>
+        <div id="faktura-print" style={{ background: '#fff', color: '#111', width: 794, minHeight: 1123, borderRadius: 4, padding: '60px 64px', boxShadow: '0 8px 40px rgba(0,0,0,0.5)', fontFamily: 'system-ui, sans-serif', fontSize: 13, transform: m ? `scale(${skala})` : undefined, transformOrigin: 'top left' }}>
 
           {/* Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 48 }}>
@@ -332,13 +352,18 @@ info@wisboverket.se
               <div style={{ width: 40, height: 2, background: '#E8C96A', marginTop: 6, marginBottom: 10 }} />
               <div style={{ fontSize: 11, color: '#666' }}>Hofmanns AB</div>
               <div style={{ fontSize: 11, color: '#666' }}>Org.nr: 559XXX-XXXX</div>
-              <div style={{ fontSize: 11, color: '#666' }}>info@hofmannsab.se</div>
+              <div style={{ fontSize: 11, color: '#666' }}>{SITE_EMAIL}</div>
             </div>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: 28, fontWeight: 900, color: f.typ === 'kreditnota' ? '#dc2626' : '#1a1a1a', letterSpacing: -1 }}>
                 {f.typ === 'kreditnota' ? 'KREDITNOTA' : 'FAKTURA'}
               </div>
               <div style={{ fontSize: 20, fontWeight: 700, color: '#555', marginTop: 2 }}>{f.fakturanummer}</div>
+              {f.typ === 'kreditnota' && (f.original_faktura_nummer || f.original_faktura_id) && (
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#dc2626', marginTop: 6 }}>
+                  Avser faktura {f.original_faktura_nummer || (f.fakturanummer.endsWith('-K') ? f.fakturanummer.slice(0, -2) : '')}
+                </div>
+              )}
             </div>
           </div>
 
@@ -430,13 +455,15 @@ info@wisboverket.se
             </div>
           </div>
         </div>
+       </div>
       </div>
 
       <style>{`
         @media print {
           body > *:not(#faktura-print) { display: none !important; }
           .no-print { display: none !important; }
-          #faktura-print { box-shadow: none !important; }
+          #faktura-print { box-shadow: none !important; transform: none !important; }
+          .faktura-skala { transform: none !important; height: auto !important; width: auto !important; }
         }
       `}</style>
     </div>

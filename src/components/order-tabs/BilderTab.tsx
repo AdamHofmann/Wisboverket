@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useIsMobile } from '@/hooks/useMediaQuery'
+import { useConfirm } from '@/components/ConfirmDialog'
 
 type Props = { orderId: string }
 
@@ -21,6 +23,8 @@ export default function BilderTab({ orderId }: Props) {
   const [error, setError] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
   const sb = createClient()
+  const m = useIsMobile()
+  const confirm = useConfirm()
 
   const fetchBilder = async () => {
     const { data, error } = await sb.storage.from('order-bilder').list(orderId, { sortBy: { column: 'created_at', order: 'asc' } })
@@ -109,7 +113,7 @@ export default function BilderTab({ orderId }: Props) {
           <div style={{ fontSize: 11, color: TEXT_MUTED, fontWeight: 600, letterSpacing: 1 }}>
             {bilder.length} BILD{bilder.length !== 1 ? 'ER' : ''}
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: m ? 'repeat(auto-fill, minmax(100px, 1fr))' : 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8 }}>
             {bilder.map((url, i) => (
               <div key={i} style={{ position: 'relative', borderRadius: 8, overflow: 'hidden', background: BG_CARD, border: `1px solid ${BORDER}`, aspectRatio: '4/3' }}>
                 <img
@@ -117,12 +121,12 @@ export default function BilderTab({ orderId }: Props) {
                   style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'zoom-in', display: 'block' }}
                 />
                 <button
-                  onClick={() => { if (confirm('Ta bort bild?')) raderaBild(url) }}
+                  onClick={async () => { if (await confirm({ message: 'Ta bort bild?', danger: true, confirmLabel: 'Ta bort' })) raderaBild(url) }}
                   style={{
                     position: 'absolute', top: 5, right: 5,
                     background: 'rgba(0,0,0,0.7)', border: 'none', color: '#fff',
-                    borderRadius: '50%', width: 24, height: 24, cursor: 'pointer',
-                    fontSize: 12, lineHeight: '24px', textAlign: 'center', padding: 0,
+                    borderRadius: '50%', width: m ? 44 : 24, height: m ? 44 : 24, cursor: 'pointer',
+                    fontSize: m ? 18 : 12, lineHeight: m ? '44px' : '24px', textAlign: 'center', padding: 0,
                   }}
                 >✕</button>
               </div>

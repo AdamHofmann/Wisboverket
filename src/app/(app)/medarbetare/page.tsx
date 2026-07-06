@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useIsMobile } from '@/hooks/useMediaQuery'
 import OrderPanel from '@/components/OrderPanel'
 import { PERSONAL } from '@/components/order-tabs/shared'
 
@@ -22,6 +23,7 @@ function avatarColor(name: string) {
 }
 
 export default function MedarbetarePage() {
+  const isMobile = useIsMobile()
   const [orders, setOrders] = useState<OrderRad[]>([])
   const [loading, setLoading] = useState(true)
   const [weekOffset, setWeekOffset] = useState(0)
@@ -60,18 +62,18 @@ export default function MedarbetarePage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center', gap: isMobile ? 12 : 0, marginBottom: 20 }}>
         <div style={{ fontSize: 22, fontWeight: 800, color: '#E8C96A' }}>Medarbetare</div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', width: isMobile ? '100%' : undefined }}>
           <button onClick={() => setWeekOffset(w => w - 1)}
-            style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#e0e0e0', borderRadius: 6, width: 32, height: 32, cursor: 'pointer', fontSize: 14 }}>‹</button>
-          <span style={{ fontSize: 13, fontWeight: 700, color: '#e0e0e0', minWidth: 210, textAlign: 'center' as const }}>
+            style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#e0e0e0', borderRadius: 6, width: 32, height: 32, flexShrink: 0, cursor: 'pointer', fontSize: 14 }}>‹</button>
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#e0e0e0', minWidth: isMobile ? 0 : 210, flex: isMobile ? 1 : undefined, textAlign: 'center' as const }}>
             v. {veckoNr(weekStart)} — {MONTHS[weekStart.getMonth()]} {weekStart.getDate()}–{MONTHS[weekEnd.getMonth()]} {weekEnd.getDate()}
           </span>
           <button onClick={() => setWeekOffset(w => w + 1)}
-            style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#e0e0e0', borderRadius: 6, width: 32, height: 32, cursor: 'pointer', fontSize: 14 }}>›</button>
+            style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#e0e0e0', borderRadius: 6, width: 32, height: 32, flexShrink: 0, cursor: 'pointer', fontSize: 14 }}>›</button>
           <button onClick={() => setWeekOffset(0)}
-            style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#888', borderRadius: 6, padding: '5px 12px', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>
+            style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#888', borderRadius: 6, padding: '5px 12px', flexShrink: 0, cursor: 'pointer', fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap' }}>
             Denna vecka
           </button>
         </div>

@@ -13,6 +13,7 @@
 import { useEffect, useState } from 'react'
 import { useBolag } from '@/components/fastigheter/BolagContext'
 import { C, fmtKvm } from '@/components/fastigheter/styles'
+import { useIsMobile } from '@/hooks/useMediaQuery'
 
 interface KommandeAvtal {
   id: string
@@ -122,6 +123,7 @@ const tdR: React.CSSProperties = { ...td, textAlign: 'right' }
 
 export default function FastigheterDashboard() {
   const { valtBolagId } = useBolag()
+  const isMobile = useIsMobile()
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -136,7 +138,7 @@ export default function FastigheterDashboard() {
   const vakansPerFastighet = data?.vakansPerFastighet ?? []
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, ...(isMobile ? { overflowX: 'hidden' } : null) }}>
       {/* Header */}
       <div>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: C.text, margin: 0 }}>Översikt</h1>
@@ -148,7 +150,7 @@ export default function FastigheterDashboard() {
       ) : (
         <>
           {/* KPI-kort rad 1 */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
             <StatCard
               title="Totalt lokaler"
               value={data?.totalLokaler ?? 0}
@@ -180,7 +182,7 @@ export default function FastigheterDashboard() {
 
           {/* Vakans sammanfattning (ytabaserad) */}
           {hasYtadata && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
               <div style={{ borderRadius: 12, border: `1px solid ${C.borderSoft}`, background: C.panel, padding: 18 }}>
                 <p style={{ fontSize: 11, fontWeight: 600, color: C.muted2, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4, marginTop: 0 }}>Total yta BTA</p>
                 <p style={{ fontSize: 22, fontWeight: 700, color: C.text, margin: 0 }}>{fmtKvm(data?.totalBTA ?? 0)}</p>
@@ -208,6 +210,104 @@ export default function FastigheterDashboard() {
                 <div style={{ borderRadius: 8, background: C.goldSoft, padding: 8, fontSize: 15, lineHeight: 1 }}>📐</div>
                 <h3 style={{ fontWeight: 600, color: C.text, margin: 0, fontSize: 15 }}>Vakans per fastighet</h3>
               </div>
+              {isMobile ? (
+                <div style={{ padding: 12 }}>
+                  {vakansPerFastighet.map(f => (
+                    <div key={f.fastighetId} style={{ border: `1px solid ${C.borderSoft}`, borderRadius: 10, padding: 12, marginBottom: 8, background: C.panel2 }}>
+                      <p style={{ fontWeight: 600, color: C.text, margin: 0, fontSize: 14 }}>{f.fastighetNamn}</p>
+                      {f.antalByggnader > 0 && (
+                        <p style={{ fontSize: 12, color: C.muted2, margin: '2px 0 0' }}>{f.antalByggnader} {f.antalByggnader === 1 ? 'byggnad' : 'byggnader'}</p>
+                      )}
+                      <div style={{ marginTop: 10, borderTop: `1px solid ${C.borderSoft}`, paddingTop: 10 }}>
+                        <VakansBar pct={f.uthyrbarYta > 0 ? f.vakansgrad : 0} />
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                          <span style={{ color: C.muted2 }}>Lokaler</span>
+                          <span style={{ color: C.muted }}>
+                            {f.uthyrdYta > 0 ? f.antalLokaler - f.ledigaLokaler : '–'}/{f.antalLokaler}
+                            {f.ledigaLokaler > 0 && <span style={{ marginLeft: 4, fontSize: 12, color: C.danger }}>({f.ledigaLokaler} ledig)</span>}
+                          </span>
+                        </div>
+                        {hasYtadata && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                            <span style={{ color: C.muted2 }}>BTA</span>
+                            <span style={{ color: C.muted2 }}>{f.totalBTA > 0 ? fmtKvm(f.totalBTA) : '–'}</span>
+                          </div>
+                        )}
+                        {hasYtadata && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                            <span style={{ color: C.muted2 }}>LOA</span>
+                            <span style={{ color: C.muted }}>{f.uthyrbarYta > 0 ? fmtKvm(f.uthyrbarYta) : '–'}</span>
+                          </div>
+                        )}
+                        {hasYtadata && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                            <span style={{ color: C.muted2 }}>Uthyrd yta</span>
+                            <span style={{ color: C.muted }}>{f.uthyrdYta > 0 ? fmtKvm(f.uthyrdYta) : '–'}</span>
+                          </div>
+                        )}
+                        {hasYtadata && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                            <span style={{ color: C.muted2 }}>Vakant yta</span>
+                            {f.vakantYta > 0 ? <span style={{ color: C.danger, fontWeight: 500 }}>{fmtKvm(f.vakantYta)}</span> : <span style={{ color: C.ok }}>–</span>}
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                          <span style={{ color: C.muted2 }}>Est. förlorad hyra</span>
+                          {f.forloradHyra > 0
+                            ? <span style={{ color: C.danger, fontWeight: 500, textAlign: 'right' }}>{formatSEK(f.forloradHyra)}<br /><span style={{ fontSize: 11, fontWeight: 400, color: 'rgba(248,113,113,0.7)' }}>{formatSEK(f.forloradHyra * 12)}/år</span></span>
+                            : <span style={{ color: C.ok }}>–</span>}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {vakansPerFastighet.length > 1 && (
+                    <div style={{ border: `1px solid ${C.borderStrong}`, borderRadius: 10, padding: 12, background: C.panel2 }}>
+                      <p style={{ fontWeight: 600, color: C.text, margin: 0, fontSize: 14 }}>Totalt</p>
+                      <div style={{ marginTop: 10, borderTop: `1px solid ${C.borderSoft}`, paddingTop: 10 }}>
+                        <VakansBar pct={data?.totalVakansgrad ?? 0} />
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                          <span style={{ color: C.muted2 }}>Lokaler</span>
+                          <span style={{ color: C.text2, fontWeight: 600 }}>{data?.uthyrdaLokaler}/{data?.totalLokaler}</span>
+                        </div>
+                        {hasYtadata && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                            <span style={{ color: C.muted2 }}>BTA</span>
+                            <span style={{ color: C.muted2 }}>{(data?.totalBTA ?? 0) > 0 ? fmtKvm(data!.totalBTA) : '–'}</span>
+                          </div>
+                        )}
+                        {hasYtadata && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                            <span style={{ color: C.muted2 }}>LOA</span>
+                            <span style={{ color: C.text2, fontWeight: 600 }}>{fmtKvm(data?.totalLOA ?? 0)}</span>
+                          </div>
+                        )}
+                        {hasYtadata && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                            <span style={{ color: C.muted2 }}>Uthyrd yta</span>
+                            <span style={{ color: C.text2, fontWeight: 600 }}>{fmtKvm(data?.totalUthyrdYta ?? 0)}</span>
+                          </div>
+                        )}
+                        {hasYtadata && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                            <span style={{ color: C.muted2 }}>Vakant yta</span>
+                            <span style={{ color: C.danger, fontWeight: 600 }}>{(data?.totalVakantYta ?? 0) > 0 ? fmtKvm(data!.totalVakantYta) : '–'}</span>
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                          <span style={{ color: C.muted2 }}>Est. förlorad hyra</span>
+                          {(data?.totalForloradHyra ?? 0) > 0
+                            ? <span style={{ color: C.danger, fontWeight: 600, textAlign: 'right' }}>{formatSEK(data!.totalForloradHyra)}<br /><span style={{ fontSize: 11, fontWeight: 400, color: 'rgba(248,113,113,0.7)' }}>{formatSEK(data!.totalForloradHyra * 12)}/år</span></span>
+                            : <span style={{ color: C.danger, fontWeight: 600 }}>–</span>}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
@@ -274,11 +374,12 @@ export default function FastigheterDashboard() {
                   )}
                 </table>
               </div>
+              )}
             </div>
           )}
 
           {/* Nedre rad: Ekonomi + Kommande avtal */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
             {/* Ekonomi */}
             <div style={{ borderRadius: 12, border: `1px solid ${C.borderSoft}`, background: C.panel, padding: 20 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>

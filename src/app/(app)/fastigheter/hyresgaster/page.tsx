@@ -15,10 +15,14 @@ import { useEffect, useState } from 'react'
 import BolagAutocomplete from '@/components/fastigheter/BolagAutocomplete'
 import SlideOver from '@/components/fastigheter/SlideOver'
 import { C, inp, lbl, fo, fb, btnPrimary, btnGhost } from '@/components/fastigheter/styles'
+import { useIsMobile } from '@/hooks/useMediaQuery'
+import { useConfirm } from '@/components/ConfirmDialog'
+import { useBolag } from '@/components/fastigheter/BolagContext'
+import Sokfalt from '@/components/Sokfalt'
 
 interface HyresavtalInfo {
   id: string; status: string; bashyra: number
-  lokaler: { lokal: { namn: string; fastighet: { namn: string } } }[]
+  lokaler: { lokal: { namn: string; fastighet: { namn: string; bolag_id?: string | null } } }[]
 }
 
 interface Kontaktperson { id: string; namn: string; roll: string | null; telefon: string | null; epost: string | null }
@@ -70,6 +74,10 @@ function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
 }
 
 export default function HyresgasterPage() {
+  const isMobile = useIsMobile()
+  const confirm = useConfirm()
+  const { valtBolagId, bolagLista } = useBolag()
+  const valtBolagNamn = valtBolagId ? bolagLista.find(b => b.id === valtBolagId)?.namn : null
   const [items, setItems] = useState<Hyresgast[]>([])
   const [loading, setLoading] = useState(true)
   const [editOpen, setEditOpen] = useState(false)
@@ -172,7 +180,7 @@ export default function HyresgasterPage() {
   }
 
   const remove = async (id: string) => {
-    if (!confirm('Ta bort hyresgäst?')) return
+    if (!(await confirm({ message: 'Ta bort hyresgäst?', danger: true, confirmLabel: 'Ta bort' }))) return
     await fetch(`/api/fastigheter/hyresgaster/${id}`, { method: 'DELETE' })
     setEditOpen(false); load()
   }
@@ -305,52 +313,120 @@ export default function HyresgasterPage() {
     load()
   }
 
-  const [sortBy, setSortBy] = useState<'namn' | 'avtal'>('namn')
+  const [sortCol, setSortCol] = useState<'namn' | 'avtal' | 'hyra'>('namn')
+  const [sortDir, setSortDir] = useState<1 | -1>(1)
   const [filterFastighet, setFilterFastighet] = useState('')
+
+  const toggleSort = (col: 'namn' | 'avtal' | 'hyra') => {
+    if (sortCol === col) setSortDir(d => (d === 1 ? -1 : 1))
+    else { setSortCol(col); setSortDir(col === 'namn' ? 1 : -1) }
+  }
+
+  // Aktiv månadshyra (summa av aktiva avtal) — används för sortering.
+  const aktivHyra = (h: Hyresgast) =>
+    (h.hyresavtal ?? []).filter(a => a.status === 'aktiv').reduce((s, a) => s + (a.bashyra || 0), 0)
+
+  // En hyresgäst hör till valt bolag om något av dess avtals lokaler ligger på en
+  // fastighet i det bolaget. Hyresgäster utan avtal (utan bolagskoppling) döljs när
+  // ett bolag är valt.
+  const tillhorBolag = (h: Hyresgast) =>
+    !valtBolagId || (h.hyresavtal ?? []).some(a => a.lokaler.some(l => l.lokal.fastighet.bolag_id === valtBolagId))
 
   const filtered = items
     .filter(h => {
-      if (search && !h.namn.toLowerCase().includes(search.toLowerCase()) && !h.personnummer?.includes(search)) return false
+      if (!tillhorBolag(h)) return false
+      if (search) {
+        const q = search.toLowerCase()
+        const match =
+          h.namn.toLowerCase().includes(q)
+          || (h.personnummer ?? '').toLowerCase().includes(q)
+          || (h.epost ?? '').toLowerCase().includes(q)
+          || (h.telefon ?? '').toLowerCase().includes(q)
+          || (h.adress ?? '').toLowerCase().includes(q)
+          || (h.hyresavtal ?? []).some(a => a.lokaler.some(l =>
+            l.lokal.namn.toLowerCase().includes(q) || l.lokal.fastighet.namn.toLowerCase().includes(q)))
+          || (h.kontaktpersoner ?? []).some(k => k.namn.toLowerCase().includes(q))
+        if (!match) return false
+      }
       if (filterFastighet && !h.hyresavtal?.some(a => a.lokaler.some(l => l.lokal.fastighet.namn === filterFastighet))) return false
       return true
     })
-    .sort((a, b) => sortBy === 'avtal' ? (b._count?.hyresavtal ?? 0) - (a._count?.hyresavtal ?? 0) : a.namn.localeCompare(b.namn))
+    .sort((a, b) => {
+      let cmp = 0
+      if (sortCol === 'avtal') cmp = (a._count?.hyresavtal ?? 0) - (b._count?.hyresavtal ?? 0)
+      else if (sortCol === 'hyra') cmp = aktivHyra(a) - aktivHyra(b)
+      else cmp = a.namn.localeCompare(b.namn)
+      // Sekundär sortering på namn för stabil ordning
+      if (cmp === 0 && sortCol !== 'namn') cmp = a.namn.localeCompare(b.namn)
+      return cmp * sortDir
+    })
 
-  const uniktaFastigheter = [...new Set(items.flatMap(h => h.hyresavtal?.flatMap(a => a.lokaler.map(l => l.lokal.fastighet.namn)) || []))].sort()
+  // Endast fastigheter i valt bolag när ett bolag är valt.
+  const uniktaFastigheter = [...new Set(
+    items.flatMap(h => h.hyresavtal?.flatMap(a =>
+      a.lokaler.filter(l => !valtBolagId || l.lokal.fastighet.bolag_id === valtBolagId).map(l => l.lokal.fastighet.namn)) || [])
+  )].sort()
+
+  // Kolumnknappar för sortering (ersätter tidigare sort-dropdown, samma toggle-mönster som fakturering).
+  const sortKnappar: { key: 'namn' | 'avtal' | 'hyra'; label: string }[] = [
+    { key: 'namn', label: 'Namn' },
+    { key: 'avtal', label: 'Antal avtal' },
+    { key: 'hyra', label: 'Aktiv hyra' },
+  ]
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, ...(isMobile ? { overflowX: 'hidden' } : {}) }}>
+      <div style={{ display: 'flex', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'space-between', ...(isMobile ? { flexDirection: 'column', gap: 12 } : {}) }}>
         <div>
           <h2 style={{ fontSize: 20, fontWeight: 700, color: C.text, margin: 0 }}>Hyresgäster</h2>
-          <p style={{ fontSize: 13, color: C.muted, marginTop: 2 }}>{items.length} registrerade</p>
+          <p style={{ fontSize: 13, color: C.muted, marginTop: 2 }}>
+            {filtered.length} {filtered.length === 1 ? 'hyresgäst' : 'hyresgäster'}
+            {valtBolagNamn ? ` · ${valtBolagNamn}` : ''}
+          </p>
         </div>
-        <button onClick={openNew} style={btnPrimary}>+ Ny hyresgäst</button>
+        <button onClick={openNew} style={{ ...btnPrimary, ...(isMobile ? { width: '100%' } : {}) }}>+ Ny hyresgäst</button>
       </div>
 
-      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-        <input
-          style={{ ...inp, flex: 1, maxWidth: 320 }}
-          onFocus={fo}
-          onBlur={fb}
-          placeholder="Sök hyresgäst eller org.nr..."
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', ...(isMobile ? { flexDirection: 'column', alignItems: 'stretch' } : {}) }}>
+        <Sokfalt
           value={search}
-          onChange={e => setSearch(e.target.value)}
+          onChange={setSearch}
+          placeholder="Sök namn, org.nr, adress, lokal..."
+          style={{ width: isMobile ? '100%' : 320 }}
         />
-        <select value={filterFastighet} onChange={e => setFilterFastighet(e.target.value)} onFocus={fo} onBlur={fb} style={{ ...inp, width: 'auto' }}>
+        <select value={filterFastighet} onChange={e => setFilterFastighet(e.target.value)} onFocus={fo} onBlur={fb} style={{ ...inp, ...(isMobile ? { width: '100%' } : { width: 'auto' }) }}>
           <option value="">Alla fastigheter</option>
           {uniktaFastigheter.map(f => <option key={f} value={f}>{f}</option>)}
         </select>
-        <select value={sortBy} onChange={e => setSortBy(e.target.value as 'namn' | 'avtal')} onFocus={fo} onBlur={fb} style={{ ...inp, width: 'auto' }}>
-          <option value="namn">Sortera A–Ö</option>
-          <option value="avtal">Flest avtal först</option>
-        </select>
+        {/* Sorterbara kolumner — klickbara knappar med asc/desc-pil (samma mönster som fakturering) */}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', ...(isMobile ? { width: '100%' } : { marginLeft: 'auto' }) }}>
+          <span style={{ fontSize: 11, color: C.muted2, ...(isMobile ? { width: '100%' } : {}) }}>Sortera:</span>
+          {sortKnappar.map(k => {
+            const active = sortCol === k.key
+            return (
+              <button
+                key={k.key}
+                onClick={() => toggleSort(k.key)}
+                style={{
+                  flex: isMobile ? 1 : undefined,
+                  padding: '8px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                  borderRadius: 8, border: `1px solid ${active ? C.gold : C.border}`,
+                  background: active ? C.goldSoft : 'transparent',
+                  color: active ? C.gold : C.muted,
+                  whiteSpace: 'nowrap', userSelect: 'none',
+                }}
+              >
+                {k.label}{active ? (sortDir === 1 ? ' ▲' : ' ▼') : ''}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: '48px 0', color: C.muted2 }}>Laddar...</div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}>
           {filtered.length === 0 ? (
             <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '48px 0', color: C.muted2 }}>Inga hyresgäster hittades</div>
           ) : filtered.map((h) => (
@@ -462,6 +538,7 @@ export default function HyresgasterPage() {
           <div>
             <label style={lbl}>{hyresgastTyp === 'foretag' ? 'Företagsnamn' : 'Namn'}</label>
             <input
+              spellCheck={false}
               style={inp}
               onFocus={fo}
               onBlur={fb}
@@ -473,6 +550,7 @@ export default function HyresgasterPage() {
           <div>
             <label style={lbl}>{hyresgastTyp === 'foretag' ? 'Organisationsnummer' : 'Personnummer'}</label>
             <input
+              spellCheck={false}
               style={inp}
               onFocus={fo}
               onBlur={fb}
@@ -484,6 +562,7 @@ export default function HyresgasterPage() {
           <div>
             <label style={lbl}>Fakturamail</label>
             <input
+              spellCheck={false}
               style={inp}
               onFocus={fo}
               onBlur={fb}
@@ -495,6 +574,7 @@ export default function HyresgasterPage() {
           <div>
             <label style={lbl}>Adress</label>
             <input
+              spellCheck={false}
               style={inp}
               onFocus={fo}
               onBlur={fb}
@@ -571,22 +651,22 @@ export default function HyresgasterPage() {
               {/* Nytt formulär */}
               {showNewKontakt && (
                 <div style={{ borderRadius: 8, border: `1px solid ${C.gold}`, background: C.goldSoft, padding: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
                     <div>
                       <label style={smallLbl}>Namn *</label>
-                      <input style={{ ...inpSm, background: C.panel }} onFocus={fo} onBlur={fb} value={kontaktForm.namn} onChange={e => setKontaktForm({ ...kontaktForm, namn: e.target.value })} placeholder="För- och efternamn" autoFocus />
+                      <input spellCheck={false} style={{ ...inpSm, background: C.panel }} onFocus={fo} onBlur={fb} value={kontaktForm.namn} onChange={e => setKontaktForm({ ...kontaktForm, namn: e.target.value })} placeholder="För- och efternamn" autoFocus />
                     </div>
                     <div>
                       <label style={smallLbl}>Roll</label>
-                      <input style={{ ...inpSm, background: C.panel }} onFocus={fo} onBlur={fb} value={kontaktForm.roll} onChange={e => setKontaktForm({ ...kontaktForm, roll: e.target.value })} placeholder="T.ex. VD, Ekonomi" />
+                      <input spellCheck={true} style={{ ...inpSm, background: C.panel }} onFocus={fo} onBlur={fb} value={kontaktForm.roll} onChange={e => setKontaktForm({ ...kontaktForm, roll: e.target.value })} placeholder="T.ex. VD, Ekonomi" />
                     </div>
                     <div>
                       <label style={smallLbl}>Telefon</label>
-                      <input style={{ ...inpSm, background: C.panel }} onFocus={fo} onBlur={fb} value={kontaktForm.telefon} onChange={e => setKontaktForm({ ...kontaktForm, telefon: e.target.value })} placeholder="070-123 45 67" />
+                      <input spellCheck={false} style={{ ...inpSm, background: C.panel }} onFocus={fo} onBlur={fb} value={kontaktForm.telefon} onChange={e => setKontaktForm({ ...kontaktForm, telefon: e.target.value })} placeholder="070-123 45 67" />
                     </div>
                     <div>
                       <label style={smallLbl}>E-post</label>
-                      <input style={{ ...inpSm, background: C.panel }} onFocus={fo} onBlur={fb} value={kontaktForm.epost} onChange={e => setKontaktForm({ ...kontaktForm, epost: e.target.value })} placeholder="namn@foretag.se" />
+                      <input spellCheck={false} style={{ ...inpSm, background: C.panel }} onFocus={fo} onBlur={fb} value={kontaktForm.epost} onChange={e => setKontaktForm({ ...kontaktForm, epost: e.target.value })} placeholder="namn@foretag.se" />
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
@@ -671,10 +751,10 @@ export default function HyresgasterPage() {
 
               <div>
                 <h4 style={secTitle}>Kontraktstid</h4>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
                   <div>
                     <label style={lbl}>Avtalsdatum <span style={{ color: C.muted2, fontWeight: 400 }}>(valfritt)</span></label>
-                    <input type="date" min="2000-01-01" max="2099-12-31" style={inp} onFocus={fo} onBlur={fb} value={placeraForm.avtalsdatum} onChange={e => setPlaceraForm({ ...placeraForm, avtalsdatum: e.target.value })} />
+                    <input spellCheck={false} type="date" min="2000-01-01" max="2099-12-31" style={inp} onFocus={fo} onBlur={fb} value={placeraForm.avtalsdatum} onChange={e => setPlaceraForm({ ...placeraForm, avtalsdatum: e.target.value })} />
                   </div>
                   <div>
                     <label style={lbl}>Hyrestid</label>
@@ -686,7 +766,7 @@ export default function HyresgasterPage() {
                   </div>
                   <div>
                     <label style={lbl}>Kontraktsstart</label>
-                    <input type="date" min="2000-01-01" max="2099-12-31" style={inp} onFocus={fo} onBlur={fb} value={placeraForm.startdatum} onChange={e => {
+                    <input spellCheck={false} type="date" min="2000-01-01" max="2099-12-31" style={inp} onFocus={fo} onBlur={fb} value={placeraForm.startdatum} onChange={e => {
                       const datum = e.target.value
                       if (datum && datum.length === 10) {
                         const d = new Date(datum)
@@ -700,21 +780,21 @@ export default function HyresgasterPage() {
                   </div>
                   <div>
                     <label style={lbl}>Slutdatum <span style={{ color: C.muted2, fontWeight: 400 }}>(tomt = tillsvidare)</span></label>
-                    <input type="date" min="2000-01-01" max="2099-12-31" style={inp} onFocus={fo} onBlur={fb} value={placeraForm.slutdatum} onChange={e => setPlaceraForm({ ...placeraForm, slutdatum: e.target.value })} />
+                    <input spellCheck={false} type="date" min="2000-01-01" max="2099-12-31" style={inp} onFocus={fo} onBlur={fb} value={placeraForm.slutdatum} onChange={e => setPlaceraForm({ ...placeraForm, slutdatum: e.target.value })} />
                   </div>
                   {(placeraForm.hyrestid === 'forlangning' || placeraForm.hyrestid === 'tillsvidare') && (
                     <div>
                       <label style={lbl}>Förlängningstid (år)</label>
-                      <input type="number" min="1" style={inp} onFocus={fo} onBlur={fb} value={placeraForm.forlangning} onChange={e => setPlaceraForm({ ...placeraForm, forlangning: e.target.value })} placeholder="t.ex. 36" />
+                      <input spellCheck={false} type="number" min="1" style={inp} onFocus={fo} onBlur={fb} value={placeraForm.forlangning} onChange={e => setPlaceraForm({ ...placeraForm, forlangning: e.target.value })} placeholder="t.ex. 36" />
                     </div>
                   )}
                   <div>
                     <label style={lbl}>Uppsägningstid hyresgäst (mån)</label>
-                    <input type="number" min="0" style={inp} onFocus={fo} onBlur={fb} value={placeraForm.uppsagningstidHG} onChange={e => setPlaceraForm({ ...placeraForm, uppsagningstidHG: e.target.value })} />
+                    <input spellCheck={false} type="number" min="0" style={inp} onFocus={fo} onBlur={fb} value={placeraForm.uppsagningstidHG} onChange={e => setPlaceraForm({ ...placeraForm, uppsagningstidHG: e.target.value })} />
                   </div>
                   <div>
                     <label style={lbl}>Uppsägningstid hyresvärd (mån)</label>
-                    <input type="number" min="0" style={inp} onFocus={fo} onBlur={fb} value={placeraForm.uppsagningstidHV} onChange={e => setPlaceraForm({ ...placeraForm, uppsagningstidHV: e.target.value })} />
+                    <input spellCheck={false} type="number" min="0" style={inp} onFocus={fo} onBlur={fb} value={placeraForm.uppsagningstidHV} onChange={e => setPlaceraForm({ ...placeraForm, uppsagningstidHV: e.target.value })} />
                   </div>
                 </div>
               </div>
@@ -722,15 +802,15 @@ export default function HyresgasterPage() {
               {/* Avtalsdetaljer */}
               <div>
                 <h4 style={secTitle}>Avtalsdetaljer</h4>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
                   <div>
                     <label style={lbl}>Användningsändamål</label>
-                    <input style={inp} onFocus={fo} onBlur={fb} value={(placeraForm as Record<string, string>).anvandning || ''} onChange={e => setPlaceraForm(prev => ({ ...prev, anvandning: e.target.value }))} placeholder="T.ex. Kontor, Lager" />
+                    <input spellCheck={true} style={inp} onFocus={fo} onBlur={fb} value={(placeraForm as Record<string, string>).anvandning || ''} onChange={e => setPlaceraForm(prev => ({ ...prev, anvandning: e.target.value }))} placeholder="T.ex. Kontor, Lager" />
                   </div>
                   <div>
                     <label style={lbl}>Kostnadsandel (%)</label>
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <input type="number" step="0.1" style={inp} onFocus={fo} onBlur={fb} value={(placeraForm as Record<string, string>).kostnadsandel || ''} onChange={e => {
+                      <input spellCheck={false} type="number" step="0.1" style={inp} onFocus={fo} onBlur={fb} value={(placeraForm as Record<string, string>).kostnadsandel || ''} onChange={e => {
                         const val = e.target.value
                         setPlaceraForm(prev => ({ ...prev, kostnadsandel: val }))
                         // Uppdatera FSKATT-rad
@@ -814,11 +894,11 @@ export default function HyresgasterPage() {
                   </div>
                   <div>
                     <label style={lbl}>Säkerhet</label>
-                    <input style={inp} onFocus={fo} onBlur={fb} value={(placeraForm as Record<string, string>).sakerhet || ''} onChange={e => setPlaceraForm(prev => ({ ...prev, sakerhet: e.target.value }))} placeholder="T.ex. Bankgaranti 100 000 kr" />
+                    <input spellCheck={true} style={inp} onFocus={fo} onBlur={fb} value={(placeraForm as Record<string, string>).sakerhet || ''} onChange={e => setPlaceraForm(prev => ({ ...prev, sakerhet: e.target.value }))} placeholder="T.ex. Bankgaranti 100 000 kr" />
                   </div>
                   <div style={{ gridColumn: '1 / -1' }}>
                     <label style={lbl}>Särskilda villkor</label>
-                    <textarea rows={2} style={{ ...inp, resize: 'none' }} onFocus={fo} onBlur={fb} value={(placeraForm as Record<string, string>).specialvillkor || ''} onChange={e => setPlaceraForm(prev => ({ ...prev, specialvillkor: e.target.value }))} placeholder="Fritext..." />
+                    <textarea spellCheck={true} rows={2} style={{ ...inp, resize: 'none' }} onFocus={fo} onBlur={fb} value={(placeraForm as Record<string, string>).specialvillkor || ''} onChange={e => setPlaceraForm(prev => ({ ...prev, specialvillkor: e.target.value }))} placeholder="Fritext..." />
                   </div>
                 </div>
               </div>
@@ -887,7 +967,7 @@ export default function HyresgasterPage() {
                     <option value="dagar_efter">Antal dagar efter fakturadatum</option>
                   </select>
                   {placeraForm.forfallotyp === 'dagar_efter' && (
-                    <input type="number" min="1" max="90" style={{ ...inp, marginTop: 8 }} onFocus={fo} onBlur={fb} value={placeraForm.forfallodagar} onChange={e => setPlaceraForm({ ...placeraForm, forfallodagar: e.target.value })} placeholder="30" />
+                    <input spellCheck={false} type="number" min="1" max="90" style={{ ...inp, marginTop: 8 }} onFocus={fo} onBlur={fb} value={placeraForm.forfallodagar} onChange={e => setPlaceraForm({ ...placeraForm, forfallodagar: e.target.value })} placeholder="30" />
                   )}
                 </div>
 
@@ -904,11 +984,11 @@ export default function HyresgasterPage() {
                           <button type="button" onClick={() => removeAvtalsrad(i)} style={{ background: 'none', border: 'none', color: C.muted2, cursor: 'pointer', padding: 4 }}>✕</button>
                         )}
                       </div>
-                      <input style={{ ...inpSm, background: C.panel }} onFocus={fo} onBlur={fb} value={rad.beskrivning} onChange={e => updateAvtalsrad(i, 'beskrivning', e.target.value)} placeholder="Beskrivning" />
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                      <input spellCheck={true} style={{ ...inpSm, background: C.panel }} onFocus={fo} onBlur={fb} value={rad.beskrivning} onChange={e => updateAvtalsrad(i, 'beskrivning', e.target.value)} placeholder="Beskrivning" />
+                      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 8 }}>
                         <div>
                           <label style={tinyLbl}>Per månad exkl. moms</label>
-                          <input type="number" style={{ ...inpSm, background: C.panel }} onFocus={fo} onBlur={fb} value={rad.belopp} onChange={e => {
+                          <input spellCheck={false} type="number" style={{ ...inpSm, background: C.panel }} onFocus={fo} onBlur={fb} value={rad.belopp} onChange={e => {
                             const m = e.target.value
                             const a = m ? String(Math.round(parseFloat(m) * 12 * 100) / 100) : ''
                             setAvtalsrader(prev => prev.map((r, idx) => idx === i ? { ...r, belopp: m, arsbelopp: a } : r))
@@ -917,7 +997,7 @@ export default function HyresgasterPage() {
                         </div>
                         <div>
                           <label style={tinyLbl}>Per år exkl. moms</label>
-                          <input type="number" style={{ ...inpSm, background: C.panel }} onFocus={fo} onBlur={fb} value={rad.arsbelopp} onChange={e => {
+                          <input spellCheck={false} type="number" style={{ ...inpSm, background: C.panel }} onFocus={fo} onBlur={fb} value={rad.arsbelopp} onChange={e => {
                             const a = e.target.value
                             const m = a ? String(Math.round(parseFloat(a) / 12 * 100) / 100) : ''
                             setAvtalsrader(prev => prev.map((r, idx) => idx === i ? { ...r, belopp: m, arsbelopp: a } : r))
@@ -1012,10 +1092,10 @@ export default function HyresgasterPage() {
                   <p style={{ fontSize: 11, color: C.muted2, fontStyle: 'italic' }}>Indexreglering är avstängd för detta avtal.</p>
                 ) : <>
                   <p style={{ fontSize: 11, color: C.muted2, marginBottom: 12 }}>Ange basindex från kontraktsdatumet. Indextillägg beräknas automatiskt vid fakturering.</p>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: 12 }}>
                     <div>
                       <label style={lbl}>Basår</label>
-                      <input type="number" min="1980" max="2030" style={inp} onFocus={fo} onBlur={fb} value={placeraForm.basindexAr} onChange={e => {
+                      <input spellCheck={false} type="number" min="1980" max="2030" style={inp} onFocus={fo} onBlur={fb} value={placeraForm.basindexAr} onChange={e => {
                         const ar = e.target.value
                         setPlaceraForm(prev => ({ ...prev, basindexAr: ar }))
                         if (ar.length === 4) fetchKpiForBasindex(ar, placeraForm.basindexManad)
@@ -1033,7 +1113,7 @@ export default function HyresgasterPage() {
                     </div>
                     <div>
                       <label style={lbl}>Basindextal {kpiLoading && <span style={{ color: C.gold }}>⏳</span>}</label>
-                      <input type="number" step="0.01" style={inp} onFocus={fo} onBlur={fb} value={placeraForm.basindexVarde} onChange={e => { setPlaceraForm({ ...placeraForm, basindexVarde: e.target.value }); setKpiInfo(null) }} placeholder="Hämtas automatiskt" />
+                      <input spellCheck={false} type="number" step="0.01" style={inp} onFocus={fo} onBlur={fb} value={placeraForm.basindexVarde} onChange={e => { setPlaceraForm({ ...placeraForm, basindexVarde: e.target.value }); setKpiInfo(null) }} placeholder="Hämtas automatiskt" />
                       {kpiInfo && <p style={{ fontSize: 11, color: C.ok, marginTop: 4 }}>SCB: {kpiInfo.period} = {kpiInfo.value}</p>}
                     </div>
                   </div>

@@ -162,28 +162,28 @@ function ArtikelModal({ artikel, nastaNummer, onClose, onSaved }: { artikel: Art
         </div>
         <div style={{ padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <MF label="ARTIKELNUMMER"><input style={{ ...inp, color: '#888', cursor: 'not-allowed' }} value={form.artikelnummer || ''} readOnly title="Sätts automatiskt av systemet" /></MF>
+            <MF label="ARTIKELNUMMER"><input spellCheck={false} style={{ ...inp, color: '#888', cursor: 'not-allowed' }} value={form.artikelnummer || ''} readOnly title="Sätts automatiskt av systemet" /></MF>
             <MF label="KATEGORI">
               <select style={inp} value={form.kategori || 'bemanning'} onChange={e => set('kategori', e.target.value)} onFocus={fo} onBlur={fb}>
                 {KATEGORIER.map(k => <option key={k} value={k}>{KAT_LABEL[k]}</option>)}
               </select>
             </MF>
           </div>
-          <MF label="NAMN *"><input style={inp} value={form.namn} onChange={e => set('namn', e.target.value)} placeholder="Artikelnamn" onFocus={fo} onBlur={fb} /></MF>
+          <MF label="NAMN *"><input spellCheck={true} style={inp} value={form.namn} onChange={e => set('namn', e.target.value)} placeholder="Artikelnamn" onFocus={fo} onBlur={fb} /></MF>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
             <MF label="ENHET">
               <select style={inp} value={form.enhet} onChange={e => set('enhet', e.target.value)} onFocus={fo} onBlur={fb}>
                 {['tim', 'dag', 'st', 'kr', 'm2', 'meter'].map(u => <option key={u} value={u}>{u}</option>)}
               </select>
             </MF>
-            <MF label="À-PRIS (kr)"><input type="number" style={inp} value={form.a_pris} onChange={e => set('a_pris', parseFloat(e.target.value))} onFocus={fo} onBlur={fb} /></MF>
-            <MF label="KOSTNAD (kr)"><input type="number" style={inp} value={form.kostnad_per_enhet} onChange={e => set('kostnad_per_enhet', parseFloat(e.target.value))} onFocus={fo} onBlur={fb} /></MF>
+            <MF label="À-PRIS (kr)"><input spellCheck={false} type="number" style={inp} value={form.a_pris} onChange={e => set('a_pris', parseFloat(e.target.value))} onFocus={fo} onBlur={fb} /></MF>
+            <MF label="KOSTNAD (kr)"><input spellCheck={false} type="number" style={inp} value={form.kostnad_per_enhet} onChange={e => set('kostnad_per_enhet', parseFloat(e.target.value))} onFocus={fo} onBlur={fb} /></MF>
           </div>
           <div style={{ background: '#0d0d0d', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#555' }}>
             Marginal: <strong style={{ color: parseFloat(marginal) >= 30 ? '#4ade80' : parseFloat(marginal) >= 15 ? '#fb923c' : '#f87171' }}>{marginal}%</strong>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <MF label="INTÄKTSKONTO"><input style={inp} value={form.konto || ''} onChange={e => set('konto', e.target.value)} placeholder="3010" onFocus={fo} onBlur={fb} /></MF>
+            <MF label="INTÄKTSKONTO"><input spellCheck={false} style={inp} value={form.konto || ''} onChange={e => set('konto', e.target.value)} placeholder="3010" onFocus={fo} onBlur={fb} /></MF>
             <MF label="MOMSSATS">
               <select style={inp} value={form.momssats ?? 25} onChange={e => set('momssats', parseInt(e.target.value))} onFocus={fo} onBlur={fb}>
                 {[25, 12, 6, 0].map(m => <option key={m} value={m}>{m}%</option>)}

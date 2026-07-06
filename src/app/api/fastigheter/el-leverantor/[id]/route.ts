@@ -13,10 +13,9 @@
 //  * djup include (fastighet→elmatare(aktiv)→avlasningar) → nested select + JS-filter.
 //  * villkorligt junction-filter (hyresavtal.status='aktiv') gör PostgREST inte
 //    tillförlitligt i samma select → hämtas nästlat och filtreras i JS.
-//  * deleteMany + createMany → .delete().eq(...) följt av .insert([...]).
-//    TODO(atomicitet): källan var transaktionslös men PLAN.md §2/R5 föreslår att
-//    detta görs atomärt via Postgres-RPC (f_apply_el_debitering) så att en gammal
-//    debitering inte raderas utan att en ny hinner skapas. Läggs till i migration.
+//  * deleteMany + createMany → nu ATOMÄRT via RPC f_satt_el_debitering (delete +
+//    insert i en transaktion), se supabase/migrations/020_f_el_debitering_rpc.sql,
+//    så att en gammal debitering inte raderas utan att en ny hinner skapas.
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
@@ -52,10 +51,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     // Prisma-filtret elmatare.where({ aktiv: true }) → JS-filter (PostgREST-nested
     // select stödjer inte where på nästlad relation direkt).
     const matare = (faktura.fastighet?.elmatare ?? []).filter((m: { aktiv: boolean }) => m.aktiv)
-
-    // Ta bort gamla debiteringar (deleteMany)
-    const { error: delErr } = await sb.from('f_eldebitering').delete().eq('leverantor_id', id)
-    if (delErr) throw delErr
 
     const prisPerKwh = faktura.pris_per_kwh ?? 0
     const periodFran = new Date(faktura.period_fran).getTime()
@@ -146,13 +141,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       })
     }
 
-    // Spara debiteringar (createMany)
-    if (debiteringar.length > 0) {
-      const { error: insErr } = await sb.from('f_eldebitering').insert(debiteringar)
-      if (insErr) throw insErr
-    }
+    // Ersatt gamla debiteringar med nya ATOMART via Postgres-RPC (delete + insert
+    // i en transaktion) sa att en gammal debitering inte raderas utan att en ny
+    // hinner skapas. Se supabase/migrations/020_f_el_debitering_rpc.sql.
+    const { data: antal, error: rpcErr } = await sb.rpc('f_satt_el_debitering', {
+      p_leverantor_id: id,
+      p_debiteringar: debiteringar,
+    })
+    if (rpcErr) throw rpcErr
 
-    return NextResponse.json({ debiteringar: debiteringar.length })
+    return NextResponse.json({ debiteringar: antal ?? debiteringar.length })
   } catch (e) {
     console.error('POST el-leverantor debitering:', e)
     return NextResponse.json({ error: 'Kunde inte beräkna' }, { status: 500 })
@@ -168,5 +166,51 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     return NextResponse.json({ ok: true })
   } catch {
     return NextResponse.json({ error: 'Kunde inte ta bort' }, { status: 500 })
+  }
+}
+
+// PATCH — redigera en befintlig leverantörsfaktura (fält + omräknat pris/kWh).
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params
+    const sb = await createClient()
+    const body = await request.json()
+
+    const totalKwhRaw = body.totalKwh ?? body.total_kwh
+    const totalKwh = totalKwhRaw !== undefined && totalKwhRaw !== '' && totalKwhRaw !== null ? parseFloat(totalKwhRaw) : null
+    const totalBeloppRaw = body.totalBelopp ?? body.total_belopp
+    const totalBelopp = totalBeloppRaw !== undefined && totalBeloppRaw !== '' && totalBeloppRaw !== null ? parseFloat(totalBeloppRaw) : null
+    const prisPerKwh = totalKwh && totalKwh > 0 && totalBelopp != null
+      ? Math.round((totalBelopp / totalKwh) * 10000) / 10000
+      : null
+
+    const payload: Record<string, unknown> = {
+      total_kwh: totalKwh,
+      total_belopp: totalBelopp,
+      pris_per_kwh: prisPerKwh,
+      fakturanummer: body.fakturanummer || null,
+      leverantor: body.leverantor || null,
+      typ: body.typ || null,
+    }
+    const fastighetId = body.fastighetId ?? body.fastighet_id
+    if (fastighetId) payload.fastighet_id = fastighetId
+    const periodFran = body.periodFran ?? body.period_fran
+    if (periodFran) payload.period_fran = new Date(periodFran).toISOString()
+    const periodTill = body.periodTill ?? body.period_till
+    if (periodTill) payload.period_till = new Date(periodTill).toISOString()
+
+    const { data: faktura, error } = await sb
+      .from('f_el_leverantorsfaktura')
+      .update(payload)
+      .eq('id', id)
+      .select()
+      .single()
+    if (error) throw error
+
+    return NextResponse.json(faktura)
+  } catch (e) {
+    console.error('PATCH el-leverantor:', e)
+    const msg = e instanceof Error ? e.message : 'Kunde inte spara'
+    return NextResponse.json({ error: msg }, { status: 500 })
   }
 }

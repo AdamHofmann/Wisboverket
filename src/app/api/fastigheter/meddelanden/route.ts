@@ -6,6 +6,7 @@
 // nested create (mottagare) → insert parent, sedan insert barn med FK.
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { MAIL_FROM } from '@/lib/site'
 
 export async function GET() {
   try {
@@ -51,7 +52,7 @@ export async function POST(request: Request) {
       .insert({
         amne,
         brodel,
-        fran: fran || 'noreply@hofmanns.se',
+        fran: fran || MAIL_FROM,
         status: status || 'skickat',
       })
       .select()

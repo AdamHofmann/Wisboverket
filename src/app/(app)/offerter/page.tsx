@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import DatumValjare from '@/components/DatumValjare'
 import { useKundPrisavtal } from '@/hooks/useKundPrisavtal'
+import { useIsMobile } from '@/hooks/useMediaQuery'
+import Sokfalt from '@/components/Sokfalt'
 
 type OffertRad = { typ: 'artikel' | 'fritext'; artikel_id: string; text: string; antal: number; resurser: number; apris: number; enhet: string }
 type Artikel = { id: string; namn: string; enhet: string; a_pris: number }
@@ -13,18 +15,27 @@ type Offert = {
   beskrivning: string | null; giltig_till: string | null
   rader: OffertRad[]; subtotal: number; moms_belopp: number; totalt: number
   kund_namn?: string; created_at: string
+  skickad_at?: string | null; updated_at?: string
 }
 
 const STATUS_COLOR: Record<string, string> = { utkast: '#888', skickad: '#60a5fa', accepterad: '#4ade80', avvisad: '#f87171', expired: '#555' }
 const fmtKr = (n: number) => n.toLocaleString('sv-SE', { minimumFractionDigits: 0 }) + ' kr'
 const fmtDatum = (d: string) => new Date(d).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short', year: 'numeric' })
 
+// Offerten har ändrats efter senaste utskicket (60s tolerans för klockskillnad vid själva utskicket).
+const revideradEfterUtskick = (o: Offert) =>
+  !!o.skickad_at && !!o.updated_at &&
+  new Date(o.updated_at).getTime() - new Date(o.skickad_at).getTime() > 60_000
+
 export default function OfferterPage() {
+  const isMobile = useIsMobile()
   const [offerter, setOfferter] = useState<Offert[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('Alla')
+  const [search, setSearch] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [editOffert, setEditOffert] = useState<Offert | null>(null)
+  const [autoPdf, setAutoPdf] = useState(false)
 
   const fetchOfferter = async () => {
     const { data } = await createClient()
@@ -37,12 +48,23 @@ export default function OfferterPage() {
 
   useEffect(() => { fetchOfferter() }, [])
 
-  const filtered = useMemo(() => offerter.filter(o =>
-    statusFilter === 'Alla' || o.status === statusFilter
-  ), [offerter, statusFilter])
+  const filtered = useMemo(() => offerter.filter(o => {
+    if (statusFilter !== 'Alla' && o.status !== statusFilter) return false
+    if (search) {
+      const q = search.toLowerCase()
+      const nr = (o.offer_number || `OFF-${o.id.slice(0, 6)}`).toLowerCase()
+      const match = nr.includes(q)
+        || (o.titel || '').toLowerCase().includes(q)
+        || (o.kund_namn || '').toLowerCase().includes(q)
+      if (!match) return false
+    }
+    return true
+  }), [offerter, statusFilter, search])
 
   const updateStatus = async (id: string, status: string) => {
-    await createClient().from('offers').update({ status }).eq('id', id)
+    const patch: Record<string, unknown> = { status }
+    if (status === 'skickad') patch.skickad_at = new Date().toISOString()
+    await createClient().from('offers').update(patch).eq('id', id)
     fetchOfferter()
   }
 
@@ -55,7 +77,7 @@ export default function OfferterPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center', gap: isMobile ? 12 : undefined, marginBottom: 20 }}>
         <div style={{ fontSize: 22, fontWeight: 800, color: '#E8C96A' }}>Offerter <span style={{ fontSize: 14, color: '#555', fontWeight: 400 }}>({filtered.length})</span></div>
         <button onClick={() => { setEditOffert(null); setShowModal(true) }}
           style={{ background: '#E8C96A', color: '#000', border: 'none', borderRadius: 8, padding: '8px 18px', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
@@ -63,10 +85,13 @@ export default function OfferterPage() {
         </button>
       </div>
 
-      <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
-        {['Alla', 'utkast', 'skickad', 'accepterad', 'avvisad'].map(s => (
-          <div key={s} style={chip(statusFilter === s)} onClick={() => setStatusFilter(s)}>{s}</div>
-        ))}
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: isMobile ? 10 : 12, marginBottom: 16 }}>
+        <Sokfalt value={search} onChange={setSearch} placeholder="Sök offertnr, titel, kund..." style={{ width: isMobile ? '100%' : 260 }} />
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {['Alla', 'utkast', 'skickad', 'accepterad', 'avvisad'].map(s => (
+            <div key={s} style={chip(statusFilter === s)} onClick={() => setStatusFilter(s)}>{s}</div>
+          ))}
+        </div>
       </div>
 
       <div style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: 10, overflow: 'hidden' }}>
@@ -81,31 +106,39 @@ export default function OfferterPage() {
         ) : filtered.map(o => {
           const color = STATUS_COLOR[o.status] || '#888'
           return (
-            <div key={o.id} style={{ padding: '14px 18px', borderBottom: '1px solid #1a1a1a', cursor: 'pointer' }}
+            <div key={o.id} style={{ padding: isMobile ? '14px' : '14px 18px', borderBottom: '1px solid #1a1a1a', cursor: 'pointer' }}
               onClick={() => { setEditOffert(o); setShowModal(true) }}
-              onMouseEnter={e => e.currentTarget.style.background = '#1a1a1a'}
-              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4 }}>
+              onMouseEnter={e => { if (!isMobile) e.currentTarget.style.background = '#1a1a1a' }}
+              onMouseLeave={e => { if (!isMobile) e.currentTarget.style.background = 'transparent' }}>
+              <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'flex-start', gap: isMobile ? 10 : 0 }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginBottom: 4 }}>
                     <span style={{ fontSize: 13, fontWeight: 700, color: '#E8C96A' }}>{o.offer_number || `OFF-${o.id.slice(0, 6)}`}</span>
                     <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: color + '22', color, border: `1px solid ${color}44` }}>{o.status}</span>
+                    {revideradEfterUtskick(o) && (
+                      <span title="Offerten har ändrats sedan den senast skickades – kunden kan sitta på en äldre version." style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: '#fb923c22', color: '#fb923c', border: '1px solid #fb923c44' }}>⚠ Ändrad efter utskick</span>
+                    )}
                   </div>
                   <div style={{ fontSize: 14, fontWeight: 600, color: '#e0e0e0' }}>{o.titel || 'Utan titel'}</div>
                   {o.kund_namn && <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>{o.kund_namn}</div>}
                 </div>
-                <div style={{ textAlign: 'right' }}>
+                <div style={{ textAlign: isMobile ? 'left' : 'right', display: isMobile ? 'flex' : 'block', flexWrap: isMobile ? 'wrap' : undefined, alignItems: isMobile ? 'center' : undefined, gap: isMobile ? 8 : undefined, flexShrink: 0 }}>
                   <div style={{ fontSize: 16, fontWeight: 800, color: '#e0e0e0' }}>{fmtKr(o.totalt)}</div>
-                  <div style={{ fontSize: 11, color: '#555', marginTop: 2 }}>{fmtDatum(o.created_at)}</div>
+                  <div style={{ fontSize: 11, color: '#555', marginTop: isMobile ? 0 : 2 }}>{fmtDatum(o.created_at)}</div>
+                  {o.skickad_at && <div style={{ fontSize: 11, color: '#60a5fa' }}>Skickad {fmtDatum(o.skickad_at)}</div>}
                   {o.giltig_till && <div style={{ fontSize: 11, color: '#fb923c' }}>Giltig t.o.m {fmtDatum(o.giltig_till)}</div>}
+                  <button onClick={e => { e.stopPropagation(); setEditOffert(o); setAutoPdf(true); setShowModal(true) }}
+                    style={{ marginTop: isMobile ? 0 : 8, marginLeft: isMobile ? 'auto' : 0, fontSize: 11, fontWeight: 700, padding: '6px 14px', borderRadius: 6, border: '1px solid #E8C96A44', background: '#E8C96A11', color: '#E8C96A', cursor: 'pointer' }}>
+                    📄 Öppna PDF
+                  </button>
                 </div>
               </div>
               {o.status === 'skickad' && (
                 <div style={{ display: 'flex', gap: 8, marginTop: 10 }} onClick={e => e.stopPropagation()}>
-                  <button onClick={() => updateStatus(o.id, 'accepterad')} style={{ fontSize: 11, fontWeight: 700, padding: '5px 12px', borderRadius: 6, border: '1px solid #4ade8044', background: '#4ade8011', color: '#4ade80', cursor: 'pointer' }}>
+                  <button onClick={() => updateStatus(o.id, 'accepterad')} style={{ flex: isMobile ? 1 : undefined, fontSize: 12, fontWeight: 700, padding: '8px 14px', borderRadius: 6, border: '1px solid #4ade8044', background: '#4ade8011', color: '#4ade80', cursor: 'pointer' }}>
                     ✓ Accepterad
                   </button>
-                  <button onClick={() => updateStatus(o.id, 'avvisad')} style={{ fontSize: 11, fontWeight: 700, padding: '5px 12px', borderRadius: 6, border: '1px solid #f8717144', background: '#f8717111', color: '#f87171', cursor: 'pointer' }}>
+                  <button onClick={() => updateStatus(o.id, 'avvisad')} style={{ flex: isMobile ? 1 : undefined, fontSize: 12, fontWeight: 700, padding: '8px 14px', borderRadius: 6, border: '1px solid #f8717144', background: '#f8717111', color: '#f87171', cursor: 'pointer' }}>
                     ✕ Avvisad
                   </button>
                 </div>
@@ -116,13 +149,16 @@ export default function OfferterPage() {
       </div>
 
       {showModal && (
-        <OffertModal offert={editOffert} onClose={() => setShowModal(false)} onSaved={() => { fetchOfferter(); setShowModal(false) }} />
+        <OffertModal offert={editOffert} autoPdf={autoPdf}
+          onClose={() => { setShowModal(false); setAutoPdf(false) }}
+          onSaved={() => { fetchOfferter(); setShowModal(false); setAutoPdf(false) }} />
       )}
     </div>
   )
 }
 
-function OffertModal({ offert, onClose, onSaved }: { offert: Offert | null; onClose: () => void; onSaved: () => void }) {
+function OffertModal({ offert, autoPdf, onClose, onSaved }: { offert: Offert | null; autoPdf?: boolean; onClose: () => void; onSaved: () => void }) {
+  const isMobile = useIsMobile()
   const [kunder, setKunder] = useState<{ id: string; namn: string; epost: string | null; adress: string | null; postnummer: string | null; ort: string | null }[]>([])
   const [artiklar, setArtiklar] = useState<Artikel[]>([])
   const [emailSent, setEmailSent] = useState(false)
@@ -199,18 +235,24 @@ materialbrist eller myndighetsåtgärder. Parterna meddelar varandra snarast mö
 <strong>Tvist</strong><br>
 Tvist löses i första hand genom förhandling. I andra hand tillämpas svensk lag med Nyköpings tingsrätt som behörig domstol.`
 
-  const genereraPDF = () => {
+  // visaSparad=true → rendera EXAKT det sparade (frusna) offerten: sparade radpriser + sparade totaler,
+  // ingen live-omräkning. Så man ser precis vad kunden fick, även om artikelpriser ändrats sedan dess.
+  const genereraPDF = (visaSparad = false) => {
     const offerNr = offert?.offer_number || 'UTKAST'
+    const pdfSubtotal = visaSparad && offert ? offert.subtotal : subtotal
+    const pdfMoms = visaSparad && offert ? offert.moms_belopp : moms
+    const pdfTotalt = visaSparad && offert ? offert.totalt : totalt
     const raderHTML = form.rader.map((r, i) => {
       const enhet = r.typ === 'artikel' ? (artiklar.find(a => a.id === r.artikel_id)?.enhet || r.enhet) : r.enhet
       const totalAntal = r.antal * (r.resurser || 1)
-      const apris = r.typ === 'artikel' ? artikelPris(r.artikel_id) : r.apris
+      const apris = visaSparad ? r.apris : (r.typ === 'artikel' ? artikelPris(r.artikel_id) : r.apris)
+      const belopp = visaSparad ? totalAntal * r.apris : radBelopp(r)
       return `
         <tr class="${i % 2 === 0 ? 'even' : 'odd'}">
           <td>${radDesc(r)}</td>
           <td class="center">${totalAntal} ${enhet}</td>
           <td class="right">${Math.round(apris).toLocaleString('sv-SE')} kr</td>
-          <td class="right bold">${Math.round(radBelopp(r)).toLocaleString('sv-SE')} kr</td>
+          <td class="right bold">${Math.round(belopp).toLocaleString('sv-SE')} kr</td>
         </tr>`
     }).join('')
     const kundAdress = valdKund ? [valdKund.adress, valdKund.postnummer && valdKund.ort ? `${valdKund.postnummer} ${valdKund.ort}` : ''].filter(Boolean).join(', ') : ''
@@ -263,7 +305,7 @@ td.bold{font-weight:700}
 <body>
 <div class="page">
   <div class="header">
-    <img src="${logoUrl}" style="height:60px;object-fit:contain;" alt="Wisboverket"/>
+    <img src="${logoUrl}" style="height:150px;object-fit:contain;" alt="Wisboverket"/>
     <div class="offert-badge">
       <div class="label">Offert</div>
       <div class="number">${offerNr}</div>
@@ -301,9 +343,9 @@ td.bold{font-weight:700}
   <div class="totals-wrap">
     <div class="totals">
       <table>
-        <tr><td>Netto (ex. moms)</td><td class="right">${Math.round(subtotal).toLocaleString('sv-SE')} kr</td></tr>
-        <tr><td>Moms 25%</td><td class="right">${Math.round(moms).toLocaleString('sv-SE')} kr</td></tr>
-        <tr class="total-row"><td>Totalt att betala</td><td class="right">${Math.round(totalt).toLocaleString('sv-SE')} kr</td></tr>
+        <tr><td>Netto (ex. moms)</td><td class="right">${Math.round(pdfSubtotal).toLocaleString('sv-SE')} kr</td></tr>
+        <tr><td>Moms 25%</td><td class="right">${Math.round(pdfMoms).toLocaleString('sv-SE')} kr</td></tr>
+        <tr class="total-row"><td>Totalt att betala</td><td class="right">${Math.round(pdfTotalt).toLocaleString('sv-SE')} kr</td></tr>
       </table>
     </div>
   </div>
@@ -352,7 +394,7 @@ info@wisboverket.se
     setTimeout(async () => {
       window.open(`mailto:${kundEpost}?subject=${encodeURIComponent(sub)}&body=${encodeURIComponent(body)}`, '_blank')
       if (offert) {
-        await createClient().from('offers').update({ status: 'skickad' }).eq('id', offert.id)
+        await createClient().from('offers').update({ status: 'skickad', skickad_at: new Date().toISOString() }).eq('id', offert.id)
         onSaved()
       }
       setEmailSent(true)
@@ -364,7 +406,10 @@ info@wisboverket.se
     if (!form.titel.trim()) { setError('Titel krävs'); return }
     setSaving(true); setError('')
     const sb = createClient()
-    const payload = { ...form, customer_id: form.customer_id || null, subtotal, moms_belopp: moms, totalt }
+    // Frys in det faktiskt använda priset (inkl. ev. avtalspris) på varje artikelrad,
+    // så offerten blir ett oföränderligt dokument även om artikelpriser ändras senare.
+    const raderSnapshot = form.rader.map(r => r.typ === 'artikel' && r.artikel_id ? { ...r, apris: artikelPris(r.artikel_id) } : r)
+    const payload = { ...form, rader: raderSnapshot, customer_id: form.customer_id || null, subtotal, moms_belopp: moms, totalt }
     const { error: err } = offert
       ? await sb.from('offers').update(payload).eq('id', offert.id)
       : await sb.from('offers').insert(payload)
@@ -377,19 +422,35 @@ info@wisboverket.se
   const fo = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => { e.target.style.borderColor = '#E8C96A' }
   const fb = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => { e.target.style.borderColor = '#2a2a2a' }
 
+  // PDF-läge: öppna offertens PDF direkt (samma logik som Förhandsgranska), utan att visa formuläret
+  useEffect(() => {
+    if (!autoPdf || kunder.length === 0 || artiklar.length === 0) return
+    const t = setTimeout(() => { genereraPDF(true); onClose() }, 400)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoPdf, kunder.length, artiklar.length])
+
+  if (autoPdf) {
+    return (
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ color: '#E8C96A', fontSize: 14, fontWeight: 600 }}>📄 Genererar PDF…</div>
+      </div>
+    )
+  }
+
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'center', padding: isMobile ? 0 : 20 }}
       onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 14, width: '100%', maxWidth: 640, maxHeight: '90vh', overflow: 'auto' }}>
-        <div style={{ padding: '18px 22px', borderBottom: '1px solid #222', display: 'flex', justifyContent: 'space-between' }}>
+      <div style={{ background: '#1a1a1a', border: isMobile ? 'none' : '1px solid #2a2a2a', borderRadius: isMobile ? 0 : 14, width: '100%', maxWidth: isMobile ? '100vw' : 640, maxHeight: isMobile ? '100vh' : '90vh', display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
+        <div style={{ padding: isMobile ? '16px' : '18px 22px', borderBottom: '1px solid #222', display: 'flex', justifyContent: 'space-between', flexShrink: 0 }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: '#e0e0e0' }}>{offert ? 'Redigera offert' : 'Ny offert'}</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#666', fontSize: 20, cursor: 'pointer' }}>×</button>
         </div>
 
-        <div style={{ padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <MF label="TITEL *"><input style={inp} value={form.titel} onChange={e => set('titel', e.target.value)} placeholder="Offertens titel" onFocus={fo} onBlur={fb} /></MF>
+        <div style={{ padding: isMobile ? '16px' : '18px 22px', display: 'flex', flexDirection: 'column', gap: 12, flex: isMobile ? 1 : undefined, overflowY: isMobile ? 'auto' : undefined }}>
+          <MF label="TITEL *"><input spellCheck={true} style={inp} value={form.titel} onChange={e => set('titel', e.target.value)} placeholder="Offertens titel" onFocus={fo} onBlur={fb} /></MF>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10 }}>
             <MF label="KUND">
               <select style={inp} value={form.customer_id} onChange={e => set('customer_id', e.target.value)} onFocus={fo} onBlur={fb}>
                 <option value="">Välj kund...</option>
@@ -402,18 +463,20 @@ info@wisboverket.se
           </div>
 
           <MF label="BESKRIVNING">
-            <textarea style={{ ...inp, minHeight: 70, resize: 'vertical' as const }} value={form.beskrivning} onChange={e => set('beskrivning', e.target.value)} placeholder="Beskrivning av uppdraget..." onFocus={fo} onBlur={fb} />
+            <textarea spellCheck={true} style={{ ...inp, minHeight: 70, resize: 'vertical' as const }} value={form.beskrivning} onChange={e => set('beskrivning', e.target.value)} placeholder="Beskrivning av uppdraget..." onFocus={fo} onBlur={fb} />
           </MF>
 
           <div>
             <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, color: '#555', marginBottom: 10 }}>OFFERTPOSTER</div>
 
-            {/* Header */}
-            <div style={{ display: 'grid', gridTemplateColumns: '28px 3fr 60px 60px 80px 80px 90px 32px', gap: 6, padding: '0 4px 6px', borderBottom: '1px solid #222', marginBottom: 4 }}>
-              {['', 'Beskrivning / Artikel', 'Res.', 'Antal', 'À-pris', 'Enhet', 'Belopp', ''].map((h, i) => (
-                <div key={i} style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1, color: '#444', textAlign: i >= 2 ? 'center' as const : 'left' as const }}>{h}</div>
-              ))}
-            </div>
+            {/* Header (dölj på mobil — rader blir kort) */}
+            {!isMobile && (
+              <div style={{ display: 'grid', gridTemplateColumns: '28px 3fr 60px 60px 80px 80px 90px 32px', gap: 6, padding: '0 4px 6px', borderBottom: '1px solid #222', marginBottom: 4 }}>
+                {['', 'Beskrivning / Artikel', 'Res.', 'Antal', 'À-pris', 'Enhet', 'Belopp', ''].map((h, i) => (
+                  <div key={i} style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1, color: '#444', textAlign: i >= 2 ? 'center' as const : 'left' as const }}>{h}</div>
+                ))}
+              </div>
+            )}
 
             {form.rader.map((r, i) => {
               const vald = artiklar.find(a => a.id === r.artikel_id)
@@ -430,75 +493,132 @@ info@wisboverket.se
               const cFo = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => { e.target.style.borderColor = '#E8C96A' }
               const cFb = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => { e.target.style.borderColor = 'transparent' }
 
+              // På mobil: label ovanför varje numeriskt fält. Vanlig funktion (ej komponent)
+              // så inputs inte remountas per render och tappar fokus.
+              const Fält = (label: string, children: React.ReactNode) =>
+                isMobile
+                  ? <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}><span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: '#444' }}>{label}</span>{children}</div>
+                  : <>{children}</>
+
               return (
-                <div key={i} style={{ display: 'grid', gridTemplateColumns: '28px 3fr 60px 60px 80px 80px 90px 32px', gap: 6, padding: '4px', borderRadius: 8, marginBottom: 2,
-                  background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)' }}>
+                <div key={i} style={isMobile
+                  ? { background: '#141414', border: '1px solid #1e1e1e', borderRadius: 10, padding: '12px 14px', marginBottom: 8, display: 'flex', flexDirection: 'column', gap: 10 }
+                  : { display: 'grid', gridTemplateColumns: '28px 3fr 60px 60px 80px 80px 90px 32px', gap: 6, padding: '4px', borderRadius: 8, marginBottom: 2,
+                    background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)' }}>
 
-                  {/* Typ-toggle */}
-                  <button title={r.typ === 'artikel' ? 'Byt till fritext' : 'Byt till artikel'}
-                    onClick={() => updateRad(i, 'typ', r.typ === 'artikel' ? 'fritext' : 'artikel')}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: r.typ === 'artikel' ? '#E8C96A' : '#666', padding: 0, textAlign: 'center' as const }}>
-                    {r.typ === 'artikel' ? '🏷' : '✏️'}
-                  </button>
-
-                  {/* Artikel / fritext */}
-                  {r.typ === 'artikel' ? (
-                    <select ref={el => { rowRefs.current[i] = el }} style={{ ...cell, textAlign: 'left' as const }} value={r.artikel_id}
-                      onChange={e => {
-                        const a = artiklar.find(a => a.id === e.target.value)
-                        updateRad(i, 'artikel_id', e.target.value)
-                        if (a) { updateRad(i, 'enhet', a.enhet); updateRad(i, 'apris', a.a_pris) }
-                      }} onFocus={cFo} onBlur={cFb}>
-                      <option value="">— Välj artikel —</option>
-                      {artiklar.map(a => <option key={a.id} value={a.id}>{a.namn}</option>)}
-                    </select>
-                  ) : (
-                    <input ref={el => { rowRefs.current[i] = el }} style={{ ...cell, textAlign: 'left' as const }} value={r.text}
-                      placeholder="Fritext beskrivning..."
-                      onChange={e => updateRad(i, 'text', e.target.value)} onFocus={cFo} onBlur={cFb} />
-                  )}
-
-                  {/* Resurser */}
-                  <input type="number" min="1"
-                    style={{ ...cell, visibility: visaResurser ? 'visible' : 'hidden', color: '#aaa' }}
-                    value={r.resurser || 1}
-                    onChange={e => updateRad(i, 'resurser', parseInt(e.target.value) || 1)}
-                    onFocus={cFo} onBlur={cFb} />
-
-                  {/* Antal */}
-                  <input type="number" step="0.5" min="0" style={cell}
-                    value={r.antal}
-                    onChange={e => updateRad(i, 'antal', parseFloat(e.target.value) || 0)}
-                    onFocus={cFo} onBlur={cFb} />
-
-                  {/* À-pris */}
-                  {r.typ === 'fritext' ? (
-                    <input type="number" min="0" style={cell}
-                      value={r.apris}
-                      onChange={e => updateRad(i, 'apris', parseFloat(e.target.value) || 0)}
-                      onFocus={cFo} onBlur={cFb} />
-                  ) : (
-                    <div title={prisavtal[r.artikel_id] !== undefined ? 'Kundens avtalspris' : undefined}
-                      style={{ ...cell, color: prisavtal[r.artikel_id] !== undefined ? '#E8C96A' : '#666', fontWeight: prisavtal[r.artikel_id] !== undefined ? 700 : 400, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {apris > 0 ? apris : '—'}
+                  {isMobile ? (
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      {/* Typ-toggle */}
+                      <button title={r.typ === 'artikel' ? 'Byt till fritext' : 'Byt till artikel'}
+                        onClick={() => updateRad(i, 'typ', r.typ === 'artikel' ? 'fritext' : 'artikel')}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: r.typ === 'artikel' ? '#E8C96A' : '#666', padding: 0, flexShrink: 0 }}>
+                        {r.typ === 'artikel' ? '🏷' : '✏️'}
+                      </button>
+                      {/* Artikel / fritext */}
+                      {r.typ === 'artikel' ? (
+                        <select ref={el => { rowRefs.current[i] = el }} style={{ ...cell, textAlign: 'left' as const, flex: 1 }} value={r.artikel_id}
+                          onChange={e => {
+                            const a = artiklar.find(a => a.id === e.target.value)
+                            updateRad(i, 'artikel_id', e.target.value)
+                            if (a) { updateRad(i, 'enhet', a.enhet); updateRad(i, 'apris', a.a_pris) }
+                          }} onFocus={cFo} onBlur={cFb}>
+                          <option value="">— Välj artikel —</option>
+                          {artiklar.map(a => <option key={a.id} value={a.id}>{a.namn}</option>)}
+                        </select>
+                      ) : (
+                        <input spellCheck={true} ref={el => { rowRefs.current[i] = el }} style={{ ...cell, textAlign: 'left' as const, flex: 1 }} value={r.text}
+                          placeholder="Fritext beskrivning..."
+                          onChange={e => updateRad(i, 'text', e.target.value)} onFocus={cFo} onBlur={cFb} />
+                      )}
+                      {/* Ta bort */}
+                      <button onClick={() => removeRad(i)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#555', fontSize: 18, padding: 0, lineHeight: 1, flexShrink: 0 }}
+                        onMouseEnter={e => (e.currentTarget.style.color = '#f87171')}
+                        onMouseLeave={e => (e.currentTarget.style.color = '#555')}>×</button>
                     </div>
+                  ) : (
+                    <>
+                      {/* Typ-toggle */}
+                      <button title={r.typ === 'artikel' ? 'Byt till fritext' : 'Byt till artikel'}
+                        onClick={() => updateRad(i, 'typ', r.typ === 'artikel' ? 'fritext' : 'artikel')}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: r.typ === 'artikel' ? '#E8C96A' : '#666', padding: 0, textAlign: 'center' as const }}>
+                        {r.typ === 'artikel' ? '🏷' : '✏️'}
+                      </button>
+
+                      {/* Artikel / fritext */}
+                      {r.typ === 'artikel' ? (
+                        <select ref={el => { rowRefs.current[i] = el }} style={{ ...cell, textAlign: 'left' as const }} value={r.artikel_id}
+                          onChange={e => {
+                            const a = artiklar.find(a => a.id === e.target.value)
+                            updateRad(i, 'artikel_id', e.target.value)
+                            if (a) { updateRad(i, 'enhet', a.enhet); updateRad(i, 'apris', a.a_pris) }
+                          }} onFocus={cFo} onBlur={cFb}>
+                          <option value="">— Välj artikel —</option>
+                          {artiklar.map(a => <option key={a.id} value={a.id}>{a.namn}</option>)}
+                        </select>
+                      ) : (
+                        <input spellCheck={true} ref={el => { rowRefs.current[i] = el }} style={{ ...cell, textAlign: 'left' as const }} value={r.text}
+                          placeholder="Fritext beskrivning..."
+                          onChange={e => updateRad(i, 'text', e.target.value)} onFocus={cFo} onBlur={cFb} />
+                      )}
+                    </>
                   )}
 
-                  {/* Enhet */}
-                  <div style={{ ...cell, color: '#555', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }}>
-                    {visaResurser && (r.resurser || 1) > 1 ? `${totalAntal} ${enhet}` : enhet}
-                  </div>
+                  <div style={isMobile ? { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, alignItems: 'end' } : { display: 'contents' }}>
+                    {/* Resurser */}
+                    {Fält('RES.',
+                      <input spellCheck={false} type="number" min="1"
+                        style={{ ...cell, visibility: visaResurser ? 'visible' : 'hidden', color: '#aaa' }}
+                        value={r.resurser || 1}
+                        onChange={e => updateRad(i, 'resurser', parseInt(e.target.value) || 1)}
+                        onFocus={cFo} onBlur={cFb} />
+                    )}
 
-                  {/* Belopp */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', fontSize: 13, fontWeight: 700, color: belopp > 0 ? '#E8C96A' : '#444', paddingRight: 4 }}>
-                    {belopp > 0 ? fmtKr(belopp) : '—'}
-                  </div>
+                    {/* Antal */}
+                    {Fält('ANTAL',
+                      <input spellCheck={false} type="number" step="0.5" min="0" style={cell}
+                        value={r.antal}
+                        onChange={e => updateRad(i, 'antal', parseFloat(e.target.value) || 0)}
+                        onFocus={cFo} onBlur={cFb} />
+                    )}
 
-                  {/* Ta bort */}
-                  <button onClick={() => removeRad(i)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#555', fontSize: 16, padding: 0, lineHeight: 1, textAlign: 'center' as const }}
-                    onMouseEnter={e => (e.currentTarget.style.color = '#f87171')}
-                    onMouseLeave={e => (e.currentTarget.style.color = '#555')}>×</button>
+                    {/* À-pris */}
+                    {Fält('À-PRIS',
+                      r.typ === 'fritext' ? (
+                        <input spellCheck={false} type="number" min="0" style={cell}
+                          value={r.apris}
+                          onChange={e => updateRad(i, 'apris', parseFloat(e.target.value) || 0)}
+                          onFocus={cFo} onBlur={cFb} />
+                      ) : (
+                        <div title={prisavtal[r.artikel_id] !== undefined ? 'Kundens avtalspris' : undefined}
+                          style={{ ...cell, color: prisavtal[r.artikel_id] !== undefined ? '#E8C96A' : '#666', fontWeight: prisavtal[r.artikel_id] !== undefined ? 700 : 400, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {apris > 0 ? apris : '—'}
+                        </div>
+                      )
+                    )}
+
+                    {/* Enhet */}
+                    {Fält('ENHET',
+                      <div style={{ ...cell, color: '#555', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }}>
+                        {visaResurser && (r.resurser || 1) > 1 ? `${totalAntal} ${enhet}` : enhet}
+                      </div>
+                    )}
+
+                    {/* Belopp */}
+                    {Fält('BELOPP',
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: isMobile ? 'flex-start' : 'flex-end', fontSize: 13, fontWeight: 700, color: belopp > 0 ? '#E8C96A' : '#444', paddingRight: isMobile ? 0 : 4, minHeight: isMobile ? 30 : undefined }}>
+                        {belopp > 0 ? fmtKr(belopp) : '—'}
+                      </div>
+                    )}
+
+                    {/* Ta bort (desktop) */}
+                    {!isMobile && (
+                      <button onClick={() => removeRad(i)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#555', fontSize: 16, padding: 0, lineHeight: 1, textAlign: 'center' as const }}
+                        onMouseEnter={e => (e.currentTarget.style.color = '#f87171')}
+                        onMouseLeave={e => (e.currentTarget.style.color = '#555')}>×</button>
+                    )}
+                  </div>
                 </div>
               )
             })}
@@ -528,33 +648,33 @@ info@wisboverket.se
           {error && <div style={{ fontSize: 12, color: '#f87171' }}>{error}</div>}
         </div>
 
-        <div style={{ padding: '14px 22px', borderTop: '1px solid #222', display: 'flex', gap: 8, justifyContent: 'space-between', flexWrap: 'wrap' as const }}>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' as const }}>
-            {emailSent && <span style={{ fontSize: 11, color: '#4ade80', fontWeight: 600 }}>✓ PDF och e-postklient öppnade — spara PDF och bifoga!</span>}
+        <div style={{ padding: isMobile ? '12px 16px' : '14px 22px', borderTop: '1px solid #222', display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 10 : 8, justifyContent: 'space-between', flexWrap: 'wrap' as const, position: isMobile ? 'sticky' : undefined, bottom: isMobile ? 0 : undefined, background: isMobile ? '#1a1a1a' : undefined, flexShrink: 0 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' as const, ...(isMobile ? { width: '100%' } : {}) }}>
+            {emailSent && <span style={{ fontSize: 11, color: '#4ade80', fontWeight: 600, ...(isMobile ? { width: '100%' } : {}) }}>✓ PDF och e-postklient öppnade — spara PDF och bifoga!</span>}
             {offert && (
               <>
-                <button onClick={genereraPDF}
-                  style={{ padding: '9px 14px', background: 'rgba(232,201,106,0.1)', border: '1px solid rgba(232,201,106,0.4)', borderRadius: 8, color: '#E8C96A', fontWeight: 700, cursor: 'pointer', fontSize: 12 }}
-                  title="Öppnar ett utskriftsfönster — välj 'Spara som PDF'">
+                <button onClick={() => genereraPDF(false)}
+                  style={{ flex: isMobile ? 1 : undefined, padding: '11px 14px', background: 'rgba(232,201,106,0.1)', border: '1px solid rgba(232,201,106,0.4)', borderRadius: 8, color: '#E8C96A', fontWeight: 700, cursor: 'pointer', fontSize: 12, whiteSpace: 'nowrap' as const }}
+                  title="Öppnar ett utskriftsfönster (aktuell redigering) — välj 'Spara som PDF'">
                   📄 Förhandsgranska PDF
                 </button>
                 <button onClick={skickaMedPDF}
-                  style={{ padding: '9px 14px', background: '#60a5fa11', border: '1px solid #60a5fa44', borderRadius: 8, color: '#60a5fa', fontWeight: 700, cursor: 'pointer', fontSize: 12 }}
+                  style={{ flex: isMobile ? 1 : undefined, padding: '11px 14px', background: '#60a5fa11', border: '1px solid #60a5fa44', borderRadius: 8, color: '#60a5fa', fontWeight: 700, cursor: 'pointer', fontSize: 12, whiteSpace: 'nowrap' as const }}
                   title="Genererar PDF + öppnar e-postklient med förberedd text">
                   📧 Skicka med PDF
                 </button>
               </>
             )}
             {offert && offert.status === 'utkast' && (
-              <button onClick={async () => { await createClient().from('offers').update({ status: 'skickad' }).eq('id', offert.id); onSaved() }}
-                style={{ padding: '9px 16px', background: '#60a5fa11', border: '1px solid #60a5fa44', borderRadius: 8, color: '#60a5fa', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
+              <button onClick={async () => { await createClient().from('offers').update({ status: 'skickad', skickad_at: new Date().toISOString() }).eq('id', offert.id); onSaved() }}
+                style={{ flex: isMobile ? 1 : undefined, padding: '11px 16px', background: '#60a5fa11', border: '1px solid #60a5fa44', borderRadius: 8, color: '#60a5fa', fontWeight: 700, cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap' as const }}>
                 📤 Markera skickad
               </button>
             )}
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={onClose} style={{ padding: '9px 20px', background: 'none', border: '1px solid #2a2a2a', borderRadius: 8, color: '#888', cursor: 'pointer', fontSize: 13 }}>Avbryt</button>
-            <button onClick={spara} disabled={saving} style={{ padding: '9px 24px', background: '#E8C96A', border: 'none', borderRadius: 8, color: '#000', fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: saving ? 0.6 : 1 }}>
+          <div style={{ display: 'flex', gap: 8, ...(isMobile ? { width: '100%' } : {}) }}>
+            <button onClick={onClose} style={{ flex: isMobile ? 1 : undefined, padding: '11px 20px', background: 'none', border: '1px solid #2a2a2a', borderRadius: 8, color: '#888', cursor: 'pointer', fontSize: 13 }}>Avbryt</button>
+            <button onClick={spara} disabled={saving} style={{ flex: isMobile ? 2 : undefined, padding: '11px 24px', background: '#E8C96A', border: 'none', borderRadius: 8, color: '#000', fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: saving ? 0.6 : 1 }}>
               {saving ? 'Sparar...' : offert ? 'Spara' : 'Skapa offert'}
             </button>
           </div>

@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import { C } from './styles'
+import { useIsMobile } from '@/hooks/useMediaQuery'
 
 interface SlideOverProps {
   open: boolean
@@ -21,6 +22,7 @@ const widthPx: Record<NonNullable<SlideOverProps['width']>, number | string> = {
 }
 
 export default function SlideOver({ open, onClose, title, subtitle, children, footer, width = 'lg' }: SlideOverProps) {
+  const isMobile = useIsMobile()
   useEffect(() => {
     if (!open) return
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -44,9 +46,12 @@ export default function SlideOver({ open, onClose, title, subtitle, children, fo
       <div
         style={{
           position: 'fixed', top: 0, right: 0, bottom: 0, zIndex: 50,
-          width: '100%', maxWidth: widthPx[width],
-          background: C.panel, borderLeft: `1px solid ${C.borderSoft}`,
-          boxShadow: '-8px 0 40px rgba(0,0,0,0.5)',
+          width: isMobile ? '100vw' : '100%',
+          maxWidth: isMobile ? '100vw' : widthPx[width],
+          left: isMobile ? 0 : undefined,
+          background: C.panel,
+          borderLeft: isMobile ? 'none' : `1px solid ${C.borderSoft}`,
+          boxShadow: isMobile ? 'none' : '-8px 0 40px rgba(0,0,0,0.5)',
           display: 'flex', flexDirection: 'column',
           transition: 'transform 0.3s ease-in-out',
           transform: open ? 'translateX(0)' : 'translateX(100%)',

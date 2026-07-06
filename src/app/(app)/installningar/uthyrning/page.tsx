@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import type { Hyresobjekt } from '@/types'
 import AdressInput from '@/components/AdressInput'
 import { PERSONAL } from '@/components/order-tabs/shared'
+import { useConfirm } from '@/components/ConfirmDialog'
 
 const TYPER = [
   { v: 'lokal', l: 'Lokal' },
@@ -110,7 +111,7 @@ export default function UthyrningPage() {
       </div>
 
       <div style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'center' }}>
-        <input placeholder="Sök titel, fastighet, typ..." value={search} onChange={e => setSearch(e.target.value)}
+        <input spellCheck={false} placeholder="Sök titel, fastighet, typ..." value={search} onChange={e => setSearch(e.target.value)}
           style={S.search}
           onFocus={e => (e.currentTarget.style.borderColor = '#E8C96A')}
           onBlur={e => (e.currentTarget.style.borderColor = '#2a2a2a')} />
@@ -196,6 +197,7 @@ function ObjektModal({ objekt, onClose, onSaved }: { objekt: Hyresobjekt; onClos
   const [error, setError] = useState('')
   const [showPreview, setShowPreview] = useState(false)
   const sb = createClient()
+  const confirm = useConfirm()
 
   const set = <K extends keyof Hyresobjekt>(k: K, v: Hyresobjekt[K]) => setForm(f => ({ ...f, [k]: v }))
 
@@ -266,7 +268,7 @@ function ObjektModal({ objekt, onClose, onSaved }: { objekt: Hyresobjekt; onClos
 
   const radera = async () => {
     if (isNew) { onClose(); return }
-    if (!confirm('Ta bort detta hyresobjekt? Detta går inte att ångra.')) return
+    if (!(await confirm({ message: 'Ta bort detta hyresobjekt? Detta går inte att ångra.', danger: true, confirmLabel: 'Ta bort' }))) return
     await sb.from('hyresobjekt').delete().eq('id', form.id)
     onSaved()
   }
@@ -370,10 +372,10 @@ function ObjektTab({ form, set, toggleTyp, togglePublicerad, inp, fo, fb }: TabP
   return (
     <>
       <MF label="INTERNT NAMN (syns ej publikt)">
-        <input style={inp} value={form.intern_namn || ''} onChange={e => set('intern_namn', e.target.value)} onFocus={fo} onBlur={fb} placeholder="T.ex. Lokal 3 - Vägmästarvägen" />
+        <input spellCheck={false} style={inp} value={form.intern_namn || ''} onChange={e => set('intern_namn', e.target.value)} onFocus={fo} onBlur={fb} placeholder="T.ex. Lokal 3 - Vägmästarvägen" />
       </MF>
       <MF label="ANNONSNAMN (titel, publikt)">
-        <input style={inp} value={form.titel || ''} onChange={e => set('titel', e.target.value)} onFocus={fo} onBlur={fb} placeholder="T.ex. Ljus kontorslokal centralt" />
+        <input spellCheck={true} style={inp} value={form.titel || ''} onChange={e => set('titel', e.target.value)} onFocus={fo} onBlur={fb} placeholder="T.ex. Ljus kontorslokal centralt" />
       </MF>
       <MF label="FASTIGHET / ADRESS">
         <AdressInput
@@ -402,7 +404,7 @@ function ObjektTab({ form, set, toggleTyp, togglePublicerad, inp, fo, fb }: TabP
             Enligt överenskommelse
           </div>
           {form.tillganglig_typ === 'datum' && (
-            <input type="date" style={{ ...inp, width: 180 }} value={form.tillganglig_fran || ''} onChange={e => set('tillganglig_fran', e.target.value)} onFocus={fo} onBlur={fb} />
+            <input spellCheck={false} type="date" style={{ ...inp, width: 180 }} value={form.tillganglig_fran || ''} onChange={e => set('tillganglig_fran', e.target.value)} onFocus={fo} onBlur={fb} />
           )}
         </div>
       </MF>
@@ -424,17 +426,17 @@ function YtaTab({ form, set, inp, fo, fb }: TabProps) {
     <>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
         <MF label="TOTAL YTA (KVM)">
-          <input type="number" style={inp} value={form.total_yta ?? ''} onChange={e => set('total_yta', e.target.value ? Number(e.target.value) : null)} onFocus={fo} onBlur={fb} />
+          <input spellCheck={false} type="number" style={inp} value={form.total_yta ?? ''} onChange={e => set('total_yta', e.target.value ? Number(e.target.value) : null)} onFocus={fo} onBlur={fb} />
         </MF>
         <MF label="HYRA (KR/MÅN)">
-          <input type="number" style={inp} value={form.hyra ?? ''} onChange={e => set('hyra', e.target.value ? Number(e.target.value) : null)} onFocus={fo} onBlur={fb} />
+          <input spellCheck={false} type="number" style={inp} value={form.hyra ?? ''} onChange={e => set('hyra', e.target.value ? Number(e.target.value) : null)} onFocus={fo} onBlur={fb} />
         </MF>
         <MF label="KR/KVM/ÅR">
-          <input type="number" style={inp} value={form.kr_kvm_ar ?? ''} onChange={e => set('kr_kvm_ar', e.target.value ? Number(e.target.value) : null)} onFocus={fo} onBlur={fb} />
+          <input spellCheck={false} type="number" style={inp} value={form.kr_kvm_ar ?? ''} onChange={e => set('kr_kvm_ar', e.target.value ? Number(e.target.value) : null)} onFocus={fo} onBlur={fb} />
         </MF>
       </div>
       <MF label="PLANLÖSNING">
-        <textarea style={{ ...inp, minHeight: 100, resize: 'vertical' }} value={form.planlosning || ''} onChange={e => set('planlosning', e.target.value)} onFocus={fo} onBlur={fb} placeholder="Beskriv ytfördelning, t.ex. 2 kontorsrum, öppet landskap, pentry..." />
+        <textarea spellCheck={true} style={{ ...inp, minHeight: 100, resize: 'vertical' }} value={form.planlosning || ''} onChange={e => set('planlosning', e.target.value)} onFocus={fo} onBlur={fb} placeholder="Beskriv ytfördelning, t.ex. 2 kontorsrum, öppet landskap, pentry..." />
       </MF>
     </>
   )
@@ -497,14 +499,14 @@ function TextTab({ form, set, inp, fo, fb }: TabProps) {
   return (
     <>
       <MF label={`KORT BESKRIVNING (${(form.kort_beskrivning || '').length}/150)`}>
-        <textarea style={{ ...inp, minHeight: 60, resize: 'vertical' }} maxLength={150} value={form.kort_beskrivning || ''} onChange={e => set('kort_beskrivning', e.target.value)} onFocus={fo} onBlur={fb} placeholder="Kort säljande text för listvyn..." />
+        <textarea spellCheck={true} style={{ ...inp, minHeight: 60, resize: 'vertical' }} maxLength={150} value={form.kort_beskrivning || ''} onChange={e => set('kort_beskrivning', e.target.value)} onFocus={fo} onBlur={fb} placeholder="Kort säljande text för listvyn..." />
         <button onClick={() => generera('kort')} disabled={genKort}
           style={{ alignSelf: 'flex-start', marginTop: 6, background: 'none', border: '1px solid #2a2a2a', borderRadius: 8, padding: '6px 12px', color: '#E8C96A', cursor: 'pointer', fontSize: 12 }}>
           {genKort ? 'Genererar...' : '✨ Generera med AI'}
         </button>
       </MF>
       <MF label="LÅNG BESKRIVNING">
-        <textarea style={{ ...inp, minHeight: 160, resize: 'vertical' }} value={form.beskrivning || ''} onChange={e => set('beskrivning', e.target.value)} onFocus={fo} onBlur={fb} placeholder="Lång säljtext, 200-400 ord..." />
+        <textarea spellCheck={true} style={{ ...inp, minHeight: 160, resize: 'vertical' }} value={form.beskrivning || ''} onChange={e => set('beskrivning', e.target.value)} onFocus={fo} onBlur={fb} placeholder="Lång säljtext, 200-400 ord..." />
         <button onClick={() => generera('lang')} disabled={genLang}
           style={{ alignSelf: 'flex-start', marginTop: 6, background: 'none', border: '1px solid #2a2a2a', borderRadius: 8, padding: '6px 12px', color: '#E8C96A', cursor: 'pointer', fontSize: 12 }}>
           {genLang ? 'Genererar...' : '✨ Generera med AI'}
@@ -532,18 +534,18 @@ function KontaktTab({ form, set, inp, fo, fb }: TabProps) {
       </MF>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         <MF label="NAMN">
-          <input style={inp} value={form.kontakt_namn || ''} onChange={e => set('kontakt_namn', e.target.value)} onFocus={fo} onBlur={fb} />
+          <input spellCheck={false} style={inp} value={form.kontakt_namn || ''} onChange={e => set('kontakt_namn', e.target.value)} onFocus={fo} onBlur={fb} />
         </MF>
         <MF label="TITEL">
-          <input style={inp} value={form.kontakt_titel || ''} onChange={e => set('kontakt_titel', e.target.value)} onFocus={fo} onBlur={fb} placeholder="T.ex. Fastighetsförvaltare" />
+          <input spellCheck={true} style={inp} value={form.kontakt_titel || ''} onChange={e => set('kontakt_titel', e.target.value)} onFocus={fo} onBlur={fb} placeholder="T.ex. Fastighetsförvaltare" />
         </MF>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         <MF label="E-POST">
-          <input type="email" style={inp} value={form.kontakt_epost || ''} onChange={e => set('kontakt_epost', e.target.value)} onFocus={fo} onBlur={fb} />
+          <input spellCheck={false} type="email" style={inp} value={form.kontakt_epost || ''} onChange={e => set('kontakt_epost', e.target.value)} onFocus={fo} onBlur={fb} />
         </MF>
         <MF label="TELEFON">
-          <input style={inp} value={form.kontakt_telefon || ''} onChange={e => set('kontakt_telefon', e.target.value)} onFocus={fo} onBlur={fb} />
+          <input spellCheck={false} style={inp} value={form.kontakt_telefon || ''} onChange={e => set('kontakt_telefon', e.target.value)} onFocus={fo} onBlur={fb} />
         </MF>
       </div>
     </>
@@ -556,6 +558,7 @@ function MediaTab({ objektId, bilder, onChange }: { objektId: string; bilder: st
   const [dragOver, setDragOver] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const sb = createClient()
+  const confirm = useConfirm()
 
   const uploadFiler = async (files: FileList | File[]) => {
     const arr = Array.from(files).filter(f => f.type.startsWith('image/'))
@@ -620,7 +623,7 @@ function MediaTab({ objektId, bilder, onChange }: { objektId: string; bilder: st
             {bilder.map((url, i) => (
               <div key={i} style={{ position: 'relative', borderRadius: 8, overflow: 'hidden', background: '#111', border: '1px solid #2a2a2a', aspectRatio: '4/3' }}>
                 <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                <button onClick={() => { if (confirm('Ta bort bild?')) raderaBild(url) }}
+                <button onClick={async () => { if (await confirm({ message: 'Ta bort bild?', danger: true, confirmLabel: 'Ta bort' })) raderaBild(url) }}
                   style={{ position: 'absolute', top: 5, right: 5, background: 'rgba(0,0,0,0.7)', border: 'none', color: '#fff', borderRadius: '50%', width: 24, height: 24, cursor: 'pointer', fontSize: 12, lineHeight: '24px', textAlign: 'center', padding: 0 }}>
                   ✕
                 </button>

@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useIsMobile } from '@/hooks/useMediaQuery'
+import { useConfirm } from '@/components/ConfirmDialog'
 
 type FakturaRad = { order_id: string | null; totalt: number; typ: string }
 type OrderRad = { id: string; created_at: string; status: string }
@@ -14,6 +16,8 @@ const TYP_ICON: Record<string, string> = { omsattning: '💰', antal_ordrar: '�
 const TYP_NAMN: Record<string, string> = { omsattning: 'Omsättning', antal_ordrar: 'Antal ordrar', vinst: 'Vinst', fritt: 'Fritt mål' }
 
 export default function MalPage() {
+  const isMobile = useIsMobile()
+  const confirm = useConfirm()
   const [mal, setMal] = useState<Mal[]>([])
   const [fakturor, setFakturor] = useState<FakturaRad[]>([])
   const [orders, setOrders] = useState<OrderRad[]>([])
@@ -57,7 +61,7 @@ export default function MalPage() {
   }
 
   const taBort = async (id: string) => {
-    if (!confirm('Ta bort målet?')) return
+    if (!(await confirm({ message: 'Ta bort målet?', danger: true, confirmLabel: 'Ta bort' }))) return
     await createClient().from('mal').delete().eq('id', id)
     fetchAll()
   }
@@ -73,7 +77,7 @@ export default function MalPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center', gap: isMobile ? 12 : 0, marginBottom: 20 }}>
         <div style={{ fontSize: 22, fontWeight: 800, color: G }}>Mål</div>
         <button onClick={() => { setEditMal(null); setShowModal(true) }}
           style={{ background: G, color: '#000', border: 'none', borderRadius: 8, padding: '8px 18px', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
@@ -86,7 +90,7 @@ export default function MalPage() {
           <div style={{ fontSize: 32, marginBottom: 10 }}>🎯</div><div>Inga mål ännu</div>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 14 }}>
           {mal.map(m => {
             const prog = progress(m)
             const pct = m.mal_varde > 0 ? Math.min(100, Math.round((prog / m.mal_varde) * 100)) : 0
@@ -122,12 +126,12 @@ export default function MalPage() {
         </div>
       )}
 
-      {showModal && <MalModal existing={editMal} onClose={() => setShowModal(false)} onSaved={() => { setShowModal(false); fetchAll() }} />}
+      {showModal && <MalModal existing={editMal} isMobile={isMobile} onClose={() => setShowModal(false)} onSaved={() => { setShowModal(false); fetchAll() }} />}
     </div>
   )
 }
 
-function MalModal({ existing, onClose, onSaved }: { existing: Mal | null; onClose: () => void; onSaved: () => void }) {
+function MalModal({ existing, isMobile, onClose, onSaved }: { existing: Mal | null; isMobile: boolean; onClose: () => void; onSaved: () => void }) {
   const arNu = new Date().getFullYear()
   const [form, setForm] = useState({
     namn: existing?.namn || '',
@@ -165,14 +169,14 @@ function MalModal({ existing, onClose, onSaved }: { existing: Mal | null; onClos
   ]
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'center', padding: isMobile ? 0 : 20 }}
       onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 14, width: '100%', maxWidth: 480 }}>
+      <div style={{ background: '#1a1a1a', border: isMobile ? 'none' : '1px solid #2a2a2a', borderRadius: isMobile ? 0 : 14, width: '100%', maxWidth: isMobile ? '100vw' : 480, display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '18px 22px', borderBottom: '1px solid #222', display: 'flex', justifyContent: 'space-between' }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: '#e0e0e0' }}>{existing ? 'Redigera mål' : 'Nytt mål'}</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#666', fontSize: 20, cursor: 'pointer' }}>×</button>
         </div>
-        <div style={{ padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 12, ...(isMobile ? { flex: 1, overflowY: 'auto' } : {}) }}>
           <div>
             <label style={{ fontSize: 11, fontWeight: 600, color: '#555', display: 'block', marginBottom: 5 }}>NAMN</label>
             <input style={inp} value={form.namn} onChange={e => set('namn', e.target.value)} placeholder="T.ex. Årsomsättning 2026" onFocus={fo} onBlur={fb} />
@@ -195,7 +199,7 @@ function MalModal({ existing, onClose, onSaved }: { existing: Mal | null; onClos
           </div>
           {error && <div style={{ fontSize: 12, color: '#f87171' }}>{error}</div>}
         </div>
-        <div style={{ padding: '14px 22px', borderTop: '1px solid #222', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+        <div style={{ padding: '14px 22px', borderTop: '1px solid #222', display: 'flex', gap: 8, justifyContent: 'flex-end', ...(isMobile ? { position: 'sticky', bottom: 0, background: '#1a1a1a' } : {}) }}>
           <button onClick={onClose} style={{ padding: '9px 20px', background: 'none', border: '1px solid #2a2a2a', borderRadius: 8, color: '#888', cursor: 'pointer', fontSize: 13 }}>Avbryt</button>
           <button onClick={spara} disabled={saving} style={{ padding: '9px 24px', background: G, border: 'none', borderRadius: 8, color: '#000', fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: saving ? 0.6 : 1 }}>
             {saving ? 'Sparar...' : 'Spara'}

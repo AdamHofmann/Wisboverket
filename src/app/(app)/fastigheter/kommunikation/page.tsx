@@ -11,8 +11,11 @@
 //    fastighetIdsForHyresgast() klarar båda formerna (junction + gammal singular).
 
 import { useEffect, useState } from 'react'
+import React from 'react'
 import SlideOver from '@/components/fastigheter/SlideOver'
 import { C, inp, lbl, fo, fb, btnPrimary, btnGhost } from '@/components/fastigheter/styles'
+import { useIsMobile } from '@/hooks/useMediaQuery'
+import Sokfalt from '@/components/Sokfalt'
 
 interface Hyresgast {
   id: string
@@ -67,6 +70,7 @@ const secLabel: React.CSSProperties = {
 }
 
 export default function KommunikationPage() {
+  const isMobile = useIsMobile()
   const [meddelanden, setMeddelanden] = useState<Meddelande[]>([])
   const [hyresgaster, setHyresgaster] = useState<Hyresgast[]>([])
   const [fastigheter, setFastigheter] = useState<Fastighet[]>([])
@@ -80,6 +84,11 @@ export default function KommunikationPage() {
   const [sending, setSending] = useState(false)
 
   const [showDetail, setShowDetail] = useState<Meddelande | null>(null)
+
+  // Sök + sortering av skickade meddelanden
+  const [search, setSearch] = useState('')
+  const [sortCol, setSortCol] = useState<string>('datum')
+  const [sortDir, setSortDir] = useState<1 | -1>(-1)
 
   const load = () => {
     Promise.all([
@@ -147,17 +156,55 @@ export default function KommunikationPage() {
   const mottagareMedMail = filteredHyresgaster.filter(h => h.epost)
   const mottagareUtanMail = filteredHyresgaster.filter(h => !h.epost)
 
+  // Sök: filtrera skickade meddelanden på ämne, brödtext, avsändare och mottagarnamn.
+  const filteredMeddelanden = meddelanden.filter(m => {
+    if (!search) return true
+    const q = search.toLowerCase()
+    return m.amne.toLowerCase().includes(q)
+      || m.brodel.replace(/<[^>]*>/g, '').toLowerCase().includes(q)
+      || (m.fran ?? '').toLowerCase().includes(q)
+      || m.mottagare.some(mot => mot.namn.toLowerCase().includes(q) || mot.epost.toLowerCase().includes(q))
+  })
+
+  const toggleSort = (col: string) => {
+    if (sortCol === col) setSortDir(d => (d === 1 ? -1 : 1))
+    else { setSortCol(col); setSortDir(1) }
+  }
+
+  const sortedMeddelanden = [...filteredMeddelanden].sort((a, b) => {
+    let av: string | number = '', bv: string | number = ''
+    switch (sortCol) {
+      case 'amne': av = a.amne.toLowerCase(); bv = b.amne.toLowerCase(); break
+      case 'mottagare': av = a._count.mottagare; bv = b._count.mottagare; break
+      case 'datum': av = a.created_at; bv = b.created_at; break
+    }
+    return av < bv ? -sortDir : av > bv ? sortDir : 0
+  })
+
+  const th: React.CSSProperties = { padding: '12px 16px', textAlign: 'left', fontSize: 11, fontWeight: 700, letterSpacing: 0.6, color: C.muted, textTransform: 'uppercase' }
+  const td: React.CSSProperties = { padding: '12px 16px', fontSize: 13, color: C.text2 }
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, ...(isMobile ? { overflowX: 'hidden' } : {}) }}>
+      <div style={{ display: 'flex', ...(isMobile ? { flexDirection: 'column', alignItems: 'stretch', gap: 12 } : { alignItems: 'center', justifyContent: 'space-between' }) }}>
         <div>
           <h2 style={{ fontSize: 20, fontWeight: 700, color: C.text, margin: 0 }}>Kommunikation</h2>
           <p style={{ fontSize: 13, color: C.muted, marginTop: 2 }}>{meddelanden.length} skickade meddelanden</p>
         </div>
-        <button onClick={openNew} style={{ ...btnPrimary, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <button onClick={openNew} style={{ ...btnPrimary, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, ...(isMobile ? { width: '100%' } : {}) }}>
           ✉️ Nytt meddelande
         </button>
       </div>
+
+      {/* Sökruta — filtrerar skickade meddelanden */}
+      {!loading && meddelanden.length > 0 && (
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', ...(isMobile ? { flexDirection: 'column', alignItems: 'stretch' } : {}) }}>
+          <Sokfalt value={search} onChange={setSearch} placeholder="Sök ämne, text, mottagare..." style={{ width: isMobile ? '100%' : 300 }} />
+          <span style={{ fontSize: 12, color: C.muted2, ...(isMobile ? { textAlign: 'center' } : { marginLeft: 'auto' }) }}>
+            {sortedMeddelanden.length} av {meddelanden.length} meddelanden
+          </span>
+        </div>
+      )}
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: '48px 0', color: C.muted2 }}>Laddar...</div>
@@ -167,36 +214,90 @@ export default function KommunikationPage() {
           <p style={{ color: C.muted }}>Inga meddelanden skickade ännu</p>
           <button onClick={openNew} style={{ ...btnGhost, marginTop: 16, color: C.gold, borderColor: C.gold }}>Skicka första meddelandet</button>
         </div>
+      ) : isMobile ? (
+        sortedMeddelanden.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '48px 0', color: C.muted2 }}>Inga meddelanden matchar sökningen.</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {sortedMeddelanden.map(m => (
+              <div
+                key={m.id}
+                onClick={() => setShowDetail(m)}
+                style={{ borderRadius: 12, border: `1px solid ${C.borderSoft}`, background: C.panel, padding: 16, cursor: 'pointer' }}
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <h3 style={{ fontWeight: 600, color: C.text, margin: 0 }}>{m.amne}</h3>
+                    <p style={{ fontSize: 13, color: C.muted, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {m.brodel.replace(/<[^>]*>/g, '').slice(0, 100)}
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: C.muted2 }}>
+                      👥 {m._count.mottagare}
+                    </span>
+                    <span style={{ fontSize: 12, color: C.muted2 }}>{new Date(m.created_at).toLocaleDateString('sv-SE')}</span>
+                  </div>
+                </div>
+                <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  {m.mottagare.slice(0, 5).map((mot, i) => (
+                    <span key={i} style={{ fontSize: 11, background: C.field, color: C.text2, borderRadius: 6, padding: '2px 6px' }}>{mot.namn}</span>
+                  ))}
+                  {m.mottagare.length > 5 && <span style={{ fontSize: 11, color: C.muted2 }}>+{m.mottagare.length - 5} till</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {meddelanden.map(m => (
-            <div
-              key={m.id}
-              onClick={() => setShowDetail(m)}
-              style={{ borderRadius: 12, border: `1px solid ${C.borderSoft}`, background: C.panel, padding: 16, cursor: 'pointer' }}
-            >
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
-                <div style={{ minWidth: 0 }}>
-                  <h3 style={{ fontWeight: 600, color: C.text, margin: 0 }}>{m.amne}</h3>
-                  <p style={{ fontSize: 13, color: C.muted, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {m.brodel.replace(/<[^>]*>/g, '').slice(0, 100)}
-                  </p>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: C.muted2 }}>
-                    👥 {m._count.mottagare}
-                  </span>
-                  <span style={{ fontSize: 12, color: C.muted2 }}>{new Date(m.created_at).toLocaleDateString('sv-SE')}</span>
-                </div>
-              </div>
-              <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                {m.mottagare.slice(0, 5).map((mot, i) => (
-                  <span key={i} style={{ fontSize: 11, background: C.field, color: C.text2, borderRadius: 6, padding: '2px 6px' }}>{mot.namn}</span>
+        <div style={{ borderRadius: 12, border: `1px solid ${C.borderSoft}`, background: C.panel, overflow: 'hidden' }}>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ borderBottom: `1px solid ${C.borderSoft}`, background: C.panel2 }}>
+                  {([
+                    { key: 'amne', label: 'Ämne' },
+                    { key: 'mottagare', label: 'Mottagare' },
+                    { key: 'datum', label: 'Datum' },
+                  ] as const).map(h => (
+                    <th key={h.key} onClick={() => toggleSort(h.key)} style={{ ...th, cursor: 'pointer', userSelect: 'none' }}>
+                      {h.label}{sortCol === h.key ? (sortDir === 1 ? ' ▲' : ' ▼') : ''}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {sortedMeddelanden.length === 0 ? (
+                  <tr><td colSpan={3} style={{ textAlign: 'center', padding: '48px 0', color: C.muted2 }}>Inga meddelanden matchar sökningen.</td></tr>
+                ) : sortedMeddelanden.map(m => (
+                  <tr
+                    key={m.id}
+                    onClick={() => setShowDetail(m)}
+                    style={{ borderTop: `1px solid ${C.borderSoft}`, cursor: 'pointer' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = C.panel2)}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <td style={{ ...td, maxWidth: 480 }}>
+                      <div style={{ fontWeight: 600, color: C.text }}>{m.amne}</div>
+                      <div style={{ fontSize: 12, color: C.muted, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {m.brodel.replace(/<[^>]*>/g, '').slice(0, 120)}
+                      </div>
+                      <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                        {m.mottagare.slice(0, 5).map((mot, i) => (
+                          <span key={i} style={{ fontSize: 11, background: C.field, color: C.text2, borderRadius: 6, padding: '2px 6px' }}>{mot.namn}</span>
+                        ))}
+                        {m.mottagare.length > 5 && <span style={{ fontSize: 11, color: C.muted2 }}>+{m.mottagare.length - 5} till</span>}
+                      </div>
+                    </td>
+                    <td style={td}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: C.muted2 }}>👥 {m._count.mottagare}</span>
+                    </td>
+                    <td style={{ ...td, color: C.muted2, whiteSpace: 'nowrap' }}>{new Date(m.created_at).toLocaleDateString('sv-SE')}</td>
+                  </tr>
                 ))}
-                {m.mottagare.length > 5 && <span style={{ fontSize: 11, color: C.muted2 }}>+{m.mottagare.length - 5} till</span>}
-              </div>
-            </div>
-          ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -225,7 +326,7 @@ export default function KommunikationPage() {
             <h4 style={secLabel}>Mottagare</h4>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
               <select
-                style={{ ...inp, width: 'auto', minWidth: 180 }}
+                style={{ ...inp, ...(isMobile ? { width: '100%', flexBasis: '100%' } : { width: 'auto', minWidth: 180 }) }}
                 onFocus={fo}
                 onBlur={fb}
                 value={filterFastighet}
@@ -276,11 +377,11 @@ export default function KommunikationPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
                 <label style={lbl}>Ämne</label>
-                <input style={inp} onFocus={fo} onBlur={fb} value={amne} onChange={e => setAmne(e.target.value)} placeholder="T.ex. Information om planerat underhåll" />
+                <input spellCheck={true} style={inp} onFocus={fo} onBlur={fb} value={amne} onChange={e => setAmne(e.target.value)} placeholder="T.ex. Information om planerat underhåll" />
               </div>
               <div>
                 <label style={lbl}>Meddelande</label>
-                <textarea rows={8} style={{ ...inp, resize: 'none' }} onFocus={fo} onBlur={fb} value={brodel} onChange={e => setBrodel(e.target.value)} placeholder="Skriv ditt meddelande här..." />
+                <textarea spellCheck={true} rows={8} style={{ ...inp, resize: 'none' }} onFocus={fo} onBlur={fb} value={brodel} onChange={e => setBrodel(e.target.value)} placeholder="Skriv ditt meddelande här..." />
               </div>
             </div>
           </section>

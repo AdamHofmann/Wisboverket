@@ -11,8 +11,11 @@
 
 import { useEffect, useState } from 'react'
 import { useBolag } from '@/components/fastigheter/BolagContext'
+import { useIsMobile } from '@/hooks/useMediaQuery'
 import SlideOver from '@/components/fastigheter/SlideOver'
 import { C, inp, lbl, fo, fb, btnPrimary, btnGhost, btnDanger } from '@/components/fastigheter/styles'
+import { useConfirm } from '@/components/ConfirmDialog'
+import Sokfalt from '@/components/Sokfalt'
 
 interface Byggnad { id: string; namn: string }
 interface Beteckning { id: string; beteckning: string }
@@ -72,7 +75,12 @@ export default function LokalerPage() {
   const [saving, setSaving] = useState(false)
   const [filterFastighet, setFilterFastighet] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
+  const [search, setSearch] = useState('')
+  const [sortCol, setSortCol] = useState<string>('namn')
+  const [sortDir, setSortDir] = useState<1 | -1>(1)
   const { valtBolagId } = useBolag()
+  const isMobile = useIsMobile()
+  const confirm = useConfirm()
 
   const load = () => {
     const fastUrl = valtBolagId ? `/api/fastigheter/objekt?bolagId=${valtBolagId}` : '/api/fastigheter/objekt'
@@ -114,19 +122,85 @@ export default function LokalerPage() {
   }
 
   const remove = async (id: string) => {
-    if (!confirm('Ta bort lokal?')) return
+    if (!(await confirm({ message: 'Ta bort lokal?', danger: true, confirmLabel: 'Ta bort' }))) return
     await fetch(`/api/fastigheter/lokaler/${id}`, { method: 'DELETE' })
     setOpen(false); load()
   }
 
-  let filtered = filterFastighet ? items.filter(l => l.fastighet_id === filterFastighet) : items
-  if (filterStatus) filtered = filtered.filter(l => l.status === filterStatus)
+  // Hyresgäst-namn för sök + sortering.
+  const hyresgastNamn = (l: Lokal) => l.hyresavtal?.[0]?.hyresavtal?.hyresgast?.namn || ''
 
-  const filterSelect: React.CSSProperties = { ...inp, width: 'auto', minWidth: 160 }
+  // Bolagsfilter: fastigheter-listan är redan hämtad bolagsscopad (objekt?bolagId=…).
+  // När ett bolag är valt visar vi bara lokaler vars fastighet finns i den listan.
+  const bolagFastighetIds = new Set(fastigheter.map(f => f.id))
+
+  let filtered = filterFastighet ? items.filter(l => l.fastighet_id === filterFastighet) : items
+  if (valtBolagId) filtered = filtered.filter(l => bolagFastighetIds.has(l.fastighet_id))
+  if (filterStatus) filtered = filtered.filter(l => l.status === filterStatus)
+  if (search) {
+    const q = search.toLowerCase()
+    filtered = filtered.filter(l =>
+      l.namn.toLowerCase().includes(q)
+      || (typLabels[l.typ] || l.typ).toLowerCase().includes(q)
+      || (l.fastighet?.namn || '').toLowerCase().includes(q)
+      || (l.byggnad?.namn || '').toLowerCase().includes(q)
+      || (l.beteckning?.beteckning || '').toLowerCase().includes(q)
+      || hyresgastNamn(l).toLowerCase().includes(q)
+    )
+  }
+
+  const toggleSort = (col: string) => {
+    if (sortCol === col) setSortDir(d => (d === 1 ? -1 : 1))
+    else { setSortCol(col); setSortDir(1) }
+  }
+
+  const sorted = [...filtered].sort((a, b) => {
+    let av: string | number = '', bv: string | number = ''
+    switch (sortCol) {
+      case 'namn': av = a.namn.toLowerCase(); bv = b.namn.toLowerCase(); break
+      case 'fastighet': av = (a.fastighet?.namn || '').toLowerCase(); bv = (b.fastighet?.namn || '').toLowerCase(); break
+      case 'typ': av = (typLabels[a.typ] || a.typ).toLowerCase(); bv = (typLabels[b.typ] || b.typ).toLowerCase(); break
+      case 'yta': av = a.yta; bv = b.yta; break
+      case 'bashyra': av = a.bashyra ?? -1; bv = b.bashyra ?? -1; break
+      case 'kvmar': av = a.bashyra && a.yta ? (a.bashyra * 12) / a.yta : -1; bv = b.bashyra && b.yta ? (b.bashyra * 12) / b.yta : -1; break
+      case 'status': av = a.status; bv = b.status; break
+      case 'hyresgast': av = hyresgastNamn(a).toLowerCase(); bv = hyresgastNamn(b).toLowerCase(); break
+    }
+    return av < bv ? -sortDir : av > bv ? sortDir : 0
+  })
+
+  const filterSelect: React.CSSProperties = isMobile
+    ? { ...inp, width: '100%' }
+    : { ...inp, width: 'auto', minWidth: 160 }
+
+  // Statusbadge återanvänds i både tabell (desktop) och kort (mobil).
+  const renderStatus = (l: Lokal) => {
+    const avtal = l.hyresavtal?.[0]?.hyresavtal
+    const visadStatus = avtal?.status === 'uppsagd' ? 'uppsagd' : l.status
+    const slutdatum = avtal?.status === 'uppsagd' && avtal.slutdatum
+      ? new Date(avtal.slutdatum).toLocaleDateString('sv-SE')
+      : null
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <span style={{ display: 'inline-flex', width: 'fit-content', borderRadius: 999, padding: '2px 10px', fontSize: 11, fontWeight: 600, ...(statusStyle[visadStatus] || { background: C.field, color: C.muted }) }}>
+          {visadStatus === 'uppsagd' ? 'Uppsagd' : visadStatus === 'ledig' ? 'Ledig' : 'Uthyrd'}
+        </span>
+        {slutdatum && <span style={{ fontSize: 11, color: C.muted2 }}>Slutar {slutdatum}</span>}
+      </div>
+    )
+  }
+
+  const renderKvmAr = (l: Lokal) =>
+    l.bashyra && l.yta ? (
+      <span title={l.typ === 'mark' ? 'kr/kvm/år mark' : 'kr/kvm/år lokal'}>
+        {Math.round((l.bashyra * 12) / l.yta).toLocaleString('sv-SE')}
+        {l.typ === 'mark' && <span style={{ marginLeft: 4, fontSize: 11, color: C.muted2 }}>(mark)</span>}
+      </span>
+    ) : '–'
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, overflowX: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'space-between', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 12 : 0 }}>
         <div>
           <h2 style={{ fontSize: 20, fontWeight: 700, color: C.text, margin: 0 }}>Lokaler</h2>
           <p style={{ fontSize: 13, color: C.muted, marginTop: 2 }}>{filtered.length} lokaler</p>
@@ -134,7 +208,8 @@ export default function LokalerPage() {
         <button onClick={openNew} style={btnPrimary}>+ Ny lokal</button>
       </div>
 
-      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', ...(isMobile ? { flexDirection: 'column', alignItems: 'stretch' } : {}) }}>
+        <Sokfalt value={search} onChange={setSearch} placeholder="Sök namn, fastighet, typ, hyresgäst..." style={{ width: isMobile ? '100%' : 260 }} />
         <select value={filterFastighet} onChange={e => setFilterFastighet(e.target.value)} onFocus={fo} onBlur={fb} style={filterSelect}>
           <option value="">Alla fastigheter</option>
           {fastigheter.map(f => <option key={f.id} value={f.id}>{f.namn}</option>)}
@@ -148,21 +223,58 @@ export default function LokalerPage() {
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: '48px 0', color: C.muted2 }}>Laddar...</div>
+      ) : isMobile ? (
+        sorted.length === 0 ? (
+          <div style={{ borderRadius: 12, border: `1px solid ${C.borderSoft}`, background: C.panel, textAlign: 'center', padding: '48px 0', color: C.muted2 }}>Inga lokaler</div>
+        ) : (
+          <div>
+            {sorted.map((l) => (
+              <div key={l.id} onClick={() => openEdit(l)}
+                style={{ border: `1px solid ${C.borderSoft}`, borderRadius: 10, background: C.panel, padding: 12, marginBottom: 8, cursor: 'pointer' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+                  <div style={{ fontWeight: 700, fontSize: 15, color: C.text }}>{l.namn}</div>
+                  <button onClick={(e) => { e.stopPropagation(); remove(l.id) }} style={{ background: 'none', border: 'none', color: C.muted2, cursor: 'pointer', fontSize: 16, padding: 4, marginTop: -2 }}>🗑️</button>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 12, rowGap: 6, fontSize: 13 }}>
+                  <span style={{ color: C.muted2 }}>Fastighet</span><span style={{ color: C.muted }}>{l.fastighet?.namn || '–'}</span>
+                  <span style={{ color: C.muted2 }}>Typ</span><span style={{ color: C.muted }}>{typLabels[l.typ] || l.typ}</span>
+                  <span style={{ color: C.muted2 }}>Yta</span><span style={{ color: C.muted }}>{l.yta} kvm</span>
+                  <span style={{ color: C.muted2 }}>Hyra/mån</span><span style={{ color: C.muted }}>{l.bashyra ? formatSEK(l.bashyra) : '–'}</span>
+                  <span style={{ color: C.muted2 }}>kr/kvm/år</span><span style={{ color: C.muted2 }}>{renderKvmAr(l)}</span>
+                  <span style={{ color: C.muted2 }}>Status</span><span>{renderStatus(l)}</span>
+                  <span style={{ color: C.muted2 }}>Hyresgäst</span><span style={{ color: C.muted }}>{l.hyresavtal?.[0]?.hyresavtal?.hyresgast?.namn || '–'}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )
       ) : (
         <div style={{ borderRadius: 12, border: `1px solid ${C.borderSoft}`, background: C.panel, overflow: 'hidden' }}>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
               <thead>
                 <tr style={{ borderBottom: `1px solid ${C.borderSoft}`, background: C.panel2 }}>
-                  {['Namn/Nr', 'Fastighet', 'Typ', 'Yta', 'Hyra/mån', 'kr/kvm/år', 'Status', 'Hyresgäst', ''].map((h, i) => (
-                    <th key={i} style={th}>{h}</th>
+                  {([
+                    { key: 'namn', label: 'Namn/Nr' },
+                    { key: 'fastighet', label: 'Fastighet' },
+                    { key: 'typ', label: 'Typ' },
+                    { key: 'yta', label: 'Yta' },
+                    { key: 'bashyra', label: 'Hyra/mån' },
+                    { key: 'kvmar', label: 'kr/kvm/år' },
+                    { key: 'status', label: 'Status' },
+                    { key: 'hyresgast', label: 'Hyresgäst' },
+                    { key: '', label: '' },
+                  ] as const).map((h, i) => (
+                    <th key={i} onClick={() => h.key && toggleSort(h.key)} style={{ ...th, cursor: h.key ? 'pointer' : 'default', userSelect: 'none' }}>
+                      {h.label}{h.key && sortCol === h.key ? (sortDir === 1 ? ' ▲' : ' ▼') : ''}
+                    </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {filtered.length === 0 ? (
+                {sorted.length === 0 ? (
                   <tr><td colSpan={9} style={{ textAlign: 'center', padding: '48px 0', color: C.muted2 }}>Inga lokaler</td></tr>
-                ) : filtered.map((l) => (
+                ) : sorted.map((l) => (
                   <tr key={l.id} onClick={() => openEdit(l)} style={{ borderTop: `1px solid ${C.borderSoft}`, cursor: 'pointer' }}
                     onMouseEnter={e => (e.currentTarget.style.background = C.panel2)}
                     onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
@@ -171,31 +283,8 @@ export default function LokalerPage() {
                     <td style={td}>{typLabels[l.typ] || l.typ}</td>
                     <td style={td}>{l.yta} kvm</td>
                     <td style={td}>{l.bashyra ? formatSEK(l.bashyra) : '–'}</td>
-                    <td style={{ ...td, color: C.muted2 }}>
-                      {l.bashyra && l.yta ? (
-                        <span title={l.typ === 'mark' ? 'kr/kvm/år mark' : 'kr/kvm/år lokal'}>
-                          {Math.round((l.bashyra * 12) / l.yta).toLocaleString('sv-SE')}
-                          {l.typ === 'mark' && <span style={{ marginLeft: 4, fontSize: 11, color: C.muted2 }}>(mark)</span>}
-                        </span>
-                      ) : '–'}
-                    </td>
-                    <td style={td}>
-                      {(() => {
-                        const avtal = l.hyresavtal?.[0]?.hyresavtal
-                        const visadStatus = avtal?.status === 'uppsagd' ? 'uppsagd' : l.status
-                        const slutdatum = avtal?.status === 'uppsagd' && avtal.slutdatum
-                          ? new Date(avtal.slutdatum).toLocaleDateString('sv-SE')
-                          : null
-                        return (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                            <span style={{ display: 'inline-flex', width: 'fit-content', borderRadius: 999, padding: '2px 10px', fontSize: 11, fontWeight: 600, ...(statusStyle[visadStatus] || { background: C.field, color: C.muted }) }}>
-                              {visadStatus === 'uppsagd' ? 'Uppsagd' : visadStatus === 'ledig' ? 'Ledig' : 'Uthyrd'}
-                            </span>
-                            {slutdatum && <span style={{ fontSize: 11, color: C.muted2 }}>Slutar {slutdatum}</span>}
-                          </div>
-                        )
-                      })()}
-                    </td>
+                    <td style={{ ...td, color: C.muted2 }}>{renderKvmAr(l)}</td>
+                    <td style={td}>{renderStatus(l)}</td>
                     <td style={td}>{l.hyresavtal?.[0]?.hyresavtal?.hyresgast?.namn || '–'}</td>
                     <td style={td}>
                       <button onClick={(e) => { e.stopPropagation(); remove(l.id) }} style={{ background: 'none', border: 'none', color: C.muted2, cursor: 'pointer', fontSize: 14, padding: 6 }}>🗑️</button>

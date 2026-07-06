@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
+import { SITE_URL } from '@/lib/site'
 
-const ALLOWED_ORIGIN = process.env.PUBLIC_FORM_ORIGIN || 'https://hofmannsab.se'
+const ALLOWED_ORIGIN = process.env.PUBLIC_FORM_ORIGIN || SITE_URL
 
 export function corsHeaders() {
   return {

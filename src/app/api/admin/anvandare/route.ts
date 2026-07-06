@@ -1,10 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { withLogg } from '@/lib/withLogg'
 
 // Skapar en ny användare (e-post + lösenord som admin sätter och delar ut).
 // Kräver att anroparen är admin, och service role-nyckeln server-side.
-export async function POST(req: NextRequest) {
+async function postHandler(req: Request) {
   // 1. Verifiera att anroparen är inloggad admin
   const sb = await createServerClient()
   const { data: { user } } = await sb.auth.getUser()
@@ -44,3 +45,5 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ ok: true, id: data.user?.id })
 }
+
+export const POST = withLogg('api/admin/anvandare', postHandler)

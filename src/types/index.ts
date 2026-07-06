@@ -10,6 +10,7 @@ export type Profile = {
 
 export type Customer = {
   id: string
+  kundnummer: number | null
   namn: string
   typ: 'privat' | 'företag'
   epost: string | null

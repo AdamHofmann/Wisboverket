@@ -8,10 +8,11 @@
 //    JSON-extraktion och samma statuskoder (400 ingen fil, 422 kunde ej tolka, 500 serverfel/nyckel saknas).
 import { NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { withLogg } from '@/lib/withLogg'
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-export async function POST(request: Request) {
+async function postHandler(request: Request) {
   try {
     if (!process.env.ANTHROPIC_API_KEY) {
       return NextResponse.json({ error: 'ANTHROPIC_API_KEY saknas i .env.local' }, { status: 500 })
@@ -25,7 +26,11 @@ export async function POST(request: Request) {
     const base64 = Buffer.from(bytes).toString('base64')
     const mediaType = fil.type as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp' | 'application/pdf'
 
-    const promptText = `Läs av denna elleverantörsfaktura och returnera JSON med följande fält (använd null om värdet saknas):
+    const promptText = `Läs av denna elleverantörsfaktura och returnera JSON med följande fält (använd null om värdet saknas).
+
+VIKTIGT 1 — bara EL: Fakturan kan vara en KOMBINERAD faktura med flera tjänster (el, vatten/avlopp/VA, återvinning/avfall/sophämtning, fjärrvärme/värme). totalBelopp och totalKwh ska ENBART avse EL-delen: elnät/elöverföring/nätavgift OCH/ELLER elhandel/elförbrukning/energipris (+ energiskatt på el). EXKLUDERA helt: vatten, avlopp, VA, återvinning, avfall, sophämtning, fjärrvärme, värme och alla andra icke-el-poster. Summera bara el-raderna.
+
+VIKTIGT 2 — exkl moms: totalBelopp ska vara EXKLUSIVE moms (nettobeloppet före moms). Fakturor visar ofta både ett nettobelopp (exkl moms / "belopp före moms") och en totalsumma inkl moms (25% moms i Sverige) — ta ALLTID nettot exkl moms. Om ett el-belopp bara anges inkl moms, räkna om: belopp / 1.25.
 {
   "fakturanummer": "string",
   "periodFran": "YYYY-MM-DD",
@@ -33,7 +38,9 @@ export async function POST(request: Request) {
   "totalKwh": number,
   "totalBelopp": number,
   "prisPerKwh": number,
-  "leverantor": "string"
+  "leverantor": "string, elleverantörens/nätbolagets namn (avsändaren)",
+  "anlaggningsadress": "string, ANLÄGGNINGSADRESSEN / leveransadressen där elen förbrukas (den fysiska fastighetens gatuadress, INTE fakturamottagarens fakturaadress). Format: gata nr, postnr ort. null om saknas.",
+  "typ": "string, klassa fakturan: 'nat' om den avser elnät/överföring/nätavgift/abonnemang (nätbolaget); 'handel' om den avser elhandel/spotpris/energipris/förbrukning (elhandelsbolaget); 'ovrigt' om varken passar. null om oklart."
 }
 Returnera BARA JSON, inget annat.`
 
@@ -64,3 +71,5 @@ Returnera BARA JSON, inget annat.`
     return NextResponse.json({ error: 'Serverfel' }, { status: 500 })
   }
 }
+
+export const POST = withLogg('api/fastigheter/el-leverantor/skanna', postHandler)

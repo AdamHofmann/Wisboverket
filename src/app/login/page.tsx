@@ -4,12 +4,14 @@ import { useState } from 'react'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { useIsMobile } from '@/hooks/useMediaQuery'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const isMobile = useIsMobile()
   const router = useRouter()
   const supabase = createClient()
 
@@ -36,15 +38,19 @@ export default function LoginPage() {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      fontFamily: 'system-ui, -apple-system, sans-serif'
+      fontFamily: 'system-ui, -apple-system, sans-serif',
+      padding: isMobile ? 16 : 0,
+      boxSizing: 'border-box',
+      overflowX: 'hidden'
     }}>
       <div style={{
         background: '#1a1a1a',
         border: '1px solid #2a2a2a',
         borderRadius: 12,
-        padding: '40px 36px',
+        padding: isMobile ? '32px 20px' : '40px 36px',
         width: '100%',
-        maxWidth: 380
+        maxWidth: isMobile ? '100%' : 380,
+        boxSizing: 'border-box'
       }}>
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <Image src="/logo.png" alt="Wisboverket" width={90} height={90} style={{ borderRadius: '50%', marginBottom: 12 }} />

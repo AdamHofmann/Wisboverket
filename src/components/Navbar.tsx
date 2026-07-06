@@ -5,6 +5,8 @@ import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useIsMobile } from '@/hooks/useMediaQuery'
+import MobileDrawer from '@/components/MobileDrawer'
 
 const ORDER_LINKS = [
   { href: '/dashboard', label: 'Dashboard' },
@@ -32,12 +34,28 @@ const S: Record<string, React.CSSProperties> = {
   linkActive: { color: '#E8C96A', background: 'rgba(232,201,106,0.08)' },
   spacer: { flex: 1 },
   logoutBtn: { fontSize: 11, color: '#555', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px', flexShrink: 0 },
+  hamburger: {
+    minWidth: 44, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center',
+    background: 'none', border: 'none', color: '#E8C96A', fontSize: 24, cursor: 'pointer',
+    lineHeight: 1, flexShrink: 0, marginLeft: 'auto',
+  },
+  drawerLink: {
+    display: 'flex', alignItems: 'center', gap: 8, minHeight: 44, padding: '0 10px',
+    borderRadius: 6, fontSize: 15, fontWeight: 500, color: '#888', textDecoration: 'none',
+  },
+  drawerLogout: {
+    minHeight: 44, marginTop: 8, borderTop: '1px solid #222', paddingTop: 12,
+    fontSize: 14, color: '#888', background: 'none', border: 'none', cursor: 'pointer',
+    textAlign: 'left' as const,
+  },
 }
 
 export default function Navbar() {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
+  const m = useIsMobile()
+  const [menuOpen, setMenuOpen] = useState(false)
   const [inkorgCount, setInkorgCount] = useState(0)
 
   useEffect(() => {
@@ -66,16 +84,67 @@ export default function Navbar() {
   // I fastighet-appen ersätts HELA order-baren av fastighet-modulens egen rad (Subnav)
   if (inFastighetApp) return null
 
+  const logo = (
+    <Link href="/dashboard" style={S.logoWrap}>
+      <Image src="/logo.png" alt="Wisboverket" width={36} height={36} style={{ borderRadius: '50%' }} />
+      <div style={S.logoText}>
+        <span style={S.logoName}>WISBOVERKET</span>
+        <span style={S.logoSub}>FASTIGHETER & FÖRVALTNING</span>
+      </div>
+    </Link>
+  )
+
+  if (m) {
+    return (
+      <nav style={S.nav}>
+        <div style={{ ...S.inner, overflowX: 'visible' }}>
+          {logo}
+          <button
+            style={S.hamburger}
+            onClick={() => setMenuOpen(true)}
+            aria-label="Öppna meny"
+            aria-expanded={menuOpen}
+          >
+            ≡
+          </button>
+        </div>
+
+        <MobileDrawer open={menuOpen} onClose={() => setMenuOpen(false)}>
+          <Link
+            href="/fastigheter"
+            onClick={() => setMenuOpen(false)}
+            style={{ ...S.drawerLink, color: '#E8C96A', fontWeight: 700, border: '1px solid #E8C96A', marginBottom: 8 }}
+          >
+            🏢 Fastigheter
+          </Link>
+          {ORDER_LINKS.map(l => (
+            <Link
+              key={l.href}
+              href={l.href}
+              onClick={() => setMenuOpen(false)}
+              style={{ ...S.drawerLink, ...(isActive(l.href) ? S.linkActive : {}) }}
+            >
+              {l.label}
+              {l.href === '/installningar' && inkorgCount > 0 && (
+                <span style={{ background: '#E8C96A', color: '#000', borderRadius: 10, fontSize: 10, fontWeight: 800, padding: '1px 6px', lineHeight: 1.4 }}>{inkorgCount}</span>
+              )}
+            </Link>
+          ))}
+          <button
+            onClick={() => { setMenuOpen(false); handleLogout() }}
+            style={S.drawerLogout}
+          >
+            Logga ut
+          </button>
+        </MobileDrawer>
+      </nav>
+    )
+  }
+
   return (
     <nav style={S.nav}>
       <div style={S.inner}>
-        <Link href="/dashboard" style={S.logoWrap}>
-          <Image src="/logo.png" alt="Wisboverket" width={36} height={36} style={{ borderRadius: '50%' }} />
-          <div style={S.logoText}>
-            <span style={S.logoName}>WISBOVERKET</span>
-            <span style={S.logoSub}>FASTIGHETER & FÖRVALTNING</span>
-          </div>
-        </Link>
+        {logo}
 
         {ORDER_LINKS.map(l => (
           <Link key={l.href} href={l.href} style={{ ...S.link, ...(isActive(l.href) ? S.linkActive : {}), display: 'flex', alignItems: 'center', gap: 6 }}>

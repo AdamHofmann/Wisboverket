@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
+import { useIsMobile } from '@/hooks/useMediaQuery'
 
 type Suggestion = {
   display_name: string
@@ -38,6 +39,7 @@ const extractHouseNumber = (text: string): string => {
 export default function AdressInput({ value, onChange, onPick, style, placeholder = 'Sök adress...', onFocus, onBlur }: Props) {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const m = useIsMobile()
 
   const handleChange = (v: string) => {
     onChange(v)
@@ -94,7 +96,8 @@ export default function AdressInput({ value, onChange, onPick, style, placeholde
         <div style={{
           position: 'absolute', top: '100%', left: 0, right: 0,
           background: '#1e1e1e', border: '1px solid #333', borderRadius: 8,
-          zIndex: 100, maxHeight: 220, overflowY: 'auto', boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+          zIndex: 100, maxHeight: m ? 'min(50vh, 320px)' : 220, overflowY: 'auto', boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+          ...(m ? { maxWidth: 'calc(100vw - 24px)' } : null),
         }}>
           {suggestions.map((s, i) => {
             const { rad1, rad2 } = visaAdress(s)
@@ -103,8 +106,9 @@ export default function AdressInput({ value, onChange, onPick, style, placeholde
                 key={i}
                 onMouseDown={() => pick(s)}
                 style={{
-                  padding: '9px 12px', fontSize: 12, color: '#d0d0d0', cursor: 'pointer',
+                  padding: m ? '12px 12px' : '9px 12px', fontSize: 12, color: '#d0d0d0', cursor: 'pointer',
                   borderBottom: i < suggestions.length - 1 ? '1px solid #2a2a2a' : 'none',
+                  ...(m ? { minHeight: 44, display: 'flex', flexWrap: 'wrap', alignItems: 'center' } : null),
                 }}
                 onMouseEnter={e => (e.currentTarget.style.background = '#2a2a2a')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}

@@ -62,10 +62,17 @@ interface AvtalsradRow {
   belopp: number
   moms: number
 }
+interface BolagRow {
+  id: string
+}
+interface FastighetRow {
+  bolag: BolagRow | null
+}
 interface LokalRow {
   namn: string
   yta: number
   moms: number
+  fastighet: FastighetRow | null
 }
 interface AvtalLokalRow {
   lokal: LokalRow | null
@@ -121,6 +128,8 @@ export async function GET(request: Request) {
       .select(`
         *,
         rader:f_fakturarad (*),
+        handelser:f_faktura_handelse (*),
+        hyresgast:f_hyresgast (*),
         hyresavtal:f_hyresavtal (
           *,
           lokaler:f_hyresavtal_lokal (
@@ -150,6 +159,8 @@ export async function POST(request: Request) {
     const sb = await createClient()
     const body = await request.json()
     const { period } = body
+    // Engångsmeddelande för denna omgång — bakas in som en TEXT-rad högst upp på varje faktura.
+    const omgangMeddelande: string = typeof body.meddelande === 'string' ? body.meddelande.trim() : ''
 
     if (!period || !/^\d{4}-\d{2}$/.test(period)) {
       return NextResponse.json({ error: 'Period saknas eller felaktig (YYYY-MM)' }, { status: 400 })
@@ -180,7 +191,14 @@ export async function POST(request: Request) {
       .in('status', ['aktiv', 'uppsagd'])
     if (avtalErr) throw avtalErr
 
-    const aktivaAvtal = (aktivaAvtalRaw ?? []) as unknown as AvtalRow[]
+    const allaAvtal = (aktivaAvtalRaw ?? []) as unknown as AvtalRow[]
+
+    // Respektera bolagsväljaren: skickas bolagId med genereras bara det bolagets avtal
+    // (avtal → lokal → fastighet → bolag). Utan bolagId genereras alla bolag.
+    const bolagId: string | null = body.bolagId ?? body.bolag_id ?? null
+    const aktivaAvtal = bolagId
+      ? allaAvtal.filter((a) => (a.lokaler ?? []).some((l) => l.lokal?.fastighet?.bolag?.id === bolagId))
+      : allaAvtal
 
     // Hämta samfakturering-flagga per hyresgäst
     const hyresgastIds = [...new Set(aktivaAvtal.map((a) => a.hyresgast_id))]
@@ -264,6 +282,11 @@ export async function POST(request: Request) {
           }
 
           const fakturaRader: FakturaRadInput[] = []
+
+          // Engångsmeddelande högst upp (TEXT-rad, ingen kostnad) om ett angavs för omgången.
+          if (omgangMeddelande) {
+            fakturaRader.push({ artikelkod: 'TEXT', beskrivning: omgangMeddelande, antal: 0, apris: 0, belopp: 0, moms: 0 })
+          }
 
           const lokalNamn = lokaler.map((l) => l.namn).join(', ')
           const totalYta = lokaler.reduce((s, l) => s + l.yta, 0)

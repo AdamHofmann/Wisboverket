@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useIsMobile } from '@/hooks/useMediaQuery'
 
 type Props = {
   value: string
@@ -14,6 +15,7 @@ const MÅN = ['januari', 'februari', 'mars', 'april', 'maj', 'juni', 'juli', 'au
 const VECKODAGAR = ['M', 'T', 'O', 'T', 'F', 'L', 'S']
 
 export default function DatumValjare({ value, onChange, placeholder = 'åååå-mm-dd', style, minDate }: Props) {
+  const m = useIsMobile()
   const [open, setOpen] = useState(false)
   const [offset, setOffset] = useState(0)
   const ref = useRef<HTMLDivElement>(null)
@@ -102,6 +104,13 @@ export default function DatumValjare({ value, onChange, placeholder = 'åååå-
           background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 10,
           padding: 14, boxShadow: '0 8px 24px rgba(0,0,0,0.6)', minWidth: 240,
           outline: 'none',
+          ...(m ? {
+            right: 0,
+            width: 'min(320px, 92vw)',
+            maxWidth: 'calc(100vw - 16px)',
+            maxHeight: 'min(60vh, 460px)',
+            overflowY: 'auto',
+          } : {}),
         }}>
           {/* Månadsnavigering */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
@@ -131,7 +140,8 @@ export default function DatumValjare({ value, onChange, placeholder = 'åååå-
               return (
                 <div key={i} onClick={() => !disabled && pick(dag)}
                   style={{
-                    textAlign: 'center', fontSize: 12, padding: '5px 2px', borderRadius: 6,
+                    textAlign: 'center', fontSize: m ? 15 : 12, padding: m ? '0 2px' : '5px 2px', borderRadius: 6,
+                    ...(m ? { minHeight: 40, display: 'flex', alignItems: 'center', justifyContent: 'center' } : {}),
                     cursor: disabled ? 'default' : 'pointer',
                     background: vald ? '#E8C96A' : 'transparent',
                     color: vald ? '#000' : disabled ? '#333' : '#ccc',

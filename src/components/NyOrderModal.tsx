@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useIsMobile } from '@/hooks/useMediaQuery'
 import type { Customer, Fastighet, Contact, Order } from '@/types'
 import AdressInput from '@/components/AdressInput'
 import DatumValjare from '@/components/DatumValjare'
@@ -16,6 +17,7 @@ const S: Record<string, React.CSSProperties> = {
   body: { padding: '20px 24px', display: 'flex', flexDirection: 'column' as const, gap: 16 },
   footer: { padding: '16px 24px', borderTop: '1px solid #222', display: 'flex', gap: 10, justifyContent: 'flex-end' },
   row: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 },
+  rowM: { display: 'grid', gridTemplateColumns: '1fr', gap: 12 },
   field: { display: 'flex', flexDirection: 'column' as const, gap: 5 },
   label: { fontSize: 11, fontWeight: 600, color: '#666', letterSpacing: 0.5 },
   input: { background: '#111', border: '1px solid #2a2a2a', borderRadius: 8, padding: '9px 12px', color: '#e0e0e0', fontSize: 13, outline: 'none', width: '100%', boxSizing: 'border-box' as const },
@@ -31,6 +33,7 @@ const S: Record<string, React.CSSProperties> = {
   miniForm: { background: '#111', border: '1px solid #2a2a2a', borderRadius: 10, padding: 14, display: 'flex', flexDirection: 'column' as const, gap: 10 },
   miniFormTitle: { fontSize: 11, fontWeight: 700, color: '#888', letterSpacing: 1 },
   miniRow: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 },
+  miniRowM: { display: 'grid', gridTemplateColumns: '1fr', gap: 8 },
   miniSaveBtn: { background: '#333', border: 'none', borderRadius: 6, padding: '7px 14px', color: '#E8C96A', fontSize: 12, fontWeight: 700, cursor: 'pointer', alignSelf: 'flex-end' },
 }
 
@@ -125,6 +128,7 @@ type Props = { onClose: () => void; onSaved: () => void; order?: Order & { custo
 
 export default function NyOrderModal({ onClose, onSaved, order }: Props) {
   const isEdit = !!order
+  const m = useIsMobile()
   const [kunder, setKunder] = useState<Customer[]>([])
   const [fastigheter, setFastigheter] = useState<Fastighet[]>([])
   const [kontakter, setKontakter] = useState<Contact[]>([])
@@ -329,8 +333,8 @@ export default function NyOrderModal({ onClose, onSaved, order }: Props) {
   const fb = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => { e.target.style.borderColor = '#2a2a2a' }
 
   return (
-    <div style={S.overlay} onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={S.modal}>
+    <div style={{ ...S.overlay, ...(m ? { padding: 0, alignItems: 'stretch' } : {}) }} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ ...S.modal, ...(m ? { width: '100%', maxWidth: '100vw', maxHeight: '100vh', borderRadius: 0, border: 'none' } : {}) }}>
         <div style={S.header}>
           <div style={S.title}>{isEdit ? 'Redigera order' : 'Ny order'}</div>
           <button style={S.closeBtn} onClick={onClose}>×</button>
@@ -340,7 +344,7 @@ export default function NyOrderModal({ onClose, onSaved, order }: Props) {
 
           <div style={S.field}>
             <label style={S.label}>TITEL *</label>
-            <input style={S.input} value={form.titel} onChange={e => set('titel', e.target.value)}
+            <input spellCheck={true} style={S.input} value={form.titel} onChange={e => set('titel', e.target.value)}
               placeholder="T.ex. Rondering Björkalléen 8" onFocus={fo} onBlur={fb} />
           </div>
 
@@ -396,10 +400,10 @@ export default function NyOrderModal({ onClose, onSaved, order }: Props) {
                 </div>
                 {showNyKontakt && (
                   <div style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 8, padding: 12, marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <input style={{ ...S.input, fontSize: 12 }} placeholder="Namn *" value={nyKontakt.namn} onChange={e => setNyKontakt(f => ({ ...f, namn: e.target.value }))} onFocus={fo} onBlur={fb} />
-                    <div style={S.miniRow}>
-                      <input style={{ ...S.input, fontSize: 12 }} placeholder="Telefon" value={nyKontakt.telefon} onChange={e => setNyKontakt(f => ({ ...f, telefon: e.target.value }))} onFocus={fo} onBlur={fb} />
-                      <input style={{ ...S.input, fontSize: 12 }} placeholder="E-post" value={nyKontakt.epost} onChange={e => setNyKontakt(f => ({ ...f, epost: e.target.value }))} onFocus={fo} onBlur={fb} />
+                    <input spellCheck={false} style={{ ...S.input, fontSize: 12 }} placeholder="Namn *" value={nyKontakt.namn} onChange={e => setNyKontakt(f => ({ ...f, namn: e.target.value }))} onFocus={fo} onBlur={fb} />
+                    <div style={m ? S.miniRowM : S.miniRow}>
+                      <input spellCheck={false} style={{ ...S.input, fontSize: 12 }} placeholder="Telefon" value={nyKontakt.telefon} onChange={e => setNyKontakt(f => ({ ...f, telefon: e.target.value }))} onFocus={fo} onBlur={fb} />
+                      <input spellCheck={false} style={{ ...S.input, fontSize: 12 }} placeholder="E-post" value={nyKontakt.epost} onChange={e => setNyKontakt(f => ({ ...f, epost: e.target.value }))} onFocus={fo} onBlur={fb} />
                     </div>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button type="button" onClick={skapaNyKontakt} style={{ background: '#E8C96A', color: '#000', border: 'none', borderRadius: 6, padding: '6px 14px', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>Spara kontakt</button>
@@ -413,7 +417,7 @@ export default function NyOrderModal({ onClose, onSaved, order }: Props) {
             {showNyKund && (
               <div style={S.miniForm}>
                 <div style={S.miniFormTitle}>NY KUND</div>
-                <div style={S.miniRow}>
+                <div style={m ? S.miniRowM : S.miniRow}>
                   <div style={S.field}>
                     <label style={S.label}>TYP</label>
                     <select style={S.select} value={nyKund.typ} onChange={e => setNyKund(k => ({ ...k, typ: e.target.value }))} onFocus={fo} onBlur={fb}>
@@ -423,7 +427,7 @@ export default function NyOrderModal({ onClose, onSaved, order }: Props) {
                   </div>
                   <div style={S.field}>
                     <label style={S.label}>ORG.NUMMER</label>
-                    <input style={S.input} value={nyKund.orgnummer} onChange={e => setNyKund(k => ({ ...k, orgnummer: e.target.value }))}
+                    <input spellCheck={false} style={S.input} value={nyKund.orgnummer} onChange={e => setNyKund(k => ({ ...k, orgnummer: e.target.value }))}
                       placeholder="556123-4567" onFocus={fo} onBlur={fb} />
                   </div>
                 </div>
@@ -432,7 +436,7 @@ export default function NyOrderModal({ onClose, onSaved, order }: Props) {
                   <label style={S.label}>NAMN *</label>
                   <div style={{ position: 'relative' }}>
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <input style={{ ...S.input, flex: 1 }} value={nyKund.namn} onChange={e => setNyKund(k => ({ ...k, namn: e.target.value }))}
+                      <input spellCheck={false} style={{ ...S.input, flex: 1 }} value={nyKund.namn} onChange={e => setNyKund(k => ({ ...k, namn: e.target.value }))}
                         onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); slaUppNamn() } }}
                         placeholder="Företagsnamn / Namn" onFocus={fo} onBlur={fb} />
                       <button type="button" onClick={slaUppNamn} disabled={slarUppNamn}
@@ -467,22 +471,22 @@ export default function NyOrderModal({ onClose, onSaved, order }: Props) {
                   </div>
                 </div>
 
-                <div style={S.miniRow}>
+                <div style={m ? S.miniRowM : S.miniRow}>
                   <div style={S.field}>
                     <label style={S.label}>TELEFON</label>
-                    <input style={S.input} value={nyKund.telefon} onChange={e => setNyKund(k => ({ ...k, telefon: e.target.value }))}
+                    <input spellCheck={false} style={S.input} value={nyKund.telefon} onChange={e => setNyKund(k => ({ ...k, telefon: e.target.value }))}
                       placeholder="07X-XXX XX XX" onFocus={fo} onBlur={fb} />
                   </div>
                   <div style={S.field}>
                     <label style={S.label}>E-POST</label>
-                    <input style={S.input} value={nyKund.epost} onChange={e => setNyKund(k => ({ ...k, epost: e.target.value }))}
+                    <input spellCheck={false} style={S.input} value={nyKund.epost} onChange={e => setNyKund(k => ({ ...k, epost: e.target.value }))}
                       placeholder="epost@exempel.se" onFocus={fo} onBlur={fb} />
                   </div>
                 </div>
 
                 <div style={S.field}>
                   <label style={S.label}>FAKTURAMAIL (om annan)</label>
-                  <input style={S.input} value={nyKund.fakturamail} onChange={e => setNyKund(k => ({ ...k, fakturamail: e.target.value }))}
+                  <input spellCheck={false} style={S.input} value={nyKund.fakturamail} onChange={e => setNyKund(k => ({ ...k, fakturamail: e.target.value }))}
                     placeholder="faktura@exempel.se" onFocus={fo} onBlur={fb} />
                 </div>
 
@@ -499,20 +503,20 @@ export default function NyOrderModal({ onClose, onSaved, order }: Props) {
                   />
                 </div>
 
-                <div style={S.miniRow}>
+                <div style={m ? S.miniRowM : S.miniRow}>
                   <div style={S.field}>
                     <label style={S.label}>POSTNUMMER</label>
-                    <input style={S.input} value={nyKund.postnummer} onChange={e => setNyKund(k => ({ ...k, postnummer: e.target.value }))}
+                    <input spellCheck={false} style={S.input} value={nyKund.postnummer} onChange={e => setNyKund(k => ({ ...k, postnummer: e.target.value }))}
                       placeholder="611 34" onFocus={fo} onBlur={fb} />
                   </div>
                   <div style={S.field}>
                     <label style={S.label}>ORT</label>
-                    <input style={S.input} value={nyKund.ort} onChange={e => setNyKund(k => ({ ...k, ort: e.target.value }))}
+                    <input spellCheck={false} style={S.input} value={nyKund.ort} onChange={e => setNyKund(k => ({ ...k, ort: e.target.value }))}
                       placeholder="Nyköping" onFocus={fo} onBlur={fb} />
                   </div>
                 </div>
 
-                <div style={S.miniRow}>
+                <div style={m ? S.miniRowM : S.miniRow}>
                   <div style={S.field}>
                     <label style={S.label}>BETALVILLKOR</label>
                     <select style={S.select} value={nyKund.betalvillkor} onChange={e => setNyKund(k => ({ ...k, betalvillkor: parseInt(e.target.value) }))} onFocus={fo} onBlur={fb}>
@@ -532,14 +536,14 @@ export default function NyOrderModal({ onClose, onSaved, order }: Props) {
                 {nyKund.leveranssatt === 'peppol' && (
                   <div style={S.field}>
                     <label style={S.label}>PEPPOL-ID</label>
-                    <input style={S.input} value={nyKund.peppol_id} onChange={e => setNyKund(k => ({ ...k, peppol_id: e.target.value }))}
+                    <input spellCheck={false} style={S.input} value={nyKund.peppol_id} onChange={e => setNyKund(k => ({ ...k, peppol_id: e.target.value }))}
                       placeholder="0007:5561234567" onFocus={fo} onBlur={fb} />
                   </div>
                 )}
 
                 <div style={S.field}>
                   <label style={S.label}>ANTECKNINGAR</label>
-                  <textarea style={S.textarea} value={nyKund.anteckningar} onChange={e => setNyKund(k => ({ ...k, anteckningar: e.target.value }))}
+                  <textarea spellCheck={true} style={S.textarea} value={nyKund.anteckningar} onChange={e => setNyKund(k => ({ ...k, anteckningar: e.target.value }))}
                     placeholder="Interna anteckningar..." onFocus={fo} onBlur={fb} rows={2} />
                 </div>
 
@@ -552,7 +556,7 @@ export default function NyOrderModal({ onClose, onSaved, order }: Props) {
 
           <div style={S.field}>
             <label style={S.label}>KUNDREFERENS / PO</label>
-            <input style={S.input} value={form.fakturareferens} onChange={e => set('fakturareferens', e.target.value)}
+            <input spellCheck={false} style={S.input} value={form.fakturareferens} onChange={e => set('fakturareferens', e.target.value)}
               placeholder="PO-12345..." onFocus={fo} onBlur={fb} />
           </div>
 
@@ -568,7 +572,7 @@ export default function NyOrderModal({ onClose, onSaved, order }: Props) {
 
           <div style={S.field}>
             <label style={S.label}>BESÖKSMOTTAGARE / FÖRETAG PÅ PLATS</label>
-            <input style={S.input} value={form.lagenhet} onChange={e => set('lagenhet', e.target.value)}
+            <input spellCheck={false} style={S.input} value={form.lagenhet} onChange={e => set('lagenhet', e.target.value)}
               placeholder="T.ex. Företag AB, Kontaktperson..." onFocus={fo} onBlur={fb} />
           </div>
 
@@ -585,34 +589,34 @@ export default function NyOrderModal({ onClose, onSaved, order }: Props) {
             />
           </div>
 
-          <div style={S.row}>
+          <div style={m ? S.rowM : S.row}>
             <div style={S.field}>
               <label style={S.label}>POSTNUMMER</label>
-              <input style={S.input} value={form.postnummer} onChange={e => set('postnummer', e.target.value)}
+              <input spellCheck={false} style={S.input} value={form.postnummer} onChange={e => set('postnummer', e.target.value)}
                 placeholder="123 45" onFocus={fo} onBlur={fb} />
             </div>
             <div style={S.field}>
               <label style={S.label}>ORT</label>
-              <input style={S.input} value={form.ort} onChange={e => set('ort', e.target.value)}
+              <input spellCheck={false} style={S.input} value={form.ort} onChange={e => set('ort', e.target.value)}
                 placeholder="Stockholm" onFocus={fo} onBlur={fb} />
             </div>
           </div>
 
           <div style={{ ...S.section, marginTop: 4 }}>KONTAKTPERSON PÅ ORDERN</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: m ? '1fr' : '1fr 1fr 1fr', gap: 10 }}>
             <div style={S.field}>
               <label style={S.label}>NAMN</label>
-              <input style={S.input} value={form.kontakt_namn} onChange={e => set('kontakt_namn', e.target.value)}
+              <input spellCheck={false} style={S.input} value={form.kontakt_namn} onChange={e => set('kontakt_namn', e.target.value)}
                 placeholder="Namn" onFocus={fo} onBlur={fb} />
             </div>
             <div style={S.field}>
               <label style={S.label}>TELEFON</label>
-              <input style={S.input} value={form.kontakt_telefon} onChange={e => set('kontakt_telefon', e.target.value)}
+              <input spellCheck={false} style={S.input} value={form.kontakt_telefon} onChange={e => set('kontakt_telefon', e.target.value)}
                 placeholder="07X-XXX XX XX" onFocus={fo} onBlur={fb} />
             </div>
             <div style={S.field}>
               <label style={S.label}>E-POST</label>
-              <input style={S.input} value={form.kontakt_epost} onChange={e => set('kontakt_epost', e.target.value)}
+              <input spellCheck={false} style={S.input} value={form.kontakt_epost} onChange={e => set('kontakt_epost', e.target.value)}
                 placeholder="kontakt@ex.se" onFocus={fo} onBlur={fb} />
             </div>
           </div>
@@ -633,31 +637,31 @@ export default function NyOrderModal({ onClose, onSaved, order }: Props) {
             />
           )}
 
-          <div style={S.row}>
+          <div style={m ? S.rowM : S.row}>
             <div style={S.field}>
               <label style={S.label}>DATUM FRÅN</label>
-              <DatumValjare value={form.datum_fran} onChange={d => set('datum_fran', d)} style={S.input} />
+              <DatumValjare value={form.datum_fran} onChange={d => set('datum_fran', d)} style={S.input} minDate={new Date().toISOString().slice(0, 10)} />
             </div>
             <div style={S.field}>
               <label style={S.label}>DATUM TILL</label>
-              <DatumValjare value={form.datum_till} onChange={d => set('datum_till', d)} style={S.input} minDate={form.datum_fran || undefined} />
+              <DatumValjare value={form.datum_till} onChange={d => set('datum_till', d)} style={S.input} minDate={form.datum_fran || new Date().toISOString().slice(0, 10)} />
             </div>
           </div>
 
-          <div style={S.row}>
+          <div style={m ? S.rowM : S.row}>
             <div style={S.field}>
               <label style={S.label}>STARTTID</label>
-              <input type="time" style={S.input} value={form.bokad_start} onChange={e => set('bokad_start', e.target.value)} onFocus={fo} onBlur={fb} />
+              <input spellCheck={false} type="time" style={S.input} value={form.bokad_start} onChange={e => set('bokad_start', e.target.value)} onFocus={fo} onBlur={fb} />
             </div>
             <div style={S.field}>
               <label style={S.label}>SLUTTID</label>
-              <input type="time" style={S.input} value={form.bokad_slut} onChange={e => set('bokad_slut', e.target.value)} onFocus={fo} onBlur={fb} />
+              <input spellCheck={false} type="time" style={S.input} value={form.bokad_slut} onChange={e => set('bokad_slut', e.target.value)} onFocus={fo} onBlur={fb} />
             </div>
           </div>
 
           <div style={S.field}>
             <label style={S.label}>ÅTERKOMMANDE UPPDRAG</label>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: m ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 6 }}>
               {[{ v: '', l: 'Engång' }, { v: 'vecka', l: 'Veckovis' }, { v: 'manad', l: 'Månadsvis' }, { v: 'kvartal', l: 'Kvartalsvis' }].map(o => {
                 const active = form.aterkommande === o.v
                 return (
@@ -688,7 +692,7 @@ export default function NyOrderModal({ onClose, onSaved, order }: Props) {
 
           <div style={S.field}>
             <label style={S.label}>ARBETSINSTRUKTION</label>
-            <textarea style={S.textarea} value={form.arbetsinstruktion} onChange={e => set('arbetsinstruktion', e.target.value)}
+            <textarea spellCheck={true} style={S.textarea} value={form.arbetsinstruktion} onChange={e => set('arbetsinstruktion', e.target.value)}
               placeholder="Beskriv vad som ska utföras..." onFocus={fo} onBlur={fb} />
           </div>
 
@@ -703,7 +707,7 @@ export default function NyOrderModal({ onClose, onSaved, order }: Props) {
           </div>
         </div>
 
-        <div style={S.footer}>
+        <div style={{ ...S.footer, ...(m ? { position: 'sticky' as const, bottom: 0, background: '#1a1a1a', zIndex: 1 } : {}) }}>
           {saveError && <div style={{ color: '#ef4444', fontSize: 12, flex: 1 }}>{saveError}</div>}
           <button style={S.cancelBtn} onClick={onClose}>Avbryt</button>
           <button style={{ ...S.saveBtn, opacity: saving ? 0.6 : 1 }} onClick={handleSave} disabled={saving}>

@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { FakturaVy } from '@/components/order-tabs/FakturorTab'
+import { useIsMobile } from '@/hooks/useMediaQuery'
 
 type Faktura = {
   id: string; fakturanummer: string; typ: string; status: string; fakturadatum: string
@@ -18,6 +19,7 @@ const fmtKr = (n: number) => n.toLocaleString('sv-SE', { minimumFractionDigits: 
 const fmtDatum = (d: string) => new Date(d).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short', year: 'numeric' })
 
 export default function FaktureringPage() {
+  const isMobile = useIsMobile()
   const [fakturor, setFakturor] = useState<Faktura[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('Alla')
@@ -55,24 +57,24 @@ export default function FaktureringPage() {
     <div>
       <div style={{ marginBottom: 20 }}>
         <div style={{ fontSize: 22, fontWeight: 800, color: '#E8C96A', marginBottom: 16 }}>Fakturor</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
           <StatCard label="Totalt fakturerat" value={fmtKr(totFakturerat)} color="#E8C96A" />
           <StatCard label="Betalt" value={fmtKr(totBetalt)} color="#4ade80" />
           <StatCard label="Obetalt (skickade)" value={fmtKr(totObetalt)} color="#fb923c" />
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-        <input placeholder="Sök faktura, kund..." value={search} onChange={e => setSearch(e.target.value)} style={inp}
+      <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: isMobile ? 'stretch' : 'center', flexDirection: isMobile ? 'column' : 'row' }}>
+        <input placeholder="Sök faktura, kund..." value={search} onChange={e => setSearch(e.target.value)} style={{ ...inp, ...(isMobile ? { width: '100%', boxSizing: 'border-box' as const } : {}) }}
           onFocus={e => e.currentTarget.style.borderColor = '#E8C96A'} onBlur={e => e.currentTarget.style.borderColor = '#2a2a2a'} />
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {['Alla', 'utkast', 'skickad', 'betald', 'krediterad'].map(s => (
             <div key={s} style={chip(statusFilter === s)} onClick={() => setStatusFilter(s)}>{s}</div>
           ))}
         </div>
       </div>
 
-      <div style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: 10, overflow: 'hidden' }}>
+      <div style={{ background: isMobile ? 'transparent' : '#141414', border: isMobile ? 'none' : '1px solid #1e1e1e', borderRadius: 10, overflow: 'hidden' }}>
         {loading ? (
           <div style={{ textAlign: 'center', padding: 60, color: '#555' }}>Laddar...</div>
         ) : filtered.length === 0 ? (
@@ -80,6 +82,33 @@ export default function FaktureringPage() {
             {fakturor.length === 0 ? (
               <><div style={{ fontSize: 32, marginBottom: 10 }}>🧾</div><div>Inga fakturor ännu — fakturor skapas via Tid & Fakturering på varje order</div></>
             ) : 'Inga träffar'}
+          </div>
+        ) : isMobile ? (
+          <div>
+            {filtered.map(f => {
+              const erKreditnota = f.typ === 'kreditnota'
+              const color = STATUS_COLOR[f.status] || '#888'
+              return (
+                <div key={f.id} onClick={() => setVald(f)}
+                  style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: 10, padding: '12px 14px', marginBottom: 8, cursor: 'pointer' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 14, color: erKreditnota ? '#f87171' : '#E8C96A' }}>{f.fakturanummer}</div>
+                      {erKreditnota && <div style={{ fontSize: 10, color: '#f87171' }}>KREDITNOTA</div>}
+                    </div>
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 10, background: color + '22', color, border: `1px solid ${color}44`, whiteSpace: 'nowrap' as const }}>
+                      {f.status}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 10, marginTop: 8 }}>
+                    <div style={{ fontSize: 13, color: '#888' }}>{f.kund_namn || '—'}</div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: erKreditnota ? '#f87171' : '#e0e0e0', whiteSpace: 'nowrap' as const }}>
+                      {erKreditnota ? '−' : ''}{fmtKr(Math.abs(f.totalt))}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse' as const }}>
