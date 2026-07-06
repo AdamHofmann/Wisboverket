@@ -10,8 +10,8 @@
 //  * camelCase-fält → snake_case (hyresavtalId→hyresavtal_id, bashyra, basindexVarde
 //    →basindex_varde, anvandIndex→anvand_index, faktureringsfrekvens, forfallotyp,
 //    forfallodagar osv.).
-//  * KPI: käll-appens interna fetch('/api/kpi') → direkt funktion fetchLatestKpi()
-//    ur src/lib/fastigheter/kpi.ts (ingen intern HTTP).
+//  * KPI: hyresindex mot OKTOBER-KPI via fetchIndexKpi() ur src/lib/fastigheter/kpi.ts
+//    (ej senaste månad; kommersiella avtal indexeras oktober-mot-oktober).
 //
 // ATOMICITET: käll-appen skapade fakturor + rader + samfaktura-merge transaktionslöst.
 // Här beräknas all affärslogik i JS (som källan) men PERSISTERINGEN sker atomärt via
@@ -19,7 +19,7 @@
 // 016_fastigheter_fakturor_rpc.sql) → ingen halvskapad state om något fel inträffar.
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { fetchLatestKpi } from '@/lib/fastigheter/kpi'
+import { fetchIndexKpi } from '@/lib/fastigheter/kpi'
 
 function generateFakturanummer(): string {
   const now = new Date()
@@ -214,7 +214,7 @@ export async function POST(request: Request) {
       }
     }
 
-    const aktuelltKpi = await fetchLatestKpi()
+    const aktuelltKpi = await fetchIndexKpi()
 
     const r2 = (n: number) => Math.round(n * 100) / 100
 
@@ -323,9 +323,12 @@ export async function POST(request: Request) {
             })
           }
 
-          const raderSumma = r2(fakturaRader.reduce((s, row) => s + row.belopp, 0))
-          const totalHela = Math.round(raderSumma)
-          const oreavrundning = r2(totalHela - raderSumma)
+          // Avrunda fakturans TOTAL inkl. moms till hel krona (som hyressystemen gör),
+          // inte exkl-summan — annars blir slutbeloppet kunden betalar t.ex. 10 937,50.
+          const subtotalExkl = fakturaRader.reduce((s, row) => s + row.belopp, 0)
+          const momsBelopp = fakturaRader.reduce((s, row) => s + row.belopp * ((row.moms || 0) / 100), 0)
+          const totalInkl = subtotalExkl + momsBelopp
+          const oreavrundning = r2(Math.round(totalInkl) - totalInkl)
 
           if (oreavrundning !== 0) {
             fakturaRader.push({

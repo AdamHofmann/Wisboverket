@@ -74,3 +74,16 @@ export async function fetchLatestKpi(): Promise<number | null> {
     return null
   }
 }
+
+// KPI för hyresindexering. Kommersiella hyresavtal indexeras mot OKTOBER-KPI
+// (ej senaste publicerade månad) och basindex är oktobervärden. Returnerar det
+// senaste tillgängliga oktobervärdet (t.ex. Okt 2025 = 419.35 för avgiftsår 2026).
+export async function fetchIndexKpi(): Promise<number | null> {
+  try {
+    const rows = await fetchKpiRows() // redan sorterad nyast först
+    const oktober = rows.find((r) => r.month === 10)
+    return oktober?.value ?? rows[0]?.value ?? null
+  } catch {
+    return null
+  }
+}
