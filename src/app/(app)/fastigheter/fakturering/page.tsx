@@ -423,7 +423,7 @@ export default function FaktureringPage() {
     const data = {
       exportdatum: new Date().toISOString(),
       period: filterPeriod,
-      system: 'Hofmanns Fastigheter',
+      system: 'Wisboverket',
       fakturor: filtered.map(f => ({
         fakturanummer: f.fakturanummer,
         kundnummer: kundId(f).slice(0, 8).toUpperCase(),

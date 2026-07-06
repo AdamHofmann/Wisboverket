@@ -142,7 +142,7 @@ export default function FastigheterDashboard() {
       {/* Header */}
       <div>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: C.text, margin: 0 }}>Översikt</h1>
-        <p style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>Välkommen till Hofmanns Fastigheter</p>
+        <p style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>Välkommen till Wisboverket</p>
       </div>
 
       {loading ? (

@@ -186,6 +186,11 @@ function FelanmalanTab({ onHandled }: { onHandled: () => void }) {
       lagenhet: item.lagenhet,
       beskrivning: item.beskrivning,
       prioritet: item.prioritet,
+      // Anmälaren blir orderns kontaktperson (vem man ringer om jobbet).
+      kontakt_namn: item.namn,
+      kontakt_telefon: item.telefon,
+      kontakt_epost: item.epost,
+      intern_anteckning: item.nummer ? `Skapad från felanmälan FA-${item.nummer}.` : 'Skapad från felanmälan.',
       status: 'ny',
     }).select('id').single()
     setSkaparOrder(false)
