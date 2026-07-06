@@ -29,12 +29,9 @@ function fmtSek(n: number) {
   }).format(n)
 }
 
-type UthFilter = 'alla' | 'lägenhet' | 'lokal' | 'garage'
-
 export default function HemPage() {
   // ── Uthyrning ──
   const [objekt, setObjekt] = useState<Hyresobjekt[]>([])
-  const [filter, setFilter] = useState<UthFilter>('alla')
   const [aktivtObjekt, setAktivtObjekt] = useState<Hyresobjekt | null>(null)
   const [galleriBild, setGalleriBild] = useState<string | null>(null)
   const [uthSkickat, setUthSkickat] = useState(false)
@@ -102,8 +99,7 @@ export default function HemPage() {
     return () => document.removeEventListener('keydown', onKey)
   }, [])
 
-  const filtrerade =
-    filter === 'alla' ? objekt : objekt.filter((o) => o.typ === filter)
+  const filtrerade = objekt
 
   function openModal(o: Hyresobjekt) {
     setAktivtObjekt(o)
@@ -410,24 +406,6 @@ export default function HemPage() {
             <p style={{ color: 'var(--muted)', fontSize: 16, maxWidth: 520, margin: '12px auto 0' }}>
               Lokaler och lägenheter i Södermanland och Mälardalen. Hör av dig så berättar vi mer.
             </p>
-          </div>
-
-          {/* Filter */}
-          <div id="uth-filter" style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 32 }}>
-            {([
-              ['alla', 'Alla'],
-              ['lägenhet', 'Lägenheter'],
-              ['lokal', 'Lokaler'],
-              ['garage', 'Garage / Parkering'],
-            ] as [UthFilter, string][]).map(([val, label]) => (
-              <button
-                key={val}
-                className={'uth-filter-btn' + (filter === val ? ' active' : '')}
-                onClick={() => setFilter(val)}
-              >
-                {label}
-              </button>
-            ))}
           </div>
 
           {/* Grid */}
