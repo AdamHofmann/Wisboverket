@@ -403,8 +403,8 @@ export default function HemPage() {
           <div className="reveal" style={{ textAlign: 'center', marginBottom: 40 }}>
             <span className="section-label">Uthyrning</span>
             <h2 className="section-title">Lediga objekt</h2>
-            <p style={{ color: 'var(--muted)', fontSize: 16, maxWidth: 520, margin: '12px auto 0' }}>
-              Lokaler och lägenheter i Södermanland och Mälardalen. Hör av dig så berättar vi mer.
+            <p style={{ color: 'rgba(245,242,237,0.75)', fontSize: 16, maxWidth: 520, margin: '12px auto 0' }}>
+              Lokaler i Södermanland och Mälardalen. Hör av dig så berättar vi mer.
             </p>
           </div>
 
