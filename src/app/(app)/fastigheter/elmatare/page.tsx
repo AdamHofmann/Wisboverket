@@ -307,6 +307,14 @@ export default function ElMatarePage() {
     await fetch(`/api/fastigheter/el-omgang/${id}`, { method: 'DELETE' })
     load()
   }
+  const skapaElFakturor = async (id: string) => {
+    if (!(await confirm({ message: 'Skapa el-fakturor för de ofakturerade debiteringarna? En separat faktura skapas per hyresgäst.', confirmLabel: 'Skapa fakturor' }))) return
+    const res = await fetch(`/api/fastigheter/el-omgang/${id}/fakturera`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) { alert('Kunde inte skapa el-fakturor: ' + (data.error || res.statusText)); return }
+    alert(`${data.antal} el-faktura${data.antal === 1 ? '' : 'or'} skapad${data.antal === 1 ? '' : 'e'} — finns nu i Fakturering.`)
+    load()
+  }
 
   const tabs: { id: Tab; label: string }[] = [
     { id: 'avlasningar', label: 'Mätaravläsningar' },
@@ -785,6 +793,7 @@ export default function ElMatarePage() {
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={pill('rgba(232,201,106,0.12)', C.gold)}>{o.status}</span>
+                    <button onClick={() => skapaElFakturor(o.id)} style={{ padding: '6px 12px', borderRadius: 6, background: 'rgba(232,201,106,0.12)', border: `1px solid ${C.gold}`, color: C.gold, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Skapa el-fakturor</button>
                     <button onClick={() => deleteOmgang(o.id)} style={iconBtn}>🗑️</button>
                   </div>
                 </div>

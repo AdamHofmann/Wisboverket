@@ -139,6 +139,11 @@ async function postHandler(request: Request) {
       pris_per_kwh: number
       belopp: number
       status: string
+      start_varde: number | null
+      slut_varde: number | null
+      avlast_fran: string | null
+      avlast_till: string | null
+      matare_beskrivning: string | null
     }[] = []
 
     for (const m of matare) {
@@ -180,6 +185,10 @@ async function postHandler(request: Request) {
       }
 
       let forbrukning: number | null = null
+      let startVarde: number | null = null
+      let slutVarde: number | null = null
+      let avlastFran: string | null = null
+      let avlastTill: string | null = null
 
       if (m.schablon_kwh) {
         // Schablon: fast kWh/mån × antal månader i perioden.
@@ -203,6 +212,10 @@ async function postHandler(request: Request) {
 
         if (startAvl && slutAvl && startAvl.id !== slutAvl.id && slutAvl.varde >= startAvl.varde) {
           forbrukning = Math.round((slutAvl.varde - startAvl.varde) * 100) / 100
+          startVarde = startAvl.varde
+          slutVarde = slutAvl.varde
+          avlastFran = new Date(startAvl.datum).toISOString().slice(0, 10)
+          avlastTill = new Date(slutAvl.datum).toISOString().slice(0, 10)
         }
       }
 
@@ -220,6 +233,11 @@ async function postHandler(request: Request) {
         pris_per_kwh: blandpris,
         belopp,
         status: 'ej_fakturerad',
+        start_varde: startVarde,
+        slut_varde: slutVarde,
+        avlast_fran: avlastFran,
+        avlast_till: avlastTill,
+        matare_beskrivning: m.beskrivning ?? null,
       })
     }
 

@@ -54,6 +54,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     if (error) throw error
     if (!faktura) return new NextResponse('Faktura hittades inte', { status: 404 })
 
+    const arEl = faktura.typ === 'el'
     const rader = (faktura.rader ?? []) as Array<{
       artikelkod: string
       beskrivning: string
@@ -61,6 +62,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       apris: number
       belopp: number
       moms: number
+      start_varde?: number | null
+      slut_varde?: number | null
+      avlast_fran?: string | null
+      avlast_till?: string | null
     }>
 
     const lokaler = (faktura.hyresavtal?.lokaler ?? []) as Array<{ lokal: any }>
@@ -83,6 +88,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       ? `<div class="notice">${esc(String(bolag.faktura_prefix_text)).replace(/\n/g, '<br>')}</div>`
       : ''
 
+    const fmtKwh = (n: number | null | undefined) => (n == null ? '—' : Number(n).toLocaleString('sv-SE'))
     const raderHTML = rader
       .filter(r => r.artikelkod !== 'ORE' || parseFloat(String(r.belopp)) !== 0)
       .map(r => {
@@ -90,7 +96,22 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         if (r.artikelkod === 'TEXT') {
           return `
         <tr>
-          <td colspan="5" style="color:#555; font-style:italic;">${esc(String(r.beskrivning))}</td>
+          <td colspan="${arEl ? 7 : 5}" style="color:#555; font-style:italic;">${esc(String(r.beskrivning))}</td>
+        </tr>
+      `
+        }
+        // El-faktura: kolumner Del · Avläsningsperiod · Start · Slut · Förbrukning · Pris/kWh · Belopp
+        if (arEl) {
+          const per = r.avlast_fran && r.avlast_till ? `${r.avlast_fran} – ${r.avlast_till}` : '—'
+          return `
+        <tr>
+          <td>${r.beskrivning}</td>
+          <td>${per}</td>
+          <td class="right">${fmtKwh(r.start_varde)}</td>
+          <td class="right">${fmtKwh(r.slut_varde)}</td>
+          <td class="right bold">${fmtKwh(r.antal)}</td>
+          <td class="right">${fmtSEK(parseFloat(String(r.apris)))}</td>
+          <td class="right bold">${fmtSEK(parseFloat(String(r.belopp)))}</td>
         </tr>
       `
         }
@@ -151,7 +172,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
 <div class="header">
   <div>
-    <h1>FAKTURA</h1>
+    <h1>${arEl ? 'EL-FAKTURA' : 'FAKTURA'}</h1>
     <p class="fnr">${faktura.fakturanummer}</p>
   </div>
   <div class="company">
@@ -188,13 +209,21 @@ ${meddelande}
 
 <table>
   <thead>
-    <tr>
+    ${arEl ? `<tr>
+      <th>Del</th>
+      <th>Avläsningsperiod</th>
+      <th class="right">Start kWh</th>
+      <th class="right">Slut kWh</th>
+      <th class="right">Förbrukning</th>
+      <th class="right">Pris/kWh</th>
+      <th class="right">Belopp</th>
+    </tr>` : `<tr>
       <th>Beskrivning</th>
       <th class="right">Antal</th>
       <th class="right">À-pris</th>
       <th class="right">Moms</th>
       <th class="right">Belopp</th>
-    </tr>
+    </tr>`}
   </thead>
   <tbody>
     ${raderHTML}
