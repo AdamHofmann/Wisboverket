@@ -26,7 +26,7 @@ export default function LoginPage() {
       setError('Fel e-post eller lösenord')
       setLoading(false)
     } else {
-      router.push('/ordrar')
+      router.push('/dashboard')
       router.refresh()
     }
   }
