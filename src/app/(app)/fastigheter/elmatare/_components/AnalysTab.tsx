@@ -2,7 +2,7 @@ import React from 'react'
 import { C } from '@/components/fastigheter/styles'
 import {
   LevFaktura,
-  formatSEK, formatDate, fmtKwh,
+  formatSEK, formatDate, fmtKwh, TYP_LABELS,
   card, cardHead, th, td,
 } from './shared'
 
@@ -130,7 +130,7 @@ export default function AnalysTab({ isMobile, levFakturor, bolagMatch }: Props) 
                 return (
                   <div key={f.id} style={{ borderTop: `1px solid ${C.borderSoft}`, padding: '12px 16px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                      <span style={{ color: C.text, fontWeight: 600, fontSize: 13 }}>{f.fastighet.namn}</span>
+                      <span style={{ color: C.text, fontWeight: 600, fontSize: 13 }}>{f.fastighet.namn}{f.typ ? ` · ${TYP_LABELS[f.typ] || f.typ}` : ''}</span>
                       <span style={{ color: C.muted2, fontSize: 12 }}>{formatDate(f.period_fran)} – {formatDate(f.period_till)}</span>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px', marginTop: 8, fontSize: 12 }}>
@@ -147,7 +147,7 @@ export default function AnalysTab({ isMobile, levFakturor, bolagMatch }: Props) 
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: C.panel2 }}>
-                {['Period', 'Fastighet', 'Leverantörskostnad', 'Utdebiterat', 'Differens', 'Pris/kWh'].map((h, i) => (
+                {['Period', 'Fastighet', 'Typ', 'Leverantörskostnad', 'Utdebiterat', 'Differens', 'Pris/kWh'].map((h, i) => (
                   <th key={i} style={th}>{h}</th>
                 ))}
               </tr>
@@ -160,6 +160,7 @@ export default function AnalysTab({ isMobile, levFakturor, bolagMatch }: Props) 
                   <tr key={f.id}>
                     <td style={td}>{formatDate(f.period_fran)} – {formatDate(f.period_till)}</td>
                     <td style={{ ...td, color: C.text }}>{f.fastighet.namn}</td>
+                    <td style={{ ...td, color: C.text2 }}>{f.typ ? TYP_LABELS[f.typ] || f.typ : '—'}</td>
                     <td style={{ ...td, fontWeight: 600, color: C.warn }}>{formatSEK(f.total_belopp)}</td>
                     <td style={{ ...td, fontWeight: 600, color: C.ok }}>{utdeb > 0 ? formatSEK(utdeb) : '—'}</td>
                     <td style={td}>
