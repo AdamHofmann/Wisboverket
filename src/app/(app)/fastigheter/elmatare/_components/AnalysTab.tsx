@@ -1,7 +1,7 @@
 import React from 'react'
 import { C } from '@/components/fastigheter/styles'
 import {
-  LevFaktura,
+  LevFaktura, Omgang,
   formatSEK, formatDate, fmtKwh, TYP_LABELS,
   card, cardHead, th, td,
 } from './shared'
@@ -9,15 +9,20 @@ import {
 interface Props {
   isMobile: boolean
   levFakturor: LevFaktura[]
+  omgangar: Omgang[]
   bolagMatch: (fastighetId: string | null | undefined) => boolean
 }
 
-export default function AnalysTab({ isMobile, levFakturor, bolagMatch }: Props) {
+export default function AnalysTab({ isMobile, levFakturor, omgangar, bolagMatch }: Props) {
   // Respektera bolagsväljaren i hela analysen
   const analysFakturor = levFakturor.filter(f => bolagMatch(f.fastighet_id))
+  // Utdebiterat + förbrukning kommer från omgångarnas debiteringar (utdebiteringarna),
+  // INTE från leverantörsfakturorna (som saknar debiteringar).
+  const synligaOmgangar = omgangar.filter(o => bolagMatch(o.fastighet_id))
   const perHyresgast: Record<string, { namn: string; totalKwh: number; totalDebiterat: number; perioder: number }> = {}
-  analysFakturor.forEach(f => {
-    f.debiteringar.forEach(d => {
+  synligaOmgangar.forEach(o => {
+    o.debiteringar.forEach(d => {
+      if (!d.hyresgast_namn) return
       if (!perHyresgast[d.hyresgast_namn]) perHyresgast[d.hyresgast_namn] = { namn: d.hyresgast_namn, totalKwh: 0, totalDebiterat: 0, perioder: 0 }
       perHyresgast[d.hyresgast_namn].totalKwh += d.forbrukning ?? 0
       perHyresgast[d.hyresgast_namn].totalDebiterat += d.belopp

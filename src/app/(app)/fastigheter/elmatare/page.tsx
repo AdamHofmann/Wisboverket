@@ -409,6 +409,7 @@ export default function ElMatarePage() {
         <AnalysTab
           isMobile={isMobile}
           levFakturor={levFakturor}
+          omgangar={omgangar}
           bolagMatch={bolagMatch}
         />
       )}
