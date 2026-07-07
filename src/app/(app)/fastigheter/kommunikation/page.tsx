@@ -51,6 +51,12 @@ interface Fastighet {
   namn: string
 }
 
+interface Bolag {
+  id: string
+  namn: string
+  mailsignatur?: string | null
+}
+
 // Plockar ut fastighets-id:n för en hyresgäst oavsett relationsform (junction eller singular).
 function fastighetIdsForHyresgast(h: Hyresgast): string[] {
   const ids: string[] = []
@@ -74,11 +80,13 @@ export default function KommunikationPage() {
   const [meddelanden, setMeddelanden] = useState<Meddelande[]>([])
   const [hyresgaster, setHyresgaster] = useState<Hyresgast[]>([])
   const [fastigheter, setFastigheter] = useState<Fastighet[]>([])
+  const [bolag, setBolag] = useState<Bolag[]>([])
   const [loading, setLoading] = useState(true)
 
   const [showNew, setShowNew] = useState(false)
   const [amne, setAmne] = useState('')
   const [brodel, setBrodel] = useState('')
+  const [avsandarBolagId, setAvsandarBolagId] = useState('')
   const [valdaMottagare, setValdaMottagare] = useState<Set<string>>(new Set())
   const [filterFastighet, setFilterFastighet] = useState('')
   const [sending, setSending] = useState(false)
@@ -95,10 +103,12 @@ export default function KommunikationPage() {
       fetch('/api/fastigheter/meddelanden').then(r => r.json()),
       fetch('/api/fastigheter/hyresgaster').then(r => r.json()),
       fetch('/api/fastigheter/objekt').then(r => r.json()),
-    ]).then(([m, h, f]) => {
+      fetch('/api/fastigheter/bolag').then(r => r.json()),
+    ]).then(([m, h, f, b]) => {
       if (Array.isArray(m)) setMeddelanden(m)
       if (Array.isArray(h)) setHyresgaster(h)
       if (Array.isArray(f)) setFastigheter(f)
+      if (Array.isArray(b)) setBolag(b)
     }).finally(() => setLoading(false))
   }
 
@@ -109,6 +119,7 @@ export default function KommunikationPage() {
     setBrodel('')
     setValdaMottagare(new Set())
     setFilterFastighet('')
+    setAvsandarBolagId(bolag[0]?.id || '')
     setShowNew(true)
   }
 
@@ -138,11 +149,15 @@ export default function KommunikationPage() {
 
     if (mottagare.length === 0 || !amne || !brodel) return
 
+    // Lägg avsändarbolagets signatur sist i meddelandet.
+    const sig = bolag.find(b => b.id === avsandarBolagId)?.mailsignatur
+    const finalBrodel = sig && sig.trim() ? `${brodel}\n\n${sig.trim()}` : brodel
+
     setSending(true)
     await fetch('/api/fastigheter/meddelanden', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ amne, brodel, mottagare }),
+      body: JSON.stringify({ amne, brodel: finalBrodel, mottagare }),
     })
     setSending(false)
     setShowNew(false)
@@ -376,6 +391,13 @@ export default function KommunikationPage() {
             <h4 style={secLabel}>Meddelande</h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
+                <label style={lbl}>Avsändarbolag <span style={{ color: C.muted, fontWeight: 400 }}>(signatur)</span></label>
+                <select style={inp} value={avsandarBolagId} onChange={e => setAvsandarBolagId(e.target.value)}>
+                  <option value="">Ingen signatur</option>
+                  {bolag.map(b => <option key={b.id} value={b.id}>{b.namn}{b.mailsignatur ? '' : ' – ingen signatur inlagd'}</option>)}
+                </select>
+              </div>
+              <div>
                 <label style={lbl}>Ämne</label>
                 <input spellCheck={true} style={inp} onFocus={fo} onBlur={fb} value={amne} onChange={e => setAmne(e.target.value)} placeholder="T.ex. Information om planerat underhåll" />
               </div>
@@ -383,6 +405,15 @@ export default function KommunikationPage() {
                 <label style={lbl}>Meddelande</label>
                 <textarea spellCheck={true} rows={8} style={{ ...inp, resize: 'none' }} onFocus={fo} onBlur={fb} value={brodel} onChange={e => setBrodel(e.target.value)} placeholder="Skriv ditt meddelande här..." />
               </div>
+              {(() => {
+                const sig = bolag.find(b => b.id === avsandarBolagId)?.mailsignatur
+                return sig && sig.trim() ? (
+                  <div style={{ background: C.panel, border: `1px solid ${C.borderSoft}`, borderRadius: 8, padding: 12 }}>
+                    <p style={{ fontSize: 11, color: C.muted, margin: '0 0 6px' }}>Signatur (läggs till sist i meddelandet):</p>
+                    <p style={{ fontSize: 13, color: C.text2, whiteSpace: 'pre-wrap', margin: 0 }}>{sig.trim()}</p>
+                  </div>
+                ) : null
+              })()}
             </div>
           </section>
 

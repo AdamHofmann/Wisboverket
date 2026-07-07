@@ -45,6 +45,7 @@ interface BolagFormData {
   betalningsvillkor: string
   drojsmalsranta: string
   fastighetsskattesats: string
+  mailsignatur: string
 }
 
 const emptyBolagForm: BolagFormData = {
@@ -63,6 +64,7 @@ const emptyBolagForm: BolagFormData = {
   betalningsvillkor: '30',
   drojsmalsranta: '8',
   fastighetsskattesats: '0.5',
+  mailsignatur: '',
 }
 
 interface Fastighet {
@@ -201,6 +203,7 @@ function BolagTab() {
       betalningsvillkor: b.betalningsvillkor?.toString() || '30',
       drojsmalsranta: b.drojsmalsranta?.toString() || '8',
       fastighetsskattesats: (b as unknown as { fastighetsskattesats?: number }).fastighetsskattesats?.toString() || '0.5',
+      mailsignatur: (b as unknown as { mailsignatur?: string }).mailsignatur || '',
     })
     setShowModal(true)
   }
@@ -450,6 +453,23 @@ function BolagTab() {
                 placeholder="T.ex. OBS! Nytt bankgiro 123-4567 – eller God Jul & Gott Nytt År"
               />
               <p style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>Visas som en markerad ruta högst upp på alla fakturor från detta bolag. Töm fältet för att dölja.</p>
+            </div>
+          </div>
+          <div>
+            <p style={subLabel}>Mailsignatur</p>
+            <div>
+              <label style={lbl}>Signatur (läggs sist i kommunikations-meddelanden)</label>
+              <textarea
+                spellCheck={true}
+                style={{ ...inp, resize: 'vertical' }}
+                rows={5}
+                value={form.mailsignatur}
+                onFocus={fo}
+                onBlur={fb}
+                onChange={(e) => setForm({ ...form, mailsignatur: e.target.value })}
+                placeholder={'Med vänliga hälsningar\nBolagsnamn AB\ninfo@bolag.se · 08-000 00 00'}
+              />
+              <p style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>Väljs via avsändarbolag i Kommunikation och läggs sist i meddelandet.</p>
             </div>
           </div>
         </div>

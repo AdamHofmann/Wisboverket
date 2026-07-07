@@ -30,6 +30,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
         momsregistreringsnummer: body.momsregistreringsnummer || null,
         hemsida: body.hemsida || null,
         faktura_prefix_text: fakturaPrefixText || null,
+        mailsignatur: body.mailsignatur || null,
         betalningsvillkor: betalningsvillkor ? Number(betalningsvillkor) : null,
         drojsmalsranta: drojsmalsranta ? Number(drojsmalsranta) : null,
       })
