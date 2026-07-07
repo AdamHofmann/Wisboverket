@@ -1153,7 +1153,7 @@ export default function FaktureringPage() {
         width="lg"
         footer={previewFaktura ? (
           <div style={{ display: 'flex', gap: 8 }}>
-            <a href={`/api/fastigheter/fakturor/${previewFaktura.id}/print`} target="_blank" rel="noopener noreferrer" style={{ ...btnGhost, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>Skriv ut</a>
+            <a href={`/api/fastigheter/fakturor/${previewFaktura.id}/print`} target="_blank" rel="noopener noreferrer" style={{ ...btnGhost, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }} title="Öppnar den färdiga fakturan (kontrollera + skriv ut / spara PDF)">👁 Visa faktura (PDF)</a>
             <button onClick={() => oppnaRedigera(previewFaktura)} style={{ ...btnGhost, display: 'inline-flex', alignItems: 'center' }}>Redigera</button>
             {previewFaktura.status === 'ej_skickad' && <button onClick={() => { skickaFaktura(previewFaktura.id); setPreviewFaktura(null) }} style={{ ...btnPrimary, flex: 1 }}>Skicka</button>}
             {previewFaktura.status === 'skickad' && <button onClick={() => { markeraBetald(previewFaktura.id); setPreviewFaktura(null) }} style={{ ...btnPrimary, flex: 1, background: C.ok }}>Markera betald</button>}

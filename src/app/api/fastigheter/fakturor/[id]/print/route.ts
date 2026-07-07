@@ -75,6 +75,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const hg = faktura.hyresavtal?.hyresgast ?? faktura.hyresgast
     const fastighet = forstaLokal?.fastighet
 
+    // Bolagets logotyp ligger i en privat bucket → signerad URL för utskriften.
+    let logoUrl: string | null = null
+    if (bolag?.logotyp) {
+      const { data: signed } = await sb.storage.from('fastigheter').createSignedUrl(bolag.logotyp, 3600)
+      logoUrl = signed?.signedUrl ?? null
+    }
+
     // numeric(14,2) kommer som number (parseFloat som skyddsnät)
     const subtotal = rader.reduce((s, r) => s + parseFloat(String(r.belopp)), 0)
     const momsBelopp = rader.reduce((s, r) => s + parseFloat(String(r.belopp)) * (parseFloat(String(r.moms)) / 100), 0)
@@ -176,6 +183,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     <p class="fnr">${faktura.fakturanummer}</p>
   </div>
   <div class="company">
+    ${logoUrl ? `<img src="${logoUrl}" alt="${bolag?.namn || ''} logotyp" style="max-height:64px; max-width:200px; object-fit:contain; margin:0 0 10px auto; display:block;" />` : ''}
     <p class="name">${bolag?.namn || fastighet?.namn}</p>
     ${bolag?.orgnummer ? `<p>${bolag.orgnummer}</p>` : ''}
     ${bolag?.adress ? `<p>${bolag.adress}</p>` : ''}
