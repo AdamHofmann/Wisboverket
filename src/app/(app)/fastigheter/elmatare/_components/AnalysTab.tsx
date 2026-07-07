@@ -124,10 +124,7 @@ export default function AnalysTab({ isMobile, levFakturor, bolagMatch }: Props) 
           {isMobile ? (
             // MOBIL: kortlayout per period (ingen horisontell scroll)
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {analysFakturor.map(f => {
-                const utdeb = f.debiteringar.reduce((s, d) => s + d.belopp, 0)
-                const diff = utdeb - f.total_belopp
-                return (
+              {analysFakturor.map(f => (
                   <div key={f.id} style={{ borderTop: `1px solid ${C.borderSoft}`, padding: '12px 16px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
                       <span style={{ color: C.text, fontWeight: 600, fontSize: 13 }}>{f.fastighet.namn}{f.typ ? ` · ${TYP_LABELS[f.typ] || f.typ}` : ''}</span>
@@ -135,41 +132,30 @@ export default function AnalysTab({ isMobile, levFakturor, bolagMatch }: Props) 
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px', marginTop: 8, fontSize: 12 }}>
                       <div><span style={{ color: C.muted2 }}>Lev.kostnad: </span><span style={{ fontWeight: 600, color: C.warn }}>{formatSEK(f.total_belopp)}</span></div>
-                      <div><span style={{ color: C.muted2 }}>Utdebiterat: </span><span style={{ fontWeight: 600, color: C.ok }}>{utdeb > 0 ? formatSEK(utdeb) : '—'}</span></div>
-                      <div><span style={{ color: C.muted2 }}>Differens: </span>{utdeb > 0 ? <span style={{ fontWeight: 600, color: diff >= 0 ? C.blue : C.danger }}>{diff >= 0 ? '+' : ''}{formatSEK(diff)}</span> : '—'}</div>
                       <div><span style={{ color: C.muted2 }}>Pris/kWh: </span><span style={{ color: C.text2 }}>{f.pris_per_kwh ? f.pris_per_kwh.toFixed(4) + ' kr' : '—'}</span></div>
                     </div>
                   </div>
-                )
-              })}
+                ))}
             </div>
           ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: C.panel2 }}>
-                {['Period', 'Fastighet', 'Typ', 'Leverantörskostnad', 'Utdebiterat', 'Differens', 'Pris/kWh'].map((h, i) => (
+                {['Period', 'Fastighet', 'Typ', 'Leverantörskostnad', 'Pris/kWh'].map((h, i) => (
                   <th key={i} style={th}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {analysFakturor.map(f => {
-                const utdeb = f.debiteringar.reduce((s, d) => s + d.belopp, 0)
-                const diff = utdeb - f.total_belopp
-                return (
+              {analysFakturor.map(f => (
                   <tr key={f.id}>
                     <td style={td}>{formatDate(f.period_fran)} – {formatDate(f.period_till)}</td>
                     <td style={{ ...td, color: C.text }}>{f.fastighet.namn}</td>
                     <td style={{ ...td, color: C.text2 }}>{f.typ ? TYP_LABELS[f.typ] || f.typ : '—'}</td>
                     <td style={{ ...td, fontWeight: 600, color: C.warn }}>{formatSEK(f.total_belopp)}</td>
-                    <td style={{ ...td, fontWeight: 600, color: C.ok }}>{utdeb > 0 ? formatSEK(utdeb) : '—'}</td>
-                    <td style={td}>
-                      {utdeb > 0 ? <span style={{ fontWeight: 600, color: diff >= 0 ? C.blue : C.danger }}>{diff >= 0 ? '+' : ''}{formatSEK(diff)}</span> : '—'}
-                    </td>
                     <td style={td}>{f.pris_per_kwh ? f.pris_per_kwh.toFixed(4) + ' kr' : '—'}</td>
                   </tr>
-                )
-              })}
+                ))}
             </tbody>
           </table>
           )}

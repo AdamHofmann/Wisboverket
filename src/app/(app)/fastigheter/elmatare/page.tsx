@@ -46,8 +46,6 @@ export default function ElMatarePage() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [toast, setToast] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
   const visaToast = (text: string, type: 'success' | 'error' = 'success') => { setToast({ text, type }); setTimeout(() => setToast(null), 4500) }
-  const [valdaOmgangar, setValdaOmgangar] = useState<Set<string>>(new Set())
-  const toggleOmgang = (id: string) => setValdaOmgangar(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
 
   // Fritextsök (delas av mätaravläsnings- och leverantörsflikarna)
   const [sok, setSok] = useState('')
@@ -270,28 +268,16 @@ export default function ElMatarePage() {
     if (!res.ok) throw new Error(data.error || res.statusText)
     return data.antal ?? 0
   }
-  const skapaElFakturor = async (id: string, hyresgastNamn?: string[]) => {
-    const antalValda = hyresgastNamn?.length ?? 0
-    const msg = antalValda > 0
-      ? `Skapa el-fakturor för ${antalValda} vald${antalValda === 1 ? '' : 'a'} hyresgäst${antalValda === 1 ? '' : 'er'}? En separat faktura skapas per hyresgäst.`
-      : 'Skapa el-fakturor för de ofakturerade debiteringarna? En separat faktura skapas per hyresgäst.'
-    if (!(await confirm({ message: msg, confirmLabel: 'Skapa fakturor' }))) return
-    try {
-      const antal = await fakturerOmgang(id, hyresgastNamn)
-      visaToast(`${antal} el-faktura${antal === 1 ? '' : 'or'} skapad${antal === 1 ? '' : 'e'} – finns nu i Fakturering`)
-      load()
-    } catch (e) { visaToast('Kunde inte skapa el-fakturor: ' + (e instanceof Error ? e.message : 'fel'), 'error') }
-  }
-  const skapaElFakturorBulk = async () => {
-    const ids = [...valdaOmgangar]
-    if (ids.length === 0) return
-    if (!(await confirm({ message: `Skapa el-fakturor för ${ids.length} debiteringsomgång${ids.length === 1 ? '' : 'ar'}? En separat faktura skapas per hyresgäst.`, confirmLabel: 'Skapa fakturor' }))) return
+  // Skapar el-fakturor för valda hyresgäster (kan spänna över flera omgångar/bolag).
+  const skapaElFakturorValda = async (perOmgang: { omgangId: string; hyresgaster: string[] }[]) => {
+    const totalHg = perOmgang.reduce((s, g) => s + g.hyresgaster.length, 0)
+    if (totalHg === 0) return
+    if (!(await confirm({ message: `Skapa el-fakturor för ${totalHg} vald${totalHg === 1 ? '' : 'a'} hyresgäst${totalHg === 1 ? '' : 'er'}? En separat faktura skapas per hyresgäst.`, confirmLabel: 'Skapa fakturor' }))) return
     let totalt = 0
     const fel: string[] = []
-    for (const id of ids) {
-      try { totalt += await fakturerOmgang(id) } catch (e) { fel.push(e instanceof Error ? e.message : 'fel') }
+    for (const g of perOmgang) {
+      try { totalt += await fakturerOmgang(g.omgangId, g.hyresgaster) } catch (e) { fel.push(e instanceof Error ? e.message : 'fel') }
     }
-    setValdaOmgangar(new Set())
     if (fel.length && !totalt) visaToast('Kunde inte skapa el-fakturor: ' + fel[0], 'error')
     else visaToast(`${totalt} el-faktura${totalt === 1 ? '' : 'or'} skapad${totalt === 1 ? '' : 'e'}${fel.length ? ` (${fel.length} misslyckades)` : ''} – finns nu i Fakturering`)
     load()
@@ -407,12 +393,9 @@ export default function ElMatarePage() {
           isMobile={isMobile}
           omgangar={omgangar}
           fastigheter={fastigheter}
-          valdaOmgangar={valdaOmgangar}
-          toggleOmgang={toggleOmgang}
           bolagMatch={bolagMatch}
           matpunktNamn={matpunktNamn}
-          skapaElFakturor={skapaElFakturor}
-          skapaElFakturorBulk={skapaElFakturorBulk}
+          skapaElFakturorValda={skapaElFakturorValda}
           deleteOmgang={deleteOmgang}
           setOmgangFastighetId={setOmgangFastighetId}
           setOmgangAr={setOmgangAr}

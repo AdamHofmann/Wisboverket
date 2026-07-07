@@ -10,12 +10,9 @@ interface Props {
   isMobile: boolean
   omgangar: Omgang[]
   fastigheter: Fastighet[]
-  valdaOmgangar: Set<string>
-  toggleOmgang: (id: string) => void
   bolagMatch: (fastighetId: string | null | undefined) => boolean
   matpunktNamn: (matareId: string | null) => string
-  skapaElFakturor: (id: string, hyresgastNamn?: string[]) => void
-  skapaElFakturorBulk: () => void
+  skapaElFakturorValda: (perOmgang: { omgangId: string; hyresgaster: string[] }[]) => void
   deleteOmgang: (id: string) => void
   setOmgangFastighetId: (v: string) => void
   setOmgangAr: (v: number) => void
@@ -25,8 +22,8 @@ interface Props {
 }
 
 export default function DebiteringTab({
-  isMobile, omgangar, fastigheter, valdaOmgangar, toggleOmgang, bolagMatch, matpunktNamn,
-  skapaElFakturor, skapaElFakturorBulk, deleteOmgang,
+  isMobile, omgangar, fastigheter, bolagMatch, matpunktNamn,
+  skapaElFakturorValda, deleteOmgang,
   setOmgangFastighetId, setOmgangAr, setOmgangKvartal, setOmgangValda, setShowNewOmgang,
 }: Props) {
   // Val av enskilda hyresgäster per omgång (nyckel: "omgangId::hyresgastNamn").
@@ -40,9 +37,23 @@ export default function DebiteringTab({
   return (
   <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, flexWrap: 'wrap' }}>
-      {valdaOmgangar.size > 0 && (
-        <button onClick={skapaElFakturorBulk} style={{ padding: '10px 18px', borderRadius: 8, background: C.gold, border: 'none', color: '#1a1a1a', fontSize: 13, fontWeight: 700, cursor: 'pointer', ...(isMobile ? { width: '100%' } : {}) }}>
-          Skapa el-fakturor för {valdaOmgangar.size} omgång{valdaOmgangar.size === 1 ? '' : 'ar'}
+      {valdaHyresgaster.size > 0 && (
+        <button
+          onClick={() => {
+            // Gruppera valda hyresgäster per omgång (nyckel: "omgangId::namn").
+            const perOmgang: { omgangId: string; hyresgaster: string[] }[] = []
+            for (const k of valdaHyresgaster) {
+              const i = k.indexOf('::'); const omgangId = k.slice(0, i); const namn = k.slice(i + 2)
+              let g = perOmgang.find(x => x.omgangId === omgangId)
+              if (!g) { g = { omgangId, hyresgaster: [] }; perOmgang.push(g) }
+              g.hyresgaster.push(namn)
+            }
+            skapaElFakturorValda(perOmgang)
+            setValdaHyresgaster(new Set())
+          }}
+          style={{ padding: '10px 18px', borderRadius: 8, background: C.gold, border: 'none', color: '#1a1a1a', fontSize: 13, fontWeight: 700, cursor: 'pointer', ...(isMobile ? { width: '100%' } : {}) }}
+        >
+          Skapa el-fakturor för {valdaHyresgaster.size} vald{valdaHyresgaster.size === 1 ? '' : 'a'} hyresgäst{valdaHyresgaster.size === 1 ? '' : 'er'}
         </button>
       )}
       <button
@@ -71,7 +82,6 @@ export default function DebiteringTab({
       const utdeb = o.debiteringar.reduce((s, d) => s + d.belopp, 0)
       const utdebKwh = o.debiteringar.reduce((s, d) => s + (d.forbrukning ?? 0), 0)
       const differens = utdeb - o.total_kostnad
-      const valdaForOmgang = [...valdaHyresgaster].filter(k => k.startsWith(o.id + '::')).map(k => k.slice(o.id.length + 2))
       return (
         <div key={o.id} style={card}>
           <div style={{ ...cardHead, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
@@ -96,9 +106,7 @@ export default function DebiteringTab({
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <input type="checkbox" checked={valdaOmgangar.has(o.id)} onClick={e => e.stopPropagation()} onChange={() => toggleOmgang(o.id)} style={{ width: 16, height: 16, accentColor: C.gold, cursor: 'pointer' }} title="Välj för att skapa el-fakturor för flera omgångar" />
               <span style={pill('rgba(232,201,106,0.12)', C.gold)}>{o.status}</span>
-              <button onClick={() => skapaElFakturor(o.id, valdaForOmgang.length > 0 ? valdaForOmgang : undefined)} style={{ padding: '6px 12px', borderRadius: 6, background: 'rgba(232,201,106,0.12)', border: `1px solid ${C.gold}`, color: C.gold, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>{valdaForOmgang.length > 0 ? `Skapa för ${valdaForOmgang.length} valda` : 'Skapa el-fakturor'}</button>
               <button onClick={() => deleteOmgang(o.id)} style={iconBtn}>🗑️</button>
             </div>
           </div>
