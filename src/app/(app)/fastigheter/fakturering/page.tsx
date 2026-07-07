@@ -541,7 +541,7 @@ export default function FaktureringPage() {
     // Bara utkast (ej skickade) får tas bort — skickade fakturor krediteras istället.
     const mål = selectedFakturor.filter(f => f.status === 'ej_skickad')
     if (mål.length === 0) {
-      setMessage({ text: 'Endast utkast (ej skickade) kan tas bort. Skickade fakturor krediteras istället.', type: 'error' })
+      setMessage({ text: 'Endast utkast (ej skickade) kan tas bort. Skickade fakturor krediteras istället.', type: 'info' })
       return
     }
     if (!(await confirm({ message: `Ta bort ${mål.length} ${mål.length === 1 ? 'utkast' : 'utkast'}?${mål.length < selectedFakturor.length ? ' (skickade fakturor i urvalet hoppas över)' : ''}`, danger: true, confirmLabel: 'Ta bort' }))) return
