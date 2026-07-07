@@ -68,6 +68,8 @@ const isForfallen = (f: Faktura) => {
 }
 
 const formatSEK = (n: number) => new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK', maximumFractionDigits: 0 }).format(n)
+// À-pris kan vara brutet (t.ex. el 2,38 kr/kWh) → visa ören men bara när det behövs.
+const formatApris = (n: number) => new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(n)
 const formatDate = (d: string) => new Date(d).toLocaleDateString('sv-SE')
 // Belopp inkl. moms — raderna bär moms% per rad (hyra ofta 0%, lokal 25%)
 const beloppInkl = (f: { rader: { belopp: number; moms: number }[] }) => f.rader.reduce((s, r) => s + r.belopp * (1 + r.moms / 100), 0)
@@ -833,7 +835,7 @@ export default function FaktureringPage() {
                               </div>
                               <div style={{ color: C.text2, marginTop: 2 }}>{r.beskrivning}</div>
                               <div style={{ display: 'flex', gap: 12, marginTop: 4, color: C.muted2 }}>
-                                <span>{r.antal} × {formatSEK(r.apris)}</span>
+                                <span>{r.antal} × {formatApris(r.apris)}</span>
                                 <span>Moms {r.moms}%</span>
                               </div>
                             </>
@@ -992,7 +994,7 @@ export default function FaktureringPage() {
                                     <td style={{ padding: '4px 0', fontFamily: 'monospace', color: C.muted }}>{r.artikelkod}</td>
                                     <td style={{ padding: '4px 0', color: C.text2 }}>{r.beskrivning}</td>
                                     <td style={{ padding: '4px 0', textAlign: 'right', color: C.muted }}>{r.antal}</td>
-                                    <td style={{ padding: '4px 0', textAlign: 'right', color: C.muted }}>{formatSEK(r.apris)}</td>
+                                    <td style={{ padding: '4px 0', textAlign: 'right', color: C.muted }}>{formatApris(r.apris)}</td>
                                     <td style={{ padding: '4px 0', textAlign: 'right', fontWeight: 600, color: C.text }}>{formatSEK(r.belopp)}</td>
                                     <td style={{ padding: '4px 0', textAlign: 'right', color: C.muted2 }}>{r.moms}%</td>
                                   </tr>
@@ -1240,7 +1242,7 @@ export default function FaktureringPage() {
                       <tr key={r.id} style={{ borderBottom: `1px solid ${C.borderSoft}` }}>
                         <td style={{ padding: '10px 0', color: C.text }}>{r.beskrivning}</td>
                         <td style={{ padding: '10px 0', textAlign: 'right', color: C.muted }}>{r.antal}</td>
-                        <td style={{ padding: '10px 0', textAlign: 'right', color: C.muted }}>{formatSEK(r.apris)}</td>
+                        <td style={{ padding: '10px 0', textAlign: 'right', color: C.muted }}>{formatApris(r.apris)}</td>
                         <td style={{ padding: '10px 0', textAlign: 'right', color: C.muted2, fontSize: 12 }}>{r.moms > 0 ? `${r.moms}%` : '—'}</td>
                         <td style={{ padding: '10px 0', textAlign: 'right', fontWeight: 600, color: C.text }}>{formatSEK(r.belopp)}</td>
                       </tr>

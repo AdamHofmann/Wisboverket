@@ -85,10 +85,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     for (const key of Object.keys(grupper)) {
       const g = grupper[key]
       const fakturaRader = g.rader.map((d: any) => {
-        const del = d.matare_beskrivning || d.matare?.matarnummer || 'El'
+        const del = (d.matare_beskrivning || d.matare?.matarnummer || '').trim()
+        // Undvik "El – El" när mätaren saknar/har generiskt namn.
+        const beskrivning = !del || /^el$/i.test(del) ? 'Elförbrukning' : `El – ${del}`
         return {
           artikelkod: 'EL',
-          beskrivning: `El – ${del}`,
+          beskrivning,
           antal: d.forbrukning,
           apris: r2(Number(d.pris_per_kwh)),
           belopp: r2(Number(d.belopp)),
