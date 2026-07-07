@@ -770,7 +770,6 @@ export default function FaktureringPage() {
                   <div style={{ fontFamily: 'monospace', color: C.muted, fontSize: 12, marginTop: 2 }}>
                     {f.fakturanummer}
                     {isKreditnota && <span style={{ marginLeft: 6, fontFamily: 'inherit', color: C.danger, fontWeight: 600 }}>Kreditnota</span>}
-                    {f.typ === 'el' && <span style={{ marginLeft: 6, fontFamily: 'inherit', color: C.gold, fontWeight: 600 }}>El-faktura</span>}
                   </div>
                   {isKreditnota && original && (
                     <div style={{ color: C.muted2, fontSize: 11, marginTop: 2 }}>Avser {original.fakturanummer}</div>

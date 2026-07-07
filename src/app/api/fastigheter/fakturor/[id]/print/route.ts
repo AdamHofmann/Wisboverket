@@ -179,11 +179,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
 <div class="header">
   <div>
-    <h1>${arEl ? 'EL-FAKTURA' : 'FAKTURA'}</h1>
+    <h1>FAKTURA</h1>
     <p class="fnr">${faktura.fakturanummer}</p>
   </div>
   <div class="company">
-    ${logoUrl ? `<img src="${logoUrl}" alt="${bolag?.namn || ''} logotyp" style="max-height:64px; max-width:200px; object-fit:contain; margin:0 0 10px auto; display:block;" />` : ''}
+    ${logoUrl ? `<img src="${logoUrl}" alt="${bolag?.namn || ''} logotyp" style="max-height:110px; max-width:260px; object-fit:contain; margin:0 0 12px auto; display:block;" />` : ''}
     <p class="name">${bolag?.namn || fastighet?.namn}</p>
     ${bolag?.orgnummer ? `<p>${bolag.orgnummer}</p>` : ''}
     ${bolag?.adress ? `<p>${bolag.adress}</p>` : ''}
