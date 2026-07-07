@@ -83,9 +83,14 @@ export default function DebiteringTab({
                 <span>Blandpris: <span style={{ color: C.gold }}>{o.blandpris != null ? o.blandpris.toFixed(4) + ' kr/kWh' : '—'}</span></span>
               </p>
               <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
-                {o.fakturor.map(f => (
-                  <span key={f.id} style={pill(typPill(f.typ)?.background as string || 'rgba(136,136,136,0.14)', typPill(f.typ)?.color as string || '#aaa')}>
-                    {f.typ ? TYP_LABELS[f.typ] : 'Faktura'} · {formatSEK(f.total_belopp)}
+                {Object.entries(o.fakturor.reduce((acc, f) => {
+                  const t = f.typ || 'ovrigt'
+                  if (!acc[t]) acc[t] = { summa: 0, antal: 0 }
+                  acc[t].summa += f.total_belopp; acc[t].antal++
+                  return acc
+                }, {} as Record<string, { summa: number; antal: number }>)).map(([typ, v]) => (
+                  <span key={typ} style={pill(typPill(typ)?.background as string || 'rgba(136,136,136,0.14)', typPill(typ)?.color as string || '#aaa')}>
+                    {TYP_LABELS[typ] || 'Faktura'}{v.antal > 1 ? ` (${v.antal} st)` : ''} · {formatSEK(v.summa)}
                   </span>
                 ))}
               </div>
@@ -168,11 +173,12 @@ export default function DebiteringTab({
             <tbody>
               {o.debiteringar.length === 0 ? (
                 <tr><td colSpan={6} style={{ ...td, textAlign: 'center', color: C.muted2 }}>Inga aktiva mätare i fastigheten</td></tr>
-              ) : grupper.map(g => {
+              ) : grupper.map((g, gi) => {
                 const gKwh = g.rader.reduce((s, d) => s + (d.forbrukning ?? 0), 0)
                 const gBelopp = g.rader.reduce((s, d) => s + d.belopp, 0)
                 return (
                   <React.Fragment key={g.namn}>
+                    {gi > 0 && <tr aria-hidden="true"><td colSpan={6} style={{ height: 16 }} /></tr>}
                     {g.rader.map((d, i) => (
                       <tr key={d.id}>
                         <td style={{ ...td, fontWeight: 600, color: C.text, borderTop: i === 0 ? `1px solid ${C.borderSoft}` : 'none' }}>{i === 0 ? (<span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><input type="checkbox" checked={valdaHyresgaster.has(hgKey(o.id, g.namn))} onChange={() => toggleHyresgast(o.id, g.namn)} style={{ width: 14, height: 14, accentColor: C.gold, cursor: 'pointer' }} title="Välj hyresgäst att fakturera" />{g.namn}</span>) : ''}</td>
