@@ -21,6 +21,7 @@ import { createClient } from '@/lib/supabase/client'
 interface FakturaRad {
   id: string; artikelkod: string; beskrivning: string
   antal: number; apris: number; belopp: number; moms: number
+  start_varde?: number | null; slut_varde?: number | null; avlast_fran?: string | null; avlast_till?: string | null
 }
 
 // Artikel ur artikelregistret (f_artikel) — används för att autofylla manuella rader.
@@ -70,6 +71,7 @@ const isForfallen = (f: Faktura) => {
 const formatSEK = (n: number) => new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK', maximumFractionDigits: 0 }).format(n)
 // À-pris kan vara brutet (t.ex. el 2,38 kr/kWh) → visa ören men bara när det behövs.
 const formatApris = (n: number) => new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(n)
+const fmtKwh = (n: number | null | undefined) => (n == null ? '—' : Number(n).toLocaleString('sv-SE'))
 const formatDate = (d: string) => new Date(d).toLocaleDateString('sv-SE')
 // Belopp inkl. moms — raderna bär moms% per rad (hyra ofta 0%, lokal 25%)
 const beloppInkl = (f: { rader: { belopp: number; moms: number }[] }) => f.rader.reduce((s, r) => s + r.belopp * (1 + r.moms / 100), 0)
@@ -1229,9 +1231,23 @@ export default function FaktureringPage() {
                 )}
 
                 {/* Fakturarader */}
-                <div style={isMobile ? { overflowX: 'auto' } : undefined}>
-                <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse', ...(isMobile ? { minWidth: 420 } : {}) }}>
+                <div style={(isMobile || f.typ === 'el') ? { overflowX: 'auto' } : undefined}>
+                {(() => {
+                const arEl = f.typ === 'el'
+                return (
+                <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse', ...(isMobile || arEl ? { minWidth: arEl ? 620 : 420 } : {}) }}>
                   <thead>
+                    {arEl ? (
+                    <tr style={{ borderBottom: `2px solid ${C.borderStrong}` }}>
+                      <th style={{ textAlign: 'left', padding: '12px 0', fontWeight: 700, color: C.text2 }}>Del</th>
+                      <th style={{ textAlign: 'left', padding: '12px 0', fontWeight: 700, color: C.text2 }}>Avläsningsperiod</th>
+                      <th style={{ textAlign: 'right', padding: '12px 0', fontWeight: 700, color: C.text2 }}>Start kWh</th>
+                      <th style={{ textAlign: 'right', padding: '12px 0', fontWeight: 700, color: C.text2 }}>Slut kWh</th>
+                      <th style={{ textAlign: 'right', padding: '12px 0', fontWeight: 700, color: C.text2 }}>Förbrukning</th>
+                      <th style={{ textAlign: 'right', padding: '12px 0', fontWeight: 700, color: C.text2 }}>Pris/kWh</th>
+                      <th style={{ textAlign: 'right', padding: '12px 0', fontWeight: 700, color: C.text2 }}>Belopp</th>
+                    </tr>
+                    ) : (
                     <tr style={{ borderBottom: `2px solid ${C.borderStrong}` }}>
                       <th style={{ textAlign: 'left', padding: '12px 0', fontWeight: 700, color: C.text2 }}>Beskrivning</th>
                       <th style={{ textAlign: 'right', padding: '12px 0', fontWeight: 700, color: C.text2, width: 64 }}>Antal</th>
@@ -1239,13 +1255,24 @@ export default function FaktureringPage() {
                       <th style={{ textAlign: 'right', padding: '12px 0', fontWeight: 700, color: C.text2, width: 40 }}>Moms</th>
                       <th style={{ textAlign: 'right', padding: '12px 0', fontWeight: 700, color: C.text2, width: 112 }}>Belopp</th>
                     </tr>
+                    )}
                   </thead>
                   <tbody>
                     {f.rader.filter(r => r.artikelkod !== 'ORE' || r.belopp !== 0).map(r => (
                       r.artikelkod === 'TEXT' ? (
                         <tr key={r.id} style={{ borderBottom: `1px solid ${C.borderSoft}` }}>
-                          <td colSpan={5} style={{ padding: '10px 0', color: C.muted, fontStyle: 'italic' }}>{r.beskrivning}</td>
+                          <td colSpan={arEl ? 7 : 5} style={{ padding: '10px 0', color: C.muted, fontStyle: 'italic' }}>{r.beskrivning}</td>
                         </tr>
+                      ) : arEl ? (
+                      <tr key={r.id} style={{ borderBottom: `1px solid ${C.borderSoft}` }}>
+                        <td style={{ padding: '10px 0', color: C.text }}>{r.beskrivning}</td>
+                        <td style={{ padding: '10px 0', color: C.muted }}>{r.avlast_fran && r.avlast_till ? `${r.avlast_fran} – ${r.avlast_till}` : '—'}</td>
+                        <td style={{ padding: '10px 0', textAlign: 'right', color: C.muted }}>{fmtKwh(r.start_varde)}</td>
+                        <td style={{ padding: '10px 0', textAlign: 'right', color: C.muted }}>{fmtKwh(r.slut_varde)}</td>
+                        <td style={{ padding: '10px 0', textAlign: 'right', fontWeight: 600, color: C.text }}>{fmtKwh(r.antal)}</td>
+                        <td style={{ padding: '10px 0', textAlign: 'right', color: C.muted }}>{formatApris(r.apris)}</td>
+                        <td style={{ padding: '10px 0', textAlign: 'right', fontWeight: 600, color: C.text }}>{formatSEK(r.belopp)}</td>
+                      </tr>
                       ) : (
                       <tr key={r.id} style={{ borderBottom: `1px solid ${C.borderSoft}` }}>
                         <td style={{ padding: '10px 0', color: C.text }}>{r.beskrivning}</td>
@@ -1258,6 +1285,8 @@ export default function FaktureringPage() {
                     ))}
                   </tbody>
                 </table>
+                )
+                })()}
                 </div>
 
                 {/* Summering */}
