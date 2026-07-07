@@ -33,11 +33,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     // Ofakturerade debiteringar med belopp (hoppa över mätare utan förbrukning).
     const { data: deb, error: dErr } = await sb
       .from('f_eldebitering')
-      .select('*, matare:f_elmatare(matarnummer)')
+      .select('*, matare:f_elmatare(matarnummer, beskrivning)')
       .eq('omgang_id', id)
       .eq('status', 'ej_fakturerad')
     if (dErr) throw dErr
-    const debiteringar = (deb ?? []).filter((d: any) => d.forbrukning && Number(d.belopp) > 0)
+    // Valfritt: fakturera bara utvalda hyresgäster (annars alla i omgången).
+    const valdaHyresgaster: string[] | null = Array.isArray(body.hyresgastNamn) && body.hyresgastNamn.length > 0 ? body.hyresgastNamn : null
+    const debiteringar = (deb ?? [])
+      .filter((d: any) => d.forbrukning && Number(d.belopp) > 0)
+      .filter((d: any) => !valdaHyresgaster || valdaHyresgaster.includes(d.hyresgast_namn))
     if (debiteringar.length === 0) {
       return NextResponse.json({ error: 'Inga ofakturerade debiteringar med belopp att fakturera' }, { status: 400 })
     }
@@ -86,9 +90,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     for (const key of Object.keys(grupper)) {
       const g = grupper[key]
       const fakturaRader = g.rader.map((d: any) => {
-        // Del = mätarens namn → annars lokalnamnet (som avläsningsvyn) → annars mätarnr.
+        // Del = mätarens namn (fångat vid omgången, annars mätarens nuvarande beskrivning)
+        // → annars lokalnamnet (som avläsningsvyn) → annars mätarnr.
         const lokalNamn = d.lokal_id ? lokalInfo[d.lokal_id]?.namn : null
-        const del = (d.matare_beskrivning || lokalNamn || d.matare?.matarnummer || '').trim()
+        const del = (d.matare_beskrivning || d.matare?.beskrivning || lokalNamn || d.matare?.matarnummer || '').trim()
         // Undvik "El – El" när mätaren saknar/har generiskt namn.
         const beskrivning = !del || /^el$/i.test(del) ? 'Elförbrukning' : `El – ${del}`
         return {

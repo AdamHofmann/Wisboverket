@@ -41,6 +41,11 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     const { id } = await params
     const sb = await createClient()
 
+    // Återställ ev. el-debiteringar som fakturerades av denna faktura → kan faktureras igen.
+    await sb.from('f_eldebitering')
+      .update({ status: 'ej_fakturerad', faktura_id: null, fakturerad_datum: null })
+      .eq('faktura_id', id)
+
     const { error } = await sb.from('f_faktura').delete().eq('id', id)
 
     if (error) throw error

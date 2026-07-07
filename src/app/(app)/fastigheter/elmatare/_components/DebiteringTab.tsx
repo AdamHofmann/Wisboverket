@@ -1,0 +1,229 @@
+import React from 'react'
+import { C, btnPrimary } from '@/components/fastigheter/styles'
+import {
+  Omgang, OmgangDebitering, Fastighet,
+  TYP_LABELS, typPill, formatSEK, formatDate, fmtKwh,
+  card, cardHead, th, td, pill, iconBtn,
+} from './shared'
+
+interface Props {
+  isMobile: boolean
+  omgangar: Omgang[]
+  fastigheter: Fastighet[]
+  valdaOmgangar: Set<string>
+  toggleOmgang: (id: string) => void
+  bolagMatch: (fastighetId: string | null | undefined) => boolean
+  matpunktNamn: (matareId: string | null) => string
+  skapaElFakturor: (id: string, hyresgastNamn?: string[]) => void
+  skapaElFakturorBulk: () => void
+  deleteOmgang: (id: string) => void
+  setOmgangFastighetId: (v: string) => void
+  setOmgangAr: (v: number) => void
+  setOmgangKvartal: (v: 1 | 2 | 3 | 4) => void
+  setOmgangValda: (v: Set<string>) => void
+  setShowNewOmgang: (v: boolean) => void
+}
+
+export default function DebiteringTab({
+  isMobile, omgangar, fastigheter, valdaOmgangar, toggleOmgang, bolagMatch, matpunktNamn,
+  skapaElFakturor, skapaElFakturorBulk, deleteOmgang,
+  setOmgangFastighetId, setOmgangAr, setOmgangKvartal, setOmgangValda, setShowNewOmgang,
+}: Props) {
+  // Val av enskilda hyresgäster per omgång (nyckel: "omgangId::hyresgastNamn").
+  const [valdaHyresgaster, setValdaHyresgaster] = React.useState<Set<string>>(new Set())
+  const hgKey = (omgangId: string, namn: string) => `${omgangId}::${namn}`
+  const toggleHyresgast = (omgangId: string, namn: string) => setValdaHyresgaster(prev => {
+    const n = new Set(prev); const k = hgKey(omgangId, namn); n.has(k) ? n.delete(k) : n.add(k); return n
+  })
+  // Respektera bolagsväljaren (omgång bär fastighet_id)
+  const synligaOmgangar = omgangar.filter(o => bolagMatch(o.fastighet_id))
+  return (
+  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, flexWrap: 'wrap' }}>
+      {valdaOmgangar.size > 0 && (
+        <button onClick={skapaElFakturorBulk} style={{ padding: '10px 18px', borderRadius: 8, background: C.gold, border: 'none', color: '#1a1a1a', fontSize: 13, fontWeight: 700, cursor: 'pointer', ...(isMobile ? { width: '100%' } : {}) }}>
+          Skapa el-fakturor för {valdaOmgangar.size} omgång{valdaOmgangar.size === 1 ? '' : 'ar'}
+        </button>
+      )}
+      <button
+        onClick={() => {
+          const fid = fastigheter[0]?.id || ''
+          setOmgangFastighetId(fid)
+          setOmgangAr(new Date().getFullYear())
+          setOmgangKvartal(1)
+          setOmgangValda(new Set())
+          setShowNewOmgang(true)
+        }}
+        style={{ ...btnPrimary, opacity: fastigheter.length === 0 ? 0.5 : 1, ...(isMobile ? { width: '100%' } : {}) }}
+        disabled={fastigheter.length === 0}
+      >
+        + Ny debiteringsomgång
+      </button>
+    </div>
+
+    {synligaOmgangar.length === 0 ? (
+      <div style={{ textAlign: 'center', padding: '64px 0', ...card }}>
+        <div style={{ fontSize: 40, marginBottom: 12 }}>⚡</div>
+        <p style={{ color: C.muted, margin: 0 }}>{omgangar.length === 0 ? 'Inga debiteringsomgångar' : 'Inga debiteringsomgångar för valt bolag'}</p>
+        <p style={{ fontSize: 12, color: C.muted2, marginTop: 4 }}>Skapa en omgång för att slå ihop nät- och handelsfakturor till ett blandpris och debitera hyresgästerna.</p>
+      </div>
+    ) : synligaOmgangar.map(o => {
+      const utdeb = o.debiteringar.reduce((s, d) => s + d.belopp, 0)
+      const utdebKwh = o.debiteringar.reduce((s, d) => s + (d.forbrukning ?? 0), 0)
+      const differens = utdeb - o.total_kostnad
+      const valdaForOmgang = [...valdaHyresgaster].filter(k => k.startsWith(o.id + '::')).map(k => k.slice(o.id.length + 2))
+      return (
+        <div key={o.id} style={card}>
+          <div style={{ ...cardHead, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+            <div>
+              <h3 style={{ fontWeight: 700, fontSize: 13, color: C.text, margin: 0 }}>{o.fastighet?.namn} — {formatDate(o.period_fran)} – {formatDate(o.period_till)}</h3>
+              <p style={{ fontSize: 12, color: C.muted, margin: '4px 0 0', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                <span>Total kWh: <span style={{ color: C.text2 }}>{o.total_kwh != null ? fmtKwh(o.total_kwh) : '—'}</span></span>
+                <span>Total kostnad: <span style={{ color: C.text2 }}>{formatSEK(o.total_kostnad)}</span></span>
+                <span>Blandpris: <span style={{ color: C.gold }}>{o.blandpris != null ? o.blandpris.toFixed(4) + ' kr/kWh' : '—'}</span></span>
+              </p>
+              <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+                {o.fakturor.map(f => (
+                  <span key={f.id} style={pill(typPill(f.typ)?.background as string || 'rgba(136,136,136,0.14)', typPill(f.typ)?.color as string || '#aaa')}>
+                    {f.typ ? TYP_LABELS[f.typ] : 'Faktura'} · {formatSEK(f.total_belopp)}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input type="checkbox" checked={valdaOmgangar.has(o.id)} onClick={e => e.stopPropagation()} onChange={() => toggleOmgang(o.id)} style={{ width: 16, height: 16, accentColor: C.gold, cursor: 'pointer' }} title="Välj för att skapa el-fakturor för flera omgångar" />
+              <span style={pill('rgba(232,201,106,0.12)', C.gold)}>{o.status}</span>
+              <button onClick={() => skapaElFakturor(o.id, valdaForOmgang.length > 0 ? valdaForOmgang : undefined)} style={{ padding: '6px 12px', borderRadius: 6, background: 'rgba(232,201,106,0.12)', border: `1px solid ${C.gold}`, color: C.gold, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>{valdaForOmgang.length > 0 ? `Skapa för ${valdaForOmgang.length} valda` : 'Skapa el-fakturor'}</button>
+              <button onClick={() => deleteOmgang(o.id)} style={iconBtn}>🗑️</button>
+            </div>
+          </div>
+          {(() => {
+            // Gruppera debiteringsrader per hyresgäst (behåll ordning)
+            const grupper: { namn: string; rader: OmgangDebitering[] }[] = []
+            for (const d of o.debiteringar) {
+              let g = grupper.find(x => x.namn === d.hyresgast_namn)
+              if (!g) { g = { namn: d.hyresgast_namn, rader: [] }; grupper.push(g) }
+              g.rader.push(d)
+            }
+            if (isMobile) {
+              // MOBIL: kortlayout per debiteringsrad (ingen horisontell scroll)
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  {o.debiteringar.length === 0 ? (
+                    <div style={{ padding: 16, textAlign: 'center', color: C.muted2, fontSize: 12, borderTop: `1px solid ${C.borderSoft}` }}>Inga aktiva mätare i fastigheten</div>
+                  ) : grupper.map(g => {
+                    const gKwh = g.rader.reduce((s, d) => s + (d.forbrukning ?? 0), 0)
+                    const gBelopp = g.rader.reduce((s, d) => s + d.belopp, 0)
+                    return (
+                      <div key={g.namn} style={{ borderTop: `1px solid ${C.borderSoft}`, padding: '12px 16px' }}>
+                        <div style={{ fontWeight: 700, color: C.text, fontSize: 13, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}><input type="checkbox" checked={valdaHyresgaster.has(hgKey(o.id, g.namn))} onChange={() => toggleHyresgast(o.id, g.namn)} style={{ width: 14, height: 14, accentColor: C.gold, cursor: 'pointer' }} />{g.namn}</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          {g.rader.map(d => (
+                            <div key={d.id} style={{ borderRadius: 8, background: C.panel2, padding: 10, fontSize: 12 }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                                <span style={{ color: C.text2 }}>{matpunktNamn(d.matare_id)}</span>
+                                <span style={{ fontWeight: 700, color: C.text }}>{formatSEK(d.belopp)}</span>
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 4, color: C.muted2 }}>
+                                <span>{d.forbrukning != null ? fmtKwh(d.forbrukning) : <span style={{ color: C.warn }}>Avläsning saknas</span>} · {d.pris_per_kwh.toFixed(4)} kr</span>
+                                {d.status === 'fakturerad'
+                                  ? <span style={pill('rgba(74,222,128,0.12)', C.ok)}>Fakturerad</span>
+                                  : <span style={pill('rgba(251,146,60,0.12)', C.warn)}>Ej fakturerad</span>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        {g.rader.length >= 1 && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 8, fontSize: 12 }}>
+                            <span style={{ color: C.muted2 }}>Summa {g.namn} · {fmtKwh(gKwh)}</span>
+                            <span style={{ fontWeight: 700, color: C.gold }}>{formatSEK(gBelopp)}</span>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                  <div style={{ borderTop: `1px solid ${C.border}`, background: '#000', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 13 }}>
+                      <span style={{ fontWeight: 700, color: C.text }}>Totalt utdebiterat · {fmtKwh(utdebKwh)}</span>
+                      <span style={{ fontWeight: 700, color: C.gold }}>{formatSEK(utdeb)}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12 }}>
+                      <span style={{ color: C.muted }}>Differens mot total kostnad</span>
+                      <span style={{ fontWeight: 700, color: differens >= 0 ? C.blue : C.danger }}>{differens >= 0 ? '+' : ''}{formatSEK(differens)}</span>
+                    </div>
+                  </div>
+                </div>
+              )
+            }
+            return (
+          <div>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                {['Hyresgäst', 'Mätpunkt', 'Förbrukning', 'Pris/kWh', 'Att debitera', 'Status'].map((h, i) => (
+                  <th key={i} style={th}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {o.debiteringar.length === 0 ? (
+                <tr><td colSpan={6} style={{ ...td, textAlign: 'center', color: C.muted2 }}>Inga aktiva mätare i fastigheten</td></tr>
+              ) : grupper.map(g => {
+                const gKwh = g.rader.reduce((s, d) => s + (d.forbrukning ?? 0), 0)
+                const gBelopp = g.rader.reduce((s, d) => s + d.belopp, 0)
+                return (
+                  <React.Fragment key={g.namn}>
+                    {g.rader.map((d, i) => (
+                      <tr key={d.id}>
+                        <td style={{ ...td, fontWeight: 600, color: C.text, borderTop: i === 0 ? `1px solid ${C.borderSoft}` : 'none' }}>{i === 0 ? (<span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><input type="checkbox" checked={valdaHyresgaster.has(hgKey(o.id, g.namn))} onChange={() => toggleHyresgast(o.id, g.namn)} style={{ width: 14, height: 14, accentColor: C.gold, cursor: 'pointer' }} title="Välj hyresgäst att fakturera" />{g.namn}</span>) : ''}</td>
+                        <td style={{ ...td, color: C.text2, borderTop: i === 0 ? `1px solid ${C.borderSoft}` : 'none' }}>{matpunktNamn(d.matare_id)}</td>
+                        <td style={{ ...td, borderTop: i === 0 ? `1px solid ${C.borderSoft}` : 'none' }}>{d.forbrukning != null ? fmtKwh(d.forbrukning) : <span style={{ fontSize: 11, color: C.warn }}>Avläsning saknas</span>}</td>
+                        <td style={{ ...td, borderTop: i === 0 ? `1px solid ${C.borderSoft}` : 'none' }}>{d.pris_per_kwh.toFixed(4)} kr</td>
+                        <td style={{ ...td, fontWeight: 700, color: C.text, borderTop: i === 0 ? `1px solid ${C.borderSoft}` : 'none' }}>{formatSEK(d.belopp)}</td>
+                        <td style={{ ...td, borderTop: i === 0 ? `1px solid ${C.borderSoft}` : 'none' }}>
+                          {d.status === 'fakturerad'
+                            ? <span style={pill('rgba(74,222,128,0.12)', C.ok)}>Fakturerad</span>
+                            : <span style={pill('rgba(251,146,60,0.12)', C.warn)}>Ej fakturerad</span>}
+                        </td>
+                      </tr>
+                    ))}
+                    {g.rader.length >= 1 && (
+                      <tr>
+                        <td style={{ ...td, borderTop: 'none' }}></td>
+                        <td style={{ ...td, color: C.muted2, fontSize: 12, borderTop: 'none' }}>Summa {g.namn}</td>
+                        <td style={{ ...td, color: C.text2, fontWeight: 600, borderTop: 'none' }}>{fmtKwh(gKwh)}</td>
+                        <td style={{ ...td, borderTop: 'none' }}></td>
+                        <td style={{ ...td, fontWeight: 700, color: C.gold, borderTop: 'none' }}>{formatSEK(gBelopp)}</td>
+                        <td style={{ ...td, borderTop: 'none' }}></td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                )
+              })}
+            </tbody>
+            <tfoot>
+              <tr style={{ background: '#000' }}>
+                <td colSpan={2} style={{ ...td, fontWeight: 700, color: C.text, borderTop: `1px solid ${C.border}` }}>Totalt utdebiterat</td>
+                <td style={{ ...td, color: C.text2, borderTop: `1px solid ${C.border}` }}>{fmtKwh(utdebKwh)}</td>
+                <td style={{ ...td, borderTop: `1px solid ${C.border}` }}></td>
+                <td style={{ ...td, fontWeight: 700, color: C.gold, borderTop: `1px solid ${C.border}` }}>{formatSEK(utdeb)}</td>
+                <td style={{ ...td, borderTop: `1px solid ${C.border}` }}></td>
+              </tr>
+              <tr style={{ background: '#000' }}>
+                <td colSpan={2} style={{ ...td, color: C.muted, borderTop: 'none' }}>Differens mot total kostnad</td>
+                <td style={{ ...td, borderTop: 'none' }}></td>
+                <td style={{ ...td, borderTop: 'none' }}></td>
+                <td style={{ ...td, fontWeight: 700, borderTop: 'none', color: differens >= 0 ? C.blue : C.danger }}>{differens >= 0 ? '+' : ''}{formatSEK(differens)}</td>
+                <td style={{ ...td, borderTop: 'none' }}></td>
+              </tr>
+            </tfoot>
+          </table>
+          </div>
+            )
+          })()}
+        </div>
+      )
+    })}
+  </div>
+  )
+}
