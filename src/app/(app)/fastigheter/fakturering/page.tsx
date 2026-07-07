@@ -538,9 +538,13 @@ export default function FaktureringPage() {
   }
 
   const bulkTaBort = async () => {
-    const mål = selectedFakturor
-    if (mål.length === 0) return
-    if (!(await confirm({ message: `Ta bort ${mål.length} ${mål.length === 1 ? 'faktura' : 'fakturor'}?`, danger: true, confirmLabel: 'Ta bort' }))) return
+    // Bara utkast (ej skickade) får tas bort — skickade fakturor krediteras istället.
+    const mål = selectedFakturor.filter(f => f.status === 'ej_skickad')
+    if (mål.length === 0) {
+      setMessage({ text: 'Endast utkast (ej skickade) kan tas bort. Skickade fakturor krediteras istället.', type: 'error' })
+      return
+    }
+    if (!(await confirm({ message: `Ta bort ${mål.length} ${mål.length === 1 ? 'utkast' : 'utkast'}?${mål.length < selectedFakturor.length ? ' (skickade fakturor i urvalet hoppas över)' : ''}`, danger: true, confirmLabel: 'Ta bort' }))) return
     for (const f of mål) await fetch(`/api/fastigheter/fakturor/${f.id}`, { method: 'DELETE' })
     setSelected(new Set())
     load()
@@ -818,7 +822,9 @@ export default function FaktureringPage() {
                     {canKreditera && (
                       <button onClick={(e) => { e.stopPropagation(); krediteraFaktura(f.id) }} style={{ borderRadius: 6, padding: '4px 8px', fontSize: 11, background: C.field, color: C.muted2, border: `1px solid ${C.border}`, cursor: 'pointer' }}>Kreditera</button>
                     )}
-                    <button onClick={(e) => { e.stopPropagation(); deleteFaktura(f.id) }} style={{ borderRadius: 6, padding: '4px 8px', fontSize: 11, background: 'rgba(248,113,113,0.1)', color: C.danger, border: 'none', cursor: 'pointer' }}>Ta bort</button>
+                    {f.status === 'ej_skickad' && (
+                      <button onClick={(e) => { e.stopPropagation(); deleteFaktura(f.id) }} style={{ borderRadius: 6, padding: '4px 8px', fontSize: 11, background: 'rgba(248,113,113,0.1)', color: C.danger, border: 'none', cursor: 'pointer' }}>Ta bort</button>
+                    )}
                   </div>
 
                   {expanded && hasRader && (
@@ -965,7 +971,9 @@ export default function FaktureringPage() {
                             {canKreditera && (
                               <button onClick={(e) => { e.stopPropagation(); krediteraFaktura(f.id) }} style={{ borderRadius: 6, padding: '4px 8px', fontSize: 11, background: C.field, color: C.muted2, border: `1px solid ${C.border}`, cursor: 'pointer' }}>Kreditera</button>
                             )}
-                            <button onClick={(e) => { e.stopPropagation(); deleteFaktura(f.id) }} style={{ borderRadius: 6, padding: '4px 8px', fontSize: 11, background: 'rgba(248,113,113,0.1)', color: C.danger, border: 'none', cursor: 'pointer' }}>Ta bort</button>
+                            {f.status === 'ej_skickad' && (
+                      <button onClick={(e) => { e.stopPropagation(); deleteFaktura(f.id) }} style={{ borderRadius: 6, padding: '4px 8px', fontSize: 11, background: 'rgba(248,113,113,0.1)', color: C.danger, border: 'none', cursor: 'pointer' }}>Ta bort</button>
+                    )}
                           </div>
                         </td>
                       </tr>
@@ -1161,7 +1169,7 @@ export default function FaktureringPage() {
             {previewFaktura.typ === 'faktura' && (previewFaktura.status === 'skickad' || previewFaktura.status === 'betald') && (
               <button onClick={() => { krediteraFaktura(previewFaktura.id); setPreviewFaktura(null) }} style={btnGhost}>Kreditera</button>
             )}
-            <button onClick={() => { deleteFaktura(previewFaktura.id); setPreviewFaktura(null) }} style={btnDanger}>Ta bort</button>
+            {previewFaktura.status === 'ej_skickad' && <button onClick={() => { deleteFaktura(previewFaktura.id); setPreviewFaktura(null) }} style={btnDanger}>Ta bort</button>}
           </div>
         ) : undefined}
       >

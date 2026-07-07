@@ -41,6 +41,13 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     const { id } = await params
     const sb = await createClient()
 
+    // Skickade/betalda fakturor är utfärdade dokument → får inte raderas, krediteras istället.
+    const { data: fakt } = await sb.from('f_faktura').select('status').eq('id', id).maybeSingle()
+    if (!fakt) return NextResponse.json({ error: 'Faktura hittades inte' }, { status: 404 })
+    if (fakt.status !== 'ej_skickad') {
+      return NextResponse.json({ error: 'Endast utkast kan tas bort. Skickade fakturor krediteras istället.' }, { status: 409 })
+    }
+
     // Återställ ev. el-debiteringar som fakturerades av denna faktura → kan faktureras igen.
     await sb.from('f_eldebitering')
       .update({ status: 'ej_fakturerad', faktura_id: null, fakturerad_datum: null })
