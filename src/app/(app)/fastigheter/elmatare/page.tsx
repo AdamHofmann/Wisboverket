@@ -92,6 +92,10 @@ export default function ElMatarePage() {
   const [lokaler, setLokaler] = useState<Lokal[]>([])
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [toast, setToast] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
+  const visaToast = (text: string, type: 'success' | 'error' = 'success') => { setToast({ text, type }); setTimeout(() => setToast(null), 4500) }
+  const [valdaOmgangar, setValdaOmgangar] = useState<Set<string>>(new Set())
+  const toggleOmgang = (id: string) => setValdaOmgangar(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
 
   // Fritextsök (delas av mätaravläsnings- och leverantörsflikarna)
   const [sok, setSok] = useState('')
@@ -307,12 +311,33 @@ export default function ElMatarePage() {
     await fetch(`/api/fastigheter/el-omgang/${id}`, { method: 'DELETE' })
     load()
   }
-  const skapaElFakturor = async (id: string) => {
-    if (!(await confirm({ message: 'Skapa el-fakturor för de ofakturerade debiteringarna? En separat faktura skapas per hyresgäst.', confirmLabel: 'Skapa fakturor' }))) return
+  // Kör faktureringen för EN omgång; returnerar antal skapade fakturor eller kastar.
+  const fakturerOmgang = async (id: string): Promise<number> => {
     const res = await fetch(`/api/fastigheter/el-omgang/${id}/fakturera`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) { alert('Kunde inte skapa el-fakturor: ' + (data.error || res.statusText)); return }
-    alert(`${data.antal} el-faktura${data.antal === 1 ? '' : 'or'} skapad${data.antal === 1 ? '' : 'e'} — finns nu i Fakturering.`)
+    if (!res.ok) throw new Error(data.error || res.statusText)
+    return data.antal ?? 0
+  }
+  const skapaElFakturor = async (id: string) => {
+    if (!(await confirm({ message: 'Skapa el-fakturor för de ofakturerade debiteringarna? En separat faktura skapas per hyresgäst.', confirmLabel: 'Skapa fakturor' }))) return
+    try {
+      const antal = await fakturerOmgang(id)
+      visaToast(`${antal} el-faktura${antal === 1 ? '' : 'or'} skapad${antal === 1 ? '' : 'e'} – finns nu i Fakturering`)
+      load()
+    } catch (e) { visaToast('Kunde inte skapa el-fakturor: ' + (e instanceof Error ? e.message : 'fel'), 'error') }
+  }
+  const skapaElFakturorBulk = async () => {
+    const ids = [...valdaOmgangar]
+    if (ids.length === 0) return
+    if (!(await confirm({ message: `Skapa el-fakturor för ${ids.length} debiteringsomgång${ids.length === 1 ? '' : 'ar'}? En separat faktura skapas per hyresgäst.`, confirmLabel: 'Skapa fakturor' }))) return
+    let totalt = 0
+    const fel: string[] = []
+    for (const id of ids) {
+      try { totalt += await fakturerOmgang(id) } catch (e) { fel.push(e instanceof Error ? e.message : 'fel') }
+    }
+    setValdaOmgangar(new Set())
+    if (fel.length && !totalt) visaToast('Kunde inte skapa el-fakturor: ' + fel[0], 'error')
+    else visaToast(`${totalt} el-faktura${totalt === 1 ? '' : 'or'} skapad${totalt === 1 ? '' : 'e'}${fel.length ? ` (${fel.length} misslyckades)` : ''} – finns nu i Fakturering`)
     load()
   }
 
@@ -332,6 +357,11 @@ export default function ElMatarePage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24, ...(isMobile ? { overflowX: 'hidden', maxWidth: '100%' } : {}) }}>
+      {toast && (
+        <div style={{ position: 'fixed', top: 20, right: 20, zIndex: 1000, padding: '12px 18px', borderRadius: 10, background: toast.type === 'success' ? 'rgba(74,222,128,0.14)' : 'rgba(248,113,113,0.14)', border: `1px solid ${toast.type === 'success' ? C.ok : C.danger}`, color: toast.type === 'success' ? C.ok : C.danger, fontSize: 13, fontWeight: 600, boxShadow: '0 8px 24px rgba(0,0,0,0.35)', maxWidth: 380 }}>
+          {toast.text}
+        </div>
+      )}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <h2 style={{ fontSize: 20, fontWeight: 700, color: C.text, margin: 0 }}>⚡ Elförbrukning &amp; Fakturering</h2>
       </div>
@@ -746,7 +776,12 @@ export default function ElMatarePage() {
         const synligaOmgangar = omgangar.filter(o => bolagMatch(o.fastighet_id))
         return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, flexWrap: 'wrap' }}>
+            {valdaOmgangar.size > 0 && (
+              <button onClick={skapaElFakturorBulk} style={{ padding: '10px 18px', borderRadius: 8, background: C.gold, border: 'none', color: '#1a1a1a', fontSize: 13, fontWeight: 700, cursor: 'pointer', ...(isMobile ? { width: '100%' } : {}) }}>
+                Skapa el-fakturor för {valdaOmgangar.size} omgång{valdaOmgangar.size === 1 ? '' : 'ar'}
+              </button>
+            )}
             <button
               onClick={() => {
                 const fid = fastigheter[0]?.id || ''
@@ -792,6 +827,7 @@ export default function ElMatarePage() {
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <input type="checkbox" checked={valdaOmgangar.has(o.id)} onClick={e => e.stopPropagation()} onChange={() => toggleOmgang(o.id)} style={{ width: 16, height: 16, accentColor: C.gold, cursor: 'pointer' }} title="Välj för att skapa el-fakturor för flera omgångar" />
                     <span style={pill('rgba(232,201,106,0.12)', C.gold)}>{o.status}</span>
                     <button onClick={() => skapaElFakturor(o.id)} style={{ padding: '6px 12px', borderRadius: 6, background: 'rgba(232,201,106,0.12)', border: `1px solid ${C.gold}`, color: C.gold, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Skapa el-fakturor</button>
                     <button onClick={() => deleteOmgang(o.id)} style={iconBtn}>🗑️</button>
