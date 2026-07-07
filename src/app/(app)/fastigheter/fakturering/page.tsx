@@ -14,6 +14,7 @@ import SlideOver from '@/components/fastigheter/SlideOver'
 import { C, inp, lbl, fo, fb, btnPrimary, btnGhost, btnDanger } from '@/components/fastigheter/styles'
 import { useIsMobile } from '@/hooks/useMediaQuery'
 import { useConfirm } from '@/components/ConfirmDialog'
+import { valideraFaktura, type KontrollFaktura } from '@/lib/fastigheter/fakturaKontroll'
 import { useBolag } from '@/components/fastigheter/BolagContext'
 import Sokfalt from '@/components/Sokfalt'
 import { createClient } from '@/lib/supabase/client'
@@ -83,6 +84,11 @@ const lokalText = (f: Faktura) => f.hyresavtal?.lokaler.map(l => l.lokal.namn).j
 const fastighetNamn = (f: Faktura) => f.hyresavtal?.lokaler?.[0]?.lokal.fastighet.namn ?? ''
 const bolagId = (f: Faktura) => f.hyresavtal?.lokaler?.[0]?.lokal.fastighet.bolag_id ?? f.bolag_id ?? null
 const kundId = (f: Faktura) => f.hyresavtal?.hyresgast.id ?? f.hyresgast?.id ?? f.hyresgast_id ?? ''
+// Faktura → kontroll-grindens indataformat.
+const tillKontroll = (f: Faktura): KontrollFaktura => ({
+  id: f.id, typ: f.typ, period: f.period, status: f.status, kundId: kundId(f),
+  rader: (f.rader ?? []).map(r => ({ artikelkod: r.artikelkod, antal: r.antal, belopp: r.belopp })),
+})
 const hyresgastPnr = (f: Faktura) => f.hyresavtal?.hyresgast.personnummer ?? f.hyresgast?.personnummer ?? null
 
 // Ikon + etikett per tidslinje-händelsetyp.
@@ -371,6 +377,21 @@ export default function FaktureringPage() {
     load()
   }
 
+  // Kontroll-grind före utskick: blockerar trasiga fakturor, varnar för misstänkta.
+  // Returnerar true om fakturan faktiskt skickades.
+  const skickaMedKontroll = async (id: string): Promise<boolean> => {
+    const f = fakturor.find(x => x.id === id)
+    if (!f) return false
+    const res = valideraFaktura(tillKontroll(f), fakturor.map(tillKontroll))
+    if (res.fel.length) {
+      setMessage({ text: 'Kan inte skicka: ' + res.fel.join(' · '), type: 'info' })
+      return false
+    }
+    if (res.varningar.length && !(await confirm({ message: res.varningar.join('\n') + '\n\nVill du skicka ändå?', confirmLabel: 'Skicka ändå' }))) return false
+    await skickaFaktura(id)
+    return true
+  }
+
   const toggleSelected = (id: string) => {
     setSelected(prev => {
       const next = new Set(prev)
@@ -521,11 +542,35 @@ export default function FaktureringPage() {
   const bulkSkicka = async () => {
     const mål = selectedFakturor.filter(f => f.status === 'ej_skickad' && (f.typ === 'faktura' || f.typ === 'el'))
     if (mål.length === 0) return
-    if (!(await confirm({ message: `Skicka ${mål.length} ${mål.length === 1 ? 'faktura' : 'fakturor'}?`, confirmLabel: 'Skicka' }))) return
+    // Kör kontroll-grinden på varje faktura och dela upp i blockerade / varnade / rena.
+    const alla = fakturor.map(tillKontroll)
+    const blockerade: string[] = []
+    const varnade: { f: Faktura; varningar: string[] }[] = []
+    const attSkicka: Faktura[] = []
+    for (const f of mål) {
+      const res = valideraFaktura(tillKontroll(f), alla)
+      if (res.fel.length) blockerade.push(`${f.fakturanummer}: ${res.fel.join(', ')}`)
+      else if (res.varningar.length) varnade.push({ f, varningar: res.varningar })
+      else attSkicka.push(f)
+    }
+    // Bekräfta ev. varnade fakturor separat.
+    if (varnade.length) {
+      const varnMsg = varnade.map(v => `${v.f.fakturanummer}: ${v.varningar.join(', ')}`).join('\n')
+      if (await confirm({ message: `${varnade.length} faktura(or) med varning:\n${varnMsg}\n\nSkicka dessa ändå?`, confirmLabel: 'Skicka med varning' })) {
+        attSkicka.push(...varnade.map(v => v.f))
+      }
+    }
+    if (attSkicka.length === 0) {
+      setMessage({ text: blockerade.length ? `Inget skickat – ${blockerade.length} blockerade: ${blockerade.join(' · ')}` : 'Inget skickat.', type: 'info' })
+      return
+    }
+    const blockMsg = blockerade.length ? ` (${blockerade.length} blockerade hoppas över)` : ''
+    if (!(await confirm({ message: `Skicka ${attSkicka.length} ${attSkicka.length === 1 ? 'faktura' : 'fakturor'}?${blockMsg}`, confirmLabel: 'Skicka' }))) return
     // Sekventiell await räcker — varje anrop går via skickaFaktura (enda synk-hooken).
-    for (const f of mål) await skickaFaktura(f.id)
+    for (const f of attSkicka) await skickaFaktura(f.id)
     setSelected(new Set())
     load()
+    setMessage({ text: `${attSkicka.length} skickade${blockerade.length ? `, ${blockerade.length} blockerade (${blockerade.join(' · ')})` : ''}`, type: blockerade.length ? 'info' : 'success' })
   }
 
   const bulkBetalda = async () => {
@@ -812,7 +857,7 @@ export default function FaktureringPage() {
                       </button>
                     )}
                     {f.status === 'ej_skickad' && (
-                      <button onClick={(e) => { e.stopPropagation(); skickaFaktura(f.id) }} style={{ borderRadius: 6, padding: '4px 8px', fontSize: 11, background: 'rgba(96,165,250,0.12)', color: C.blue, border: 'none', cursor: 'pointer' }}>Skicka</button>
+                      <button onClick={(e) => { e.stopPropagation(); skickaMedKontroll(f.id) }} style={{ borderRadius: 6, padding: '4px 8px', fontSize: 11, background: 'rgba(96,165,250,0.12)', color: C.blue, border: 'none', cursor: 'pointer' }}>Skicka</button>
                     )}
                     {f.status === 'skickad' && (
                       <button onClick={(e) => { e.stopPropagation(); markeraBetald(f.id) }} style={{ borderRadius: 6, padding: '4px 8px', fontSize: 11, background: 'rgba(74,222,128,0.12)', color: C.ok, border: 'none', cursor: 'pointer' }}>Markera betald</button>
@@ -961,7 +1006,7 @@ export default function FaktureringPage() {
                         <td style={td}>
                           <div style={{ display: 'flex', gap: 6 }}>
                             {f.status === 'ej_skickad' && (
-                              <button onClick={(e) => { e.stopPropagation(); skickaFaktura(f.id) }} style={{ borderRadius: 6, padding: '4px 8px', fontSize: 11, background: 'rgba(96,165,250,0.12)', color: C.blue, border: 'none', cursor: 'pointer' }}>Skicka</button>
+                              <button onClick={(e) => { e.stopPropagation(); skickaMedKontroll(f.id) }} style={{ borderRadius: 6, padding: '4px 8px', fontSize: 11, background: 'rgba(96,165,250,0.12)', color: C.blue, border: 'none', cursor: 'pointer' }}>Skicka</button>
                             )}
                             {f.status === 'skickad' && (
                               <button onClick={(e) => { e.stopPropagation(); markeraBetald(f.id) }} style={{ borderRadius: 6, padding: '4px 8px', fontSize: 11, background: 'rgba(74,222,128,0.12)', color: C.ok, border: 'none', cursor: 'pointer' }}>Markera betald</button>
@@ -1164,7 +1209,7 @@ export default function FaktureringPage() {
           <div style={{ display: 'flex', gap: 8 }}>
             <a href={`/api/fastigheter/fakturor/${previewFaktura.id}/print`} target="_blank" rel="noopener noreferrer" style={{ ...btnGhost, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }} title="Öppnar den färdiga fakturan (kontrollera + skriv ut / spara PDF)">👁 Visa faktura (PDF)</a>
             <button onClick={() => oppnaRedigera(previewFaktura)} style={{ ...btnGhost, display: 'inline-flex', alignItems: 'center' }}>Redigera</button>
-            {previewFaktura.status === 'ej_skickad' && <button onClick={() => { skickaFaktura(previewFaktura.id); setPreviewFaktura(null) }} style={{ ...btnPrimary, flex: 1 }}>Skicka</button>}
+            {previewFaktura.status === 'ej_skickad' && <button onClick={async () => { if (await skickaMedKontroll(previewFaktura.id)) setPreviewFaktura(null) }} style={{ ...btnPrimary, flex: 1 }}>Skicka</button>}
             {previewFaktura.status === 'skickad' && <button onClick={() => { markeraBetald(previewFaktura.id); setPreviewFaktura(null) }} style={{ ...btnPrimary, flex: 1, background: C.ok }}>Markera betald</button>}
             {isForfallen(previewFaktura) && <button onClick={() => skickaPaminnelse(previewFaktura.id)} style={{ ...btnGhost, color: '#fb923c', borderColor: 'rgba(251,146,60,0.4)' }}>🔔 Påminn{paminnelseAntal(previewFaktura) > 0 ? ` (${paminnelseAntal(previewFaktura)})` : ''}</button>}
             {previewFaktura.typ === 'faktura' && (previewFaktura.status === 'skickad' || previewFaktura.status === 'betald') && (
