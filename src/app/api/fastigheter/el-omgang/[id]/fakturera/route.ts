@@ -44,7 +44,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     // Resolvera hyresgäst + avsändarbolag per lokal (aktivt avtal → hyresgäst; lokal → fastighet → bolag).
     const lokalIds = [...new Set(debiteringar.map((d: any) => d.lokal_id).filter(Boolean))] as string[]
-    const lokalInfo: Record<string, { hyresgastId: string | null; bolagId: string | null }> = {}
+    const lokalInfo: Record<string, { hyresgastId: string | null; bolagId: string | null; namn: string | null }> = {}
     for (const lokalId of lokalIds) {
       const { data: kopplingar } = await sb
         .from('f_hyresavtal_lokal')
@@ -56,13 +56,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const valt = avtal.find((a: any) => a?.status === 'aktiv') || avtal[0]
       const { data: lok } = await sb
         .from('f_lokal')
-        .select('fastighet:f_fastighet(bolag_id)')
+        .select('namn, fastighet:f_fastighet(bolag_id)')
         .eq('id', lokalId)
         .single()
       const fast = (lok as any)?.fastighet
       lokalInfo[lokalId] = {
         hyresgastId: valt?.hyresgast_id ?? null,
         bolagId: (Array.isArray(fast) ? fast[0]?.bolag_id : fast?.bolag_id) ?? null,
+        namn: (lok as any)?.namn ?? null,
       }
     }
 
@@ -85,7 +86,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     for (const key of Object.keys(grupper)) {
       const g = grupper[key]
       const fakturaRader = g.rader.map((d: any) => {
-        const del = (d.matare_beskrivning || d.matare?.matarnummer || '').trim()
+        // Del = mätarens namn → annars lokalnamnet (som avläsningsvyn) → annars mätarnr.
+        const lokalNamn = d.lokal_id ? lokalInfo[d.lokal_id]?.namn : null
+        const del = (d.matare_beskrivning || lokalNamn || d.matare?.matarnummer || '').trim()
         // Undvik "El – El" när mätaren saknar/har generiskt namn.
         const beskrivning = !del || /^el$/i.test(del) ? 'Elförbrukning' : `El – ${del}`
         return {
