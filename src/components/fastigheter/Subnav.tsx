@@ -94,30 +94,24 @@ export default function FastigheterSubnav() {
     return (
       <>
         <div style={S.wrap}>
-          <div style={S.left}>
-            <Link href="/dashboard" style={S.back} title="Tillbaka till Order-appen">← Order</Link>
-            <Link href="/fastigheter" style={S.brand}>🏢 FASTIGHETER</Link>
-          </div>
-          <div style={{ flex: 1 }} />
-          <button style={S.hamburger} onClick={() => setDrawerOpen(true)} aria-label="Öppna meny">≡</button>
-        </div>
-
-        <MobileDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} title={<span style={{ ...S.brand, fontSize: 13 }}>🏢 FASTIGHETER</span>}>
-          {/* Bolagsväljare — full bredd överst */}
+          <Link href="/dashboard" style={S.back} title="Tillbaka till Order-appen">←</Link>
+          <Link href="/fastigheter" style={{ ...S.brand, flexShrink: 0 }} title="Fastigheter">🏢</Link>
+          {/* Bolagsväljare — synlig direkt i toppraden (inte gömd i menyn) */}
           <select
             value={valtBolagId ?? ''}
             onChange={e => setValtBolagId(e.target.value || null)}
             onFocus={fo}
             onBlur={fb}
-            style={S.drawerSelect}
+            style={{ ...inp, flex: 1, minWidth: 0, fontWeight: 600, fontSize: 12, padding: '7px 8px' }}
             title="Filtrera på bolag"
           >
             <option value="">Alla bolag</option>
-            {bolagLista.map(b => (
-              <option key={b.id} value={b.id}>{b.namn}</option>
-            ))}
+            {bolagLista.map(b => <option key={b.id} value={b.id}>{b.namn}</option>)}
           </select>
+          <button style={S.hamburger} onClick={() => setDrawerOpen(true)} aria-label="Öppna meny">≡</button>
+        </div>
 
+        <MobileDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} title={<span style={{ ...S.brand, fontSize: 13 }}>🏢 FASTIGHETER</span>}>
           {/* Länkar — grupper som sektioner, alla min 44px tap-yta */}
           {NAV.map(e => {
             if (!isGroup(e)) {
