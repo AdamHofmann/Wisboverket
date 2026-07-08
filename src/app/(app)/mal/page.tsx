@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useIsMobile } from '@/hooks/useMediaQuery'
 import { useConfirm } from '@/components/ConfirmDialog'
+import { useToast } from '@/components/Toast'
 
 type FakturaRad = { order_id: string | null; totalt: number; typ: string }
 type OrderRad = { id: string; created_at: string; status: string }
@@ -18,6 +19,7 @@ const TYP_NAMN: Record<string, string> = { omsattning: 'Omsättning', antal_ordr
 export default function MalPage() {
   const isMobile = useIsMobile()
   const confirm = useConfirm()
+  const toast = useToast()
   const [mal, setMal] = useState<Mal[]>([])
   const [fakturor, setFakturor] = useState<FakturaRad[]>([])
   const [orders, setOrders] = useState<OrderRad[]>([])
@@ -62,14 +64,16 @@ export default function MalPage() {
 
   const taBort = async (id: string) => {
     if (!(await confirm({ message: 'Ta bort målet?', danger: true, confirmLabel: 'Ta bort' }))) return
-    await createClient().from('mal').delete().eq('id', id)
+    const { error: err } = await createClient().from('mal').delete().eq('id', id)
+    if (err) { toast.error('Kunde inte ta bort målet: ' + err.message); return }
     fetchAll()
   }
 
   const uppdateraManuellt = async (m: Mal) => {
     const v = window.prompt('Uppdatera nuläge:', String(m.manuellt_varde || 0))
     if (v === null) return
-    await createClient().from('mal').update({ manuellt_varde: Number(v) }).eq('id', m.id)
+    const { error: err } = await createClient().from('mal').update({ manuellt_varde: Number(v) }).eq('id', m.id)
+    if (err) { toast.error('Kunde inte uppdatera nuläget: ' + err.message); return }
     fetchAll()
   }
 

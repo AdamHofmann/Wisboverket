@@ -6,6 +6,7 @@ import type { Hyresobjekt } from '@/types'
 import AdressInput from '@/components/AdressInput'
 import { PERSONAL } from '@/components/order-tabs/shared'
 import { useConfirm } from '@/components/ConfirmDialog'
+import { useToast } from '@/components/Toast'
 
 const TYPER = [
   { v: 'lokal', l: 'Lokal' },
@@ -198,6 +199,7 @@ function ObjektModal({ objekt, onClose, onSaved }: { objekt: Hyresobjekt; onClos
   const [showPreview, setShowPreview] = useState(false)
   const sb = createClient()
   const confirm = useConfirm()
+  const toast = useToast()
 
   const set = <K extends keyof Hyresobjekt>(k: K, v: Hyresobjekt[K]) => setForm(f => ({ ...f, [k]: v }))
 
@@ -262,14 +264,19 @@ function ObjektModal({ objekt, onClose, onSaved }: { objekt: Hyresobjekt; onClos
     const next = !form.publicerad
     set('publicerad', next)
     if (!isNew) {
-      await sb.from('hyresobjekt').update({ publicerad: next }).eq('id', form.id)
+      const { error: err } = await sb.from('hyresobjekt').update({ publicerad: next }).eq('id', form.id)
+      if (err) {
+        set('publicerad', !next) // återställ optimistisk ändring
+        toast.error('Kunde inte ändra publiceringsstatus: ' + err.message)
+      }
     }
   }
 
   const radera = async () => {
     if (isNew) { onClose(); return }
     if (!(await confirm({ message: 'Ta bort detta hyresobjekt? Detta går inte att ångra.', danger: true, confirmLabel: 'Ta bort' }))) return
-    await sb.from('hyresobjekt').delete().eq('id', form.id)
+    const { error: err } = await sb.from('hyresobjekt').delete().eq('id', form.id)
+    if (err) { toast.error('Kunde inte ta bort objektet: ' + err.message); return }
     onSaved()
   }
 

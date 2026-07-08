@@ -6,6 +6,7 @@ import DatumValjare from '@/components/DatumValjare'
 import { useKundPrisavtal } from '@/hooks/useKundPrisavtal'
 import { useIsMobile } from '@/hooks/useMediaQuery'
 import Sokfalt from '@/components/Sokfalt'
+import { useToast } from '@/components/Toast'
 
 type OffertRad = { typ: 'artikel' | 'fritext'; artikel_id: string; text: string; antal: number; resurser: number; apris: number; enhet: string }
 type Artikel = { id: string; namn: string; enhet: string; a_pris: number }
@@ -29,6 +30,7 @@ const revideradEfterUtskick = (o: Offert) =>
 
 export default function OfferterPage() {
   const isMobile = useIsMobile()
+  const toast = useToast()
   const [offerter, setOfferter] = useState<Offert[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('Alla')
@@ -64,7 +66,8 @@ export default function OfferterPage() {
   const updateStatus = async (id: string, status: string) => {
     const patch: Record<string, unknown> = { status }
     if (status === 'skickad') patch.skickad_at = new Date().toISOString()
-    await createClient().from('offers').update(patch).eq('id', id)
+    const { error: err } = await createClient().from('offers').update(patch).eq('id', id)
+    if (err) { toast.error('Kunde inte uppdatera offertstatus: ' + err.message); return }
     fetchOfferter()
   }
 
@@ -159,6 +162,7 @@ export default function OfferterPage() {
 
 function OffertModal({ offert, autoPdf, onClose, onSaved }: { offert: Offert | null; autoPdf?: boolean; onClose: () => void; onSaved: () => void }) {
   const isMobile = useIsMobile()
+  const toast = useToast()
   const [kunder, setKunder] = useState<{ id: string; namn: string; epost: string | null; adress: string | null; postnummer: string | null; ort: string | null }[]>([])
   const [artiklar, setArtiklar] = useState<Artikel[]>([])
   const [emailSent, setEmailSent] = useState(false)
@@ -394,7 +398,8 @@ info@wisboverket.se
     setTimeout(async () => {
       window.open(`mailto:${kundEpost}?subject=${encodeURIComponent(sub)}&body=${encodeURIComponent(body)}`, '_blank')
       if (offert) {
-        await createClient().from('offers').update({ status: 'skickad', skickad_at: new Date().toISOString() }).eq('id', offert.id)
+        const { error: err } = await createClient().from('offers').update({ status: 'skickad', skickad_at: new Date().toISOString() }).eq('id', offert.id)
+        if (err) { toast.error('E-post öppnad, men kunde inte markera offerten som skickad: ' + err.message); return }
         onSaved()
       }
       setEmailSent(true)
@@ -666,7 +671,7 @@ info@wisboverket.se
               </>
             )}
             {offert && offert.status === 'utkast' && (
-              <button onClick={async () => { await createClient().from('offers').update({ status: 'skickad', skickad_at: new Date().toISOString() }).eq('id', offert.id); onSaved() }}
+              <button onClick={async () => { const { error: err } = await createClient().from('offers').update({ status: 'skickad', skickad_at: new Date().toISOString() }).eq('id', offert.id); if (err) { toast.error('Kunde inte markera som skickad: ' + err.message); return } onSaved() }}
                 style={{ flex: isMobile ? 1 : undefined, padding: '11px 16px', background: '#60a5fa11', border: '1px solid #60a5fa44', borderRadius: 8, color: '#60a5fa', fontWeight: 700, cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap' as const }}>
                 📤 Markera skickad
               </button>
