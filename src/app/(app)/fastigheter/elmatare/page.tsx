@@ -254,6 +254,18 @@ export default function ElMatarePage() {
       toast.error('Kunde inte skapa debiteringsomgång: ' + (data.error || res.statusText))
       return
     }
+    // Varna om mätpunkter som saknar avläsning för perioden — de skapas men kan
+    // inte faktureras (ingen förbrukning), så de går tysta annars.
+    const skapad = await res.json().catch(() => ({}))
+    const utanAvlasning = (skapad?.debiteringar ?? []).filter((d: any) => d.forbrukning == null)
+    if (utanAvlasning.length > 0) {
+      const namn = utanAvlasning
+        .map((d: any) => `${d.hyresgast_namn}${d.matare_beskrivning ? ` (${d.matare_beskrivning})` : ''}`)
+        .join(', ')
+      toast.error(`Omgången skapades, men ${utanAvlasning.length} mätpunkt${utanAvlasning.length === 1 ? '' : 'er'} saknar avläsning för perioden och kan inte faktureras: ${namn}. Registrera avläsning och skapa om omgången vid behov.`)
+    } else {
+      toast.success('Debiteringsomgång skapad')
+    }
     setShowNewOmgang(false); load()
   }
   const deleteOmgang = async (id: string) => {
