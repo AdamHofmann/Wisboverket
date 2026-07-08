@@ -282,7 +282,7 @@ export default function TidFaktureringTab({ orderId, onUpdated, last = false }: 
       }
       return { typ: 'rad', desc: r.text, antal: r.antal, apris: r.apris, enhet: r.enhet, belopp: r.antal * r.apris }
     })
-    const { data: nyFaktura } = await sb.from('fakturor').insert({
+    const { data: nyFaktura, error: fakturaErr } = await sb.from('fakturor').insert({
       fakturanummer: nextFakturaNr,
       order_id: orderId,
       customer_id: orderInfo?.customer_id,
@@ -297,6 +297,12 @@ export default function TidFaktureringTab({ orderId, onUpdated, last = false }: 
       referens: fakturaRef,
       status: 'skickad',
     }).select('*').single()
+    // Markera INTE ordern fakturerad / lås INTE tidrader om fakturan inte skapades.
+    if (fakturaErr || !nyFaktura) {
+      alert('Kunde inte skapa fakturan: ' + (fakturaErr?.message || 'okänt fel'))
+      setSkaparFaktura(false)
+      return
+    }
     await sb.from('orders').update({
       fakturerat: true,
       fakturerat_belopp: fakturaTotalt,
