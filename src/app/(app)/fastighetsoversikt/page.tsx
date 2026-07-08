@@ -14,7 +14,7 @@ const PERSONAL = ['Adam', 'Isabelle', 'Kalle', 'Maria', 'Erik', 'Sofia']
 const inp: React.CSSProperties = { background: '#111', border: '1px solid #2a2a2a', borderRadius: 8, padding: '8px 12px', color: '#e0e0e0', fontSize: 13, outline: 'none', width: '100%', boxSizing: 'border-box' }
 const fo = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => { e.target.style.borderColor = '#E8C96A' }
 const fb = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => { e.target.style.borderColor = '#2a2a2a' }
-const fmtKr = (n: number) => n.toLocaleString('sv-SE') + ' kr'
+const fmtKr = (n: number) => Math.round(n).toLocaleString('sv-SE') + ' kr'
 
 type FastighetMedStats = Fastighet & { _ordrar: number; _underhall: number; _intakt: number; _kostnad: number; _tb: number }
 
