@@ -1,7 +1,7 @@
 import React from 'react'
 import SlideOver from '@/components/fastigheter/SlideOver'
 import { C, inp, lbl, fo, fb, btnPrimary, btnGhost } from '@/components/fastigheter/styles'
-import { elKvartalKostnadsGap } from '@/lib/fastigheter/elKostnad'
+import { elKvartalKostnadsGap, elMatpunkterUtanAvlasning } from '@/lib/fastigheter/elKostnad'
 import {
   Matare, Fastighet, Lokal, LevFaktura, MatareForm, LevForm,
   TYP_LABELS, typPill, formatSEK, formatDate, fmtKwh, pill,
@@ -343,6 +343,9 @@ export default function Modaler(props: Props) {
         // vid själva skapandet). Samma logik som saveOmgang via delad hjälpfunktion.
         const saknadeManader = elKvartalKostnadsGap(valda, omgangAr, omgangKvartal)
         const ejFullTackning = saknadeManader.length > 0
+        // Förhandsvisa (redan i modalen) vilka mätpunkter som saknar avläsning för
+        // perioden och därför inte kan faktureras — samma bracketing som servern.
+        const saknarAvlasning = elMatpunkterUtanAvlasning(matare, omgangFastighetId, fran, till)
         return (
           <SlideOver open={showNewOmgang} onClose={() => setShowNewOmgang(false)} title="Ny debiteringsomgång" width="md"
             subtitle={fastigheter.find(f => f.id === omgangFastighetId)?.namn}
@@ -419,6 +422,18 @@ export default function Modaler(props: Props) {
                     <p style={{ fontSize: 13, fontWeight: 700, color: '#fb923c', margin: 0 }}>OBS – alla kostnader är kanske inte inrapporterade</p>
                     <p style={{ fontSize: 12, color: C.text2, margin: '3px 0 0', lineHeight: 1.5 }}>
                       Leverantörsfaktura saknas för: {saknadeManader.join(', ')}. Kontrollera att både nät och handel är med för varje månad innan du skapar omgången — annars blir blandpriset för lågt och hyresgästerna underdebiteras.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {saknarAvlasning.length > 0 && (
+                <div style={{ borderRadius: 10, border: '1px solid rgba(251,146,60,0.4)', background: 'rgba(251,146,60,0.12)', padding: '12px 14px', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  <span style={{ fontSize: 16, lineHeight: 1 }}>⚠️</span>
+                  <div>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: '#fb923c', margin: 0 }}>{saknarAvlasning.length} mätpunkt{saknarAvlasning.length === 1 ? '' : 'er'} saknar avläsning för perioden</p>
+                    <p style={{ fontSize: 12, color: C.text2, margin: '3px 0 0', lineHeight: 1.5 }}>
+                      {saknarAvlasning.join(', ')} kan inte faktureras (ingen förbrukning för perioden). Registrera avläsning först om de ska debiteras.
                     </p>
                   </div>
                 </div>

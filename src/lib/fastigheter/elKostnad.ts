@@ -39,3 +39,32 @@ export function elKvartalKostnadsGap(valda: KostFaktura[], ar: number, kvartal: 
   }
   return gaps
 }
+
+// Vilka aktiva mätpunkter i fastigheten saknar en avläsning som avgränsar
+// perioden och kan därför inte debiteras? Samma bracketing-logik som servern
+// (el-omgang/route.ts): startavläsning = första ≥ periodstart, slutavläsning =
+// första ≥ periodslut. Schablon-mätare har alltid förbrukning. Används för att
+// förhandsvarna i "Ny debiteringsomgång" INNAN omgången skapas.
+type PreviewMatare = {
+  matarnummer: string; beskrivning: string | null; schablon_kwh: number | null
+  fastighet_id: string; aktiv: boolean; avlasningar: { datum: string; varde: number }[]
+}
+export function elMatpunkterUtanAvlasning(
+  matare: PreviewMatare[], fastighetId: string, fran: string, till: string,
+): string[] {
+  if (!fastighetId) return []
+  const franT = new Date(fran).getTime()
+  const tillT = new Date(till).getTime()
+  const saknar: string[] = []
+  for (const m of matare) {
+    if (!m.aktiv || m.fastighet_id !== fastighetId || m.schablon_kwh) continue
+    const avl = (m.avlasningar ?? [])
+      .map(a => ({ datum: new Date(a.datum).getTime(), varde: Number(a.varde) }))
+      .sort((a, b) => a.datum - b.datum)
+    const startAvl = avl.find(a => a.datum >= franT) || avl[0]
+    const slutAvl = avl.find(a => a.datum >= tillT) || avl[avl.length - 1]
+    const ok = !!startAvl && !!slutAvl && startAvl !== slutAvl && slutAvl.varde >= startAvl.varde
+    if (!ok) saknar.push(m.beskrivning || m.matarnummer)
+  }
+  return saknar
+}
