@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useIsMobile } from '@/hooks/useMediaQuery'
 import { fmtKr, fmtDatum } from './shared'
 import { SITE_EMAIL } from '@/lib/site'
+import { useToast } from '@/components/Toast'
 
 type Faktura = {
   id: string; fakturanummer: string; typ: string; status: string
@@ -20,6 +21,7 @@ const STATUS_COLOR: Record<string, string> = {
   krediterad: '#f87171', delkrediterad: '#fb923c', kreditnota: '#f87171',
 }
 export default function FakturorTab({ orderId }: { orderId: string }) {
+  const toast = useToast()
   const [fakturor, setFakturor] = useState<Faktura[]>([])
   const [vald, setVald] = useState<Faktura | null>(null)
   const [kreditModal, setKreditModal] = useState<Faktura | null>(null)
@@ -84,7 +86,7 @@ export default function FakturorTab({ orderId }: { orderId: string }) {
       original_faktura_id: kreditModal.id,
     })
     if (kreditErr) {
-      alert('Kunde inte skapa kreditnotan: ' + kreditErr.message)
+      toast.error('Kunde inte skapa kreditnotan: ' + kreditErr.message)
       setSparar(false)
       return
     }

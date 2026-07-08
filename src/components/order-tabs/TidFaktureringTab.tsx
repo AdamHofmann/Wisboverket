@@ -7,6 +7,7 @@ import { fmtKr, inp, lbl, fo, fb } from './shared'
 import { useIsMobile } from '@/hooks/useMediaQuery'
 import DatumValjare from '@/components/DatumValjare'
 import { FakturaVy, type Faktura } from '@/components/order-tabs/FakturorTab'
+import { useToast } from '@/components/Toast'
 
 type Artikel = { id: string; namn: string; enhet: string; a_pris: number; kostnad_per_enhet: number }
 type TidRad = {
@@ -36,6 +37,7 @@ function datumMellan(fran: string, till: string): string[] {
 
 export default function TidFaktureringTab({ orderId, onUpdated, last = false }: { orderId: string; onUpdated?: () => void; last?: boolean }) {
   const m = useIsMobile()
+  const toast = useToast()
   const [subTab, setSubTab] = useState<'tid' | 'faktura'>('tid')
   const [artiklar, setArtiklar] = useState<Artikel[]>([])
   const [rader, setRader] = useState<TidRad[]>([])
@@ -304,7 +306,7 @@ export default function TidFaktureringTab({ orderId, onUpdated, last = false }: 
     }).select('*').single()
     // Markera INTE ordern fakturerad / lås INTE tidrader om fakturan inte skapades.
     if (fakturaErr || !nyFaktura) {
-      alert('Kunde inte skapa fakturan: ' + (fakturaErr?.message || 'okänt fel'))
+      toast.error('Kunde inte skapa fakturan: ' + (fakturaErr?.message || 'okänt fel'))
       setSkaparFaktura(false)
       return
     }

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { fmtKr, inp, lbl, fo, fb } from './shared'
+import { useToast } from '@/components/Toast'
 
 type Inkop = {
   id: string; beskrivning: string; leverantor: string | null
@@ -21,6 +22,7 @@ const KAT: { id: string; label: string; icon: string }[] = [
 ]
 
 export default function InkopTab({ orderId }: { orderId: string }) {
+  const toast = useToast()
   const [inkop, setInkop] = useState<Inkop[]>([])
   const [leverantorer, setLeverantorer] = useState<Leverantor[]>([])
   const [artiklar, setArtiklar] = useState<Artikel[]>([])
@@ -103,7 +105,7 @@ export default function InkopTab({ orderId }: { orderId: string }) {
         if (match) setArtikelId(match.id)
       }
     } catch (e: any) {
-      alert('AI-scanning misslyckades: ' + e.message)
+      toast.error('AI-scanning misslyckades: ' + e.message)
     } finally {
       setScanning(false)
     }

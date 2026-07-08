@@ -22,6 +22,7 @@ import React, { useEffect, useState } from 'react'
 import { C } from '@/components/fastigheter/styles'
 import { useIsMobile } from '@/hooks/useMediaQuery'
 import { useConfirm } from '@/components/ConfirmDialog'
+import { useToast } from '@/components/Toast'
 import { useBolag } from '@/components/fastigheter/BolagContext'
 import {
   Matare, LevFaktura, Omgang, Fastighet, Lokal, Tab, Sort, MatareForm, LevForm, Avlasning,
@@ -44,8 +45,7 @@ export default function ElMatarePage() {
   const [lokaler, setLokaler] = useState<Lokal[]>([])
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
-  const [toast, setToast] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
-  const visaToast = (text: string, type: 'success' | 'error' = 'success') => { setToast({ text, type }); setTimeout(() => setToast(null), 4500) }
+  const toast = useToast()
 
   // Fritextsök (delas av mätaravläsnings- och leverantörsflikarna)
   const [sok, setSok] = useState('')
@@ -194,7 +194,7 @@ export default function ElMatarePage() {
     setSaving(false)
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
-      alert('Kunde inte spara fakturan: ' + (data.error || res.statusText))
+      toast.error('Kunde inte spara fakturan: ' + (data.error || res.statusText))
       return
     }
     setShowNewLev(false); setLevEditId(null); load()
@@ -251,7 +251,7 @@ export default function ElMatarePage() {
     setSaving(false)
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
-      alert('Kunde inte skapa debiteringsomgång: ' + (data.error || res.statusText))
+      toast.error('Kunde inte skapa debiteringsomgång: ' + (data.error || res.statusText))
       return
     }
     setShowNewOmgang(false); load()
@@ -278,8 +278,8 @@ export default function ElMatarePage() {
     for (const g of perOmgang) {
       try { totalt += await fakturerOmgang(g.omgangId, g.hyresgaster) } catch (e) { fel.push(e instanceof Error ? e.message : 'fel') }
     }
-    if (fel.length && !totalt) visaToast('Kunde inte skapa el-fakturor: ' + fel[0], 'error')
-    else visaToast(`${totalt} el-faktura${totalt === 1 ? '' : 'or'} skapad${totalt === 1 ? '' : 'e'}${fel.length ? ` (${fel.length} misslyckades)` : ''} – finns nu i Fakturering`)
+    if (fel.length && !totalt) toast.error('Kunde inte skapa el-fakturor: ' + fel[0])
+    else toast.success(`${totalt} el-faktura${totalt === 1 ? '' : 'or'} skapad${totalt === 1 ? '' : 'e'}${fel.length ? ` (${fel.length} misslyckades)` : ''} – finns nu i Fakturering`)
     load()
   }
 
@@ -299,11 +299,6 @@ export default function ElMatarePage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24, ...(isMobile ? { overflowX: 'hidden', maxWidth: '100%' } : {}) }}>
-      {toast && (
-        <div style={{ position: 'fixed', top: 20, right: 20, zIndex: 1000, padding: '12px 18px', borderRadius: 10, background: toast.type === 'success' ? 'rgba(74,222,128,0.14)' : 'rgba(248,113,113,0.14)', border: `1px solid ${toast.type === 'success' ? C.ok : C.danger}`, color: toast.type === 'success' ? C.ok : C.danger, fontSize: 13, fontWeight: 600, boxShadow: '0 8px 24px rgba(0,0,0,0.35)', maxWidth: 380 }}>
-          {toast.text}
-        </div>
-      )}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <h2 style={{ fontSize: 20, fontWeight: 700, color: C.text, margin: 0 }}>⚡ Elförbrukning &amp; Fakturering</h2>
       </div>

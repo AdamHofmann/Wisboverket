@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useConfirm } from '@/components/ConfirmDialog'
+import { useToast } from '@/components/Toast'
 
 type LoggRad = {
   id: string
@@ -36,6 +37,7 @@ const fmtMs = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(2)} s` : `${Math
 
 export default function SystemloggPage() {
   const confirm = useConfirm()
+  const toast = useToast()
   const [logg, setLogg] = useState<LoggRad[]>([])
   const [laddar, setLaddar] = useState(true)
   const [tabellSaknas, setTabellSaknas] = useState(false)
@@ -69,7 +71,7 @@ export default function SystemloggPage() {
     createClient().from('app_logg').delete().lt('created_at', gr)
       .then(({ error }) => {
         setRensar(false)
-        if (error) { alert('Kunde inte rensa: ' + error.message); return }
+        if (error) { toast.error('Kunde inte rensa: ' + error.message); return }
         fetchLogg()
       })
   }
