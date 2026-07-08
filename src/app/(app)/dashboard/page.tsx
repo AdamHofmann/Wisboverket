@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import type { Order, Invoice } from '@/types'
+import type { Order } from '@/types'
 import Link from 'next/link'
 import { useIsMobile } from '@/hooks/useMediaQuery'
 
 // Bara de fält dashboarden faktiskt hämtar + renderar (matchar select nedan).
 type DashOrder = Pick<Order, 'id' | 'status' | 'bokad_datum' | 'fakturerat' | 'faktureras_inte' | 'tilldelad' | 'titel' | 'fastighet' | 'pris' | 'created_at'>
-type DashInvoice = Pick<Invoice, 'id' | 'invoice_number' | 'total_incl_moms' | 'created_at'>
+// Order-fakturorna ligger i tabellen fakturor (INTE invoices, som är tom).
+type DashFaktura = { id: string; fakturanummer: string; totalt: number; created_at: string; status: string; typ: string }
 
 const S: Record<string, React.CSSProperties> = {
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16, marginBottom: 24 },
@@ -29,13 +30,13 @@ const S: Record<string, React.CSSProperties> = {
   kbEmpty: { padding: '24px 16px', textAlign: 'center', fontSize: 12, color: '#444' },
 }
 
-const fmt = (n: number) => n.toLocaleString('sv-SE') + ' kr'
+const fmt = (n: number) => Math.round(n).toLocaleString('sv-SE') + ' kr'
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })
 
 export default function DashboardPage() {
   const isMobile = useIsMobile()
   const [orders, setOrders] = useState<DashOrder[]>([])
-  const [invoices, setInvoices] = useState<DashInvoice[]>([])
+  const [invoices, setInvoices] = useState<DashFaktura[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -45,12 +46,12 @@ export default function DashboardPage() {
       supabase.from('orders')
         .select('id, status, bokad_datum, fakturerat, faktureras_inte, tilldelad, titel, fastighet, pris, created_at')
         .order('created_at', { ascending: false }),
-      supabase.from('invoices')
-        .select('id, invoice_number, total_incl_moms, created_at')
+      supabase.from('fakturor')
+        .select('id, fakturanummer, totalt, created_at, status, typ')
         .order('created_at', { ascending: false }),
     ]).then(([{ data: o }, { data: i }]) => {
       setOrders((o || []) as DashOrder[])
-      setInvoices((i || []) as DashInvoice[])
+      setInvoices((i || []) as DashFaktura[])
       setLoading(false)
     })
   }, [])
@@ -61,20 +62,22 @@ export default function DashboardPage() {
   const ejTilldelad = orders.filter(o => (o.status === 'ny' || o.status === 'pågående') && o.bokad_datum && (!o.tilldelad || o.tilldelad.length === 0))
   const attFakturera = orders.filter(o => o.status === 'klar' && !o.fakturerat && !o.faktureras_inte)
   const idag = new Date().toISOString().split('T')[0]
-  const faktureratIdag = invoices.filter(i => i.created_at?.startsWith(idag)).reduce((s, i) => s + (i.total_incl_moms || 0), 0)
+  // Bara riktiga fakturor (ej kreditnotor) räknas som "fakturerat".
+  const fakturerade = invoices.filter(i => i.typ === 'faktura')
+  const faktureratIdag = fakturerade.filter(i => i.created_at?.startsWith(idag)).reduce((s, i) => s + (i.totalt || 0), 0)
   const manad = new Date().toLocaleString('sv-SE', { month: 'short' }).toUpperCase()
-  const faktureratManad = invoices
+  const faktureratManad = fakturerade
     .filter(i => i.created_at?.startsWith(new Date().toISOString().slice(0, 7)))
-    .reduce((s, i) => s + (i.total_incl_moms || 0), 0)
+    .reduce((s, i) => s + (i.totalt || 0), 0)
 
-  const senastFakturerade = invoices.slice(0, 5)
+  const senastFakturerade = fakturerade.slice(0, 5)
 
   const statCards = [
     { label: 'Öppna ordrar', value: aktiva.length, sub: `${ejPlanerade.length} nya`, color: '#60a5fa', href: '/ordrar?status=pågående' },
     { label: 'Ej planerade', value: ejPlanerade.length, sub: 'saknar datum', color: '#f59e0b', href: '/ordrar?status=ny' },
     { label: 'Ej tilldelad', value: ejTilldelad.length, sub: 'planerat, saknar resurs', color: '#f87171', href: '/ordrar?status=pågående' },
     { label: 'Att fakturera', value: attFakturera.length, sub: 'slutförda', color: '#e0e0e0', href: '/ordrar?status=klar' },
-    { label: 'Fakturerat idag', value: fmt(faktureratIdag), sub: 'exkl moms', color: '#4ade80', wide: true, href: '/fakturor' },
+    { label: 'Fakturerat idag', value: fmt(faktureratIdag), sub: 'ink. moms', color: '#4ade80', wide: true, href: '/fakturor' },
     { label: manad, value: fmt(faktureratManad), sub: 'fakturerat', color: '#E8C96A', wide: true, href: '/fakturor' },
   ]
 
@@ -161,9 +164,9 @@ export default function DashboardPage() {
             ? <div style={S.kbEmpty}>Inga fakturor ännu</div>
             : senastFakturerade.map(i => (
               <div key={i.id} style={S.kbItem}>
-                <div style={S.kbItemTitle}>{i.invoice_number || 'Faktura'}</div>
+                <div style={S.kbItemTitle}>{i.fakturanummer || 'Faktura'}</div>
                 <div style={S.kbItemSub}>{fmtDate(i.created_at)}</div>
-                <div style={S.kbItemAmount}>{fmt(i.total_incl_moms)}</div>
+                <div style={S.kbItemAmount}>{fmt(i.totalt)}</div>
               </div>
             ))}
         </div>
