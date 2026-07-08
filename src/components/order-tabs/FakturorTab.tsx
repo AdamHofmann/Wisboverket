@@ -204,7 +204,7 @@ export default function FakturorTab({ orderId }: { orderId: string }) {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           <input spellCheck={false} type="number" min="0" max={r.antal} step="0.5" value={kreditAntal[i] ?? ''} placeholder="0"
                             onChange={e => setKreditAntal(prev => ({ ...prev, [i]: e.target.value }))}
-                            style={{ width: 60, background: '#111', border: '1px solid #2a2a2a', borderRadius: 6, padding: '7px 8px', color: '#e0e0e0', fontSize: 13, outline: 'none', textAlign: 'right' as const }}
+                            style={{ width: 84, background: '#111', border: '1px solid #2a2a2a', borderRadius: 6, padding: '7px 10px', color: '#e0e0e0', fontSize: 13, outline: 'none', textAlign: 'right' as const }}
                             onFocus={e => e.currentTarget.style.borderColor = '#f87171'} onBlur={e => e.currentTarget.style.borderColor = '#2a2a2a'} />
                           <span style={{ fontSize: 11, color: '#555', minWidth: 54 }}>av {r.antal} {r.enhet}</span>
                         </div>
