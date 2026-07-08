@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { FakturaVy } from '@/components/order-tabs/FakturorTab'
 import { useIsMobile } from '@/hooks/useMediaQuery'
+import { fmtKr } from '@/lib/format'
 
 type Faktura = {
   id: string; fakturanummer: string; typ: string; status: string; fakturadatum: string
@@ -15,7 +16,6 @@ type Faktura = {
 }
 
 const STATUS_COLOR: Record<string, string> = { utkast: '#888', skickad: '#4ade80', betald: '#60a5fa', krediterad: '#f87171', delkrediterad: '#fb923c', kreditnota: '#f87171' }
-const fmtKr = (n: number) => n.toLocaleString('sv-SE', { minimumFractionDigits: 0 }) + ' kr'
 const fmtDatum = (d: string) => new Date(d).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short', year: 'numeric' })
 
 export default function FaktureringPage() {

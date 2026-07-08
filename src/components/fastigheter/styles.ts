@@ -27,7 +27,7 @@ export const C = {
   blue: '#60a5fa',
 }
 
-export const fmtKr = (n: number) => (n ?? 0).toLocaleString('sv-SE', { maximumFractionDigits: 0 }) + ' kr'
+export { fmtKr, fmtKrExakt } from '@/lib/format'
 export const fmtKvm = (n: number) => `${(n ?? 0).toLocaleString('sv-SE', { maximumFractionDigits: 0 })} kvm`
 export const fmtDatum = (d: string | null | undefined) =>
   d ? new Date(d).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'

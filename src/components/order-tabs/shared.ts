@@ -1,6 +1,6 @@
 import type { CSSProperties, FocusEvent } from 'react'
 
-export const fmtKr = (n: number) => n.toLocaleString('sv-SE', { minimumFractionDigits: 0 }) + ' kr'
+export { fmtKr, fmtKrExakt } from '@/lib/format'
 
 export const fmtDatum = (d: string) =>
   new Date(d).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short', year: 'numeric' })

@@ -5,13 +5,13 @@ import { createClient } from '@/lib/supabase/client'
 import { useIsMobile } from '@/hooks/useMediaQuery'
 import { useConfirm } from '@/components/ConfirmDialog'
 import { useToast } from '@/components/Toast'
+import { fmtKr } from '@/lib/format'
 
 type FakturaRad = { order_id: string | null; totalt: number; typ: string }
 type OrderRad = { id: string; created_at: string; status: string }
 type InkopRad = { order_id: string; belopp: number }
 type Mal = { id: string; namn: string; typ: string; ar: number; mal_varde: number; manuellt_varde: number }
 
-const fmtKr = (n: number) => Math.round(n).toLocaleString('sv-SE') + ' kr'
 const G = '#E8C96A'
 const TYP_ICON: Record<string, string> = { omsattning: '💰', antal_ordrar: '📋', vinst: '📈', fritt: '✏️' }
 const TYP_NAMN: Record<string, string> = { omsattning: 'Omsättning', antal_ordrar: 'Antal ordrar', vinst: 'Vinst', fritt: 'Fritt mål' }

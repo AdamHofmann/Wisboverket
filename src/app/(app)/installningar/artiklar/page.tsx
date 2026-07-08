@@ -3,13 +3,12 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/Toast'
+import { fmtKr, fmtKrExakt } from '@/lib/format'
 
 type Artikel = { id: string; artikelnummer: string | null; namn: string; enhet: string; a_pris: number; kostnad_per_enhet: number; kategori: string | null; aktiv: boolean; konto: string | null; momssats: number; hogia_artikel_id: string | null; hogia_synkad_at: string | null }
 
 const KATEGORIER = ['bemanning', 'fordon', 'material', 'restid', 'tillagg']
 const KAT_LABEL: Record<string, string> = { bemanning: 'Bemanning', fordon: 'Fordon', material: 'Material', restid: 'Restid', tillagg: 'Tillägg' }
-
-const fmtKr = (n: number) => n.toLocaleString('sv-SE', { minimumFractionDigits: 0 }) + ' kr'
 
 const EMPTY = { artikelnummer: '', namn: '', enhet: 'tim', a_pris: 0, kostnad_per_enhet: 0, kategori: 'bemanning', aktiv: true, konto: '', momssats: 25 }
 
@@ -93,8 +92,8 @@ export default function ArtikalarPage() {
                             {a.artikelnummer && <div style={{ fontSize: 11, color: '#555' }}>{a.artikelnummer}</div>}
                           </td>
                           <td style={{ padding: '11px 14px', borderBottom: '1px solid #1a1a1a', fontSize: 13, color: '#888' }}>{a.enhet}</td>
-                          <td style={{ padding: '11px 14px', borderBottom: '1px solid #1a1a1a', fontSize: 13, color: '#4ade80', fontWeight: 600, textAlign: 'right' as const }}>{fmtKr(a.a_pris)}</td>
-                          <td style={{ padding: '11px 14px', borderBottom: '1px solid #1a1a1a', fontSize: 13, color: '#f87171', textAlign: 'right' as const }}>{fmtKr(a.kostnad_per_enhet)}</td>
+                          <td style={{ padding: '11px 14px', borderBottom: '1px solid #1a1a1a', fontSize: 13, color: '#4ade80', fontWeight: 600, textAlign: 'right' as const }}>{fmtKrExakt(a.a_pris)}</td>
+                          <td style={{ padding: '11px 14px', borderBottom: '1px solid #1a1a1a', fontSize: 13, color: '#f87171', textAlign: 'right' as const }}>{fmtKrExakt(a.kostnad_per_enhet)}</td>
                           <td style={{ padding: '11px 14px', borderBottom: '1px solid #1a1a1a', fontSize: 13, fontWeight: 700, color: margFarg, textAlign: 'right' as const }}>{marginal.toFixed(0)}%</td>
                           <td style={{ padding: '11px 14px', borderBottom: '1px solid #1a1a1a', textAlign: 'right' as const }}>
                             <button onClick={e => { e.stopPropagation(); toggleAktiv(a) }}

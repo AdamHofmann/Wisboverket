@@ -7,6 +7,7 @@ import { useKundPrisavtal } from '@/hooks/useKundPrisavtal'
 import { useIsMobile } from '@/hooks/useMediaQuery'
 import Sokfalt from '@/components/Sokfalt'
 import { useToast } from '@/components/Toast'
+import { fmtKr } from '@/lib/format'
 
 type OffertRad = { typ: 'artikel' | 'fritext'; artikel_id: string; text: string; antal: number; resurser: number; apris: number; enhet: string }
 type Artikel = { id: string; namn: string; enhet: string; a_pris: number }
@@ -20,7 +21,6 @@ type Offert = {
 }
 
 const STATUS_COLOR: Record<string, string> = { utkast: '#888', skickad: '#60a5fa', accepterad: '#4ade80', avvisad: '#f87171', expired: '#555' }
-const fmtKr = (n: number) => n.toLocaleString('sv-SE', { minimumFractionDigits: 0 }) + ' kr'
 const fmtDatum = (d: string) => new Date(d).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short', year: 'numeric' })
 
 // Offerten har ändrats efter senaste utskicket (60s tolerans för klockskillnad vid själva utskicket).

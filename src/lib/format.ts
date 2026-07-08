@@ -9,3 +9,15 @@ export function formatOrgnr(o: string) {
   const d = (o || '').replace(/[^0-9]/g, '')
   return d.length === 10 ? d.slice(0, 6) + '-' + d.slice(6) : o || ''
 }
+
+// Delade belopps­formaterare (sv-SE).
+//
+// fmtKr      — avrundat till hela kronor. Summor, intäkter, kostnader,
+//              täckningsbidrag, KPI:er och radbelopp.
+// fmtKrExakt — bevarar ören (upp till 2 decimaler). ENDAST för à-priser och
+//              enhetspriser där det exakta styckepriset inte får avrundas bort.
+export const fmtKr = (n: number | null | undefined) =>
+  Math.round(n ?? 0).toLocaleString('sv-SE') + ' kr'
+
+export const fmtKrExakt = (n: number | null | undefined) =>
+  (n ?? 0).toLocaleString('sv-SE', { maximumFractionDigits: 2 }) + ' kr'

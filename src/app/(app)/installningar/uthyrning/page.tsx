@@ -7,6 +7,7 @@ import AdressInput from '@/components/AdressInput'
 import { PERSONAL } from '@/components/order-tabs/shared'
 import { useConfirm } from '@/components/ConfirmDialog'
 import { useToast } from '@/components/Toast'
+import { fmtKr } from '@/lib/format'
 
 const TYPER = [
   { v: 'lokal', l: 'Lokal' },
@@ -44,11 +45,6 @@ function completeness(o: Partial<Hyresobjekt>): number {
   if (o.beskrivning && o.beskrivning.trim()) score += 15
   if (o.typer && o.typer.length > 0) score += 10
   return Math.min(100, score)
-}
-
-function fmtKr(n: number | null | undefined) {
-  if (!n && n !== 0) return '—'
-  return new Intl.NumberFormat('sv-SE').format(n)
 }
 
 export default function UthyrningPage() {
@@ -159,7 +155,7 @@ export default function UthyrningPage() {
               <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>{o.fastighet || 'Ingen adress angiven'}</div>
               <div style={{ display: 'flex', gap: 14, fontSize: 12, color: '#666' }}>
                 <span>{o.total_yta ? `${o.total_yta} kvm` : '—'}</span>
-                <span>{o.hyra ? `${fmtKr(o.hyra)} kr/mån` : '—'}</span>
+                <span>{o.hyra ? `${fmtKr(o.hyra)}/mån` : '—'}</span>
                 <span>{o.tillganglig_typ === 'datum' && o.tillganglig_fran ? `Från ${o.tillganglig_fran}` : 'Enligt ök.'}</span>
               </div>
             </div>
@@ -671,7 +667,7 @@ function ForhandsvisningModal({ form, onClose }: { form: Hyresobjekt; onClose: (
                 <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>{form.fastighet || 'Adress saknas'}</div>
                 <div style={{ display: 'flex', gap: 12, fontSize: 12, color: '#666', marginTop: 8 }}>
                   <span>{form.total_yta ? `${form.total_yta} kvm` : '—'}</span>
-                  <span>{form.hyra ? `${fmtKr(form.hyra)} kr/mån` : '—'}</span>
+                  <span>{form.hyra ? `${fmtKr(form.hyra)}/mån` : '—'}</span>
                 </div>
               </div>
             </div>
@@ -704,8 +700,8 @@ function ForhandsvisningModal({ form, onClose }: { form: Hyresobjekt; onClose: (
 
                 <div style={{ display: 'flex', gap: 24, marginTop: 18, flexWrap: 'wrap' }}>
                   <Faktaruta label="Yta" value={form.total_yta ? `${form.total_yta} kvm` : '—'} />
-                  <Faktaruta label="Hyra" value={form.hyra ? `${fmtKr(form.hyra)} kr/mån` : '—'} />
-                  <Faktaruta label="Kr/kvm/år" value={form.kr_kvm_ar ? `${fmtKr(form.kr_kvm_ar)}` : '—'} />
+                  <Faktaruta label="Hyra" value={form.hyra ? `${fmtKr(form.hyra)}/mån` : '—'} />
+                  <Faktaruta label="Kr/kvm/år" value={form.kr_kvm_ar ? `${fmtKr(form.kr_kvm_ar)}/kvm/år` : '—'} />
                   <Faktaruta label="Tillgänglig" value={form.tillganglig_typ === 'datum' && form.tillganglig_fran ? form.tillganglig_fran : 'Enligt ök.'} />
                 </div>
 

@@ -3,13 +3,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useIsMobile } from '@/hooks/useMediaQuery'
+import { fmtKr } from '@/lib/format'
 
 type FakturaRadItem = { desc?: string | null; belopp?: number | null; typ?: string | null }
 type FakturaRad = { order_id: string | null; customer_id: string | null; kund_namn: string | null; totalt: number; fakturadatum: string; typ: string; rader?: FakturaRadItem[] | null }
 type OrderRad = { id: string; kategori: string | null; fastighet: string | null; created_at: string; status: string }
 type InkopRad = { order_id: string; belopp: number }
 
-const fmtKr = (n: number) => Math.round(n).toLocaleString('sv-SE') + ' kr'
 const G = '#E8C96A'
 
 type PeriodKey = 'manad' | 'forr_manad' | 'ar' | 'allt' | 'custom'

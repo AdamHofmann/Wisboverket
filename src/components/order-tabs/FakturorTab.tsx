@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useIsMobile } from '@/hooks/useMediaQuery'
-import { fmtKr, fmtDatum } from './shared'
+import { fmtKr, fmtKrExakt, fmtDatum } from './shared'
 import { SITE_EMAIL } from '@/lib/site'
 import { useToast } from '@/components/Toast'
 
@@ -201,7 +201,7 @@ export default function FakturorTab({ orderId }: { orderId: string }) {
                       <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #1e1e1e' }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 13, color: '#d0d0d0' }}>{r.desc}</div>
-                          <div style={{ fontSize: 11, color: '#555', marginTop: 2 }}>{r.antal} {r.enhet} × {fmtKr(r.apris)}</div>
+                          <div style={{ fontSize: 11, color: '#555', marginTop: 2 }}>{r.antal} {r.enhet} × {fmtKrExakt(r.apris)}</div>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           <input spellCheck={false} type="number" min="0" max={r.antal} step="0.5" value={kreditAntal[i] ?? ''} placeholder="0"
@@ -211,7 +211,7 @@ export default function FakturorTab({ orderId }: { orderId: string }) {
                           <span style={{ fontSize: 11, color: '#555', minWidth: 54 }}>av {r.antal} {r.enhet}</span>
                         </div>
                         <div style={{ minWidth: 90, textAlign: 'right' as const }}>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: antal > 0 ? '#f87171' : '#555' }}>−{fmtKr(antal * r.apris)}</div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: antal > 0 ? '#f87171' : '#555' }}>−{fmtKrExakt(antal * r.apris)}</div>
                           <div style={{ fontSize: 10, color: '#555', marginTop: 1 }}>ex moms</div>
                         </div>
                       </div>
