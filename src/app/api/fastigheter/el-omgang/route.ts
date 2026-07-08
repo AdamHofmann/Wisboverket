@@ -202,12 +202,17 @@ async function postHandler(request: Request) {
           datum: new Date(a.datum).getTime(),
           varde: Number(a.varde),
         }))
-        // Avläsningar "bracketar" perioden (avläsning görs vid/efter periodslut):
-        //  - startAvl = avläsningen som går IN i perioden = sista avläsning ≤ periodstart
-        //    (annars den tidigaste avläsningen).
+        // Avläsningar "bracketar" perioden (avläsning görs vid/EFTER periodslut, t.ex.
+        // 7/4 för Q1→Q2-brytet). Perioden [fran, till] avgränsas av de två avläsningar
+        // som stänger föregående respektive denna period:
+        //  - startAvl = avläsningen som stängde föregående period = OPPNAR denna
+        //    = första avläsning ≥ periodstart (samma avläsning som var förra periodens
+        //      slut → ingen överlappning och inget glapp mellan kvartal).
         //  - slutAvl = avläsningen som STÄNGER perioden = första avläsning ≥ periodslut
-        //    (annars den senaste avläsningen). Så en avläsning daterad t.ex. 7/4 räknas för Q1.
-        const startAvl = [...avl].reverse().find((a: AvlRad) => a.datum <= periodFran) || avl[0]
+        //    (annars den senaste avläsningen).
+        // Saknas en riktig slutavläsning (start === slut) hoppas mätaren över nedan —
+        // en period kan inte debiteras utan en avläsning som stänger den.
+        const startAvl = avl.find((a: AvlRad) => a.datum >= periodFran) || avl[0]
         const slutAvl = avl.find((a: AvlRad) => a.datum >= periodTill) || avl[avl.length - 1]
 
         if (startAvl && slutAvl && startAvl.id !== slutAvl.id && slutAvl.varde >= startAvl.varde) {

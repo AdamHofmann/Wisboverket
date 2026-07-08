@@ -279,7 +279,7 @@ export default function ElMatarePage() {
       try { totalt += await fakturerOmgang(g.omgangId, g.hyresgaster) } catch (e) { fel.push(e instanceof Error ? e.message : 'fel') }
     }
     if (fel.length && !totalt) toast.error('Kunde inte skapa el-fakturor: ' + fel[0])
-    else toast.success(`${totalt} el-faktura${totalt === 1 ? '' : 'or'} skapad${totalt === 1 ? '' : 'e'}${fel.length ? ` (${fel.length} misslyckades)` : ''} – finns nu i Fakturering`)
+    else toast.success(`${totalt} el-faktur${totalt === 1 ? 'a' : 'or'} skapad${totalt === 1 ? '' : 'e'}${fel.length ? ` (${fel.length} misslyckades)` : ''} – finns nu under Fakturering`)
     load()
   }
 
