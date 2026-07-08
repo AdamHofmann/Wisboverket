@@ -144,10 +144,10 @@ function EkonomiTab() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', gap: 16 }}>
-        <BreakdownTable title="Per kund" rows={perKund} />
+        <BreakdownTable title="Per kund" rows={perKund} showTb />
         <BreakdownTable title="Per artikel" rows={perArtikel} unit="rader" />
-        <BreakdownTable title="Per kategori" rows={perKategori} />
-        <BreakdownTable title="Per fastighet" rows={perFastighet} />
+        <BreakdownTable title="Per kategori" rows={perKategori} showTb />
+        <BreakdownTable title="Per fastighet" rows={perFastighet} showTb />
       </div>
     </div>
   )
@@ -176,21 +176,27 @@ function KPI({ icon, label, value, color, isMobile, sub, subColor }: { icon: str
   )
 }
 
-function BreakdownTable({ title, rows, unit = 'fakturor' }: { title: string; rows: { name: string; intakt: number; kostnad: number; antal: number }[]; unit?: string }) {
+function BreakdownTable({ title, rows, unit = 'fakturor', showTb = false }: { title: string; rows: { name: string; intakt: number; kostnad: number; antal: number }[]; unit?: string; showTb?: boolean }) {
   return (
     <div style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: 10, overflow: 'hidden' }}>
       <div style={{ padding: '12px 16px', borderBottom: '1px solid #1e1e1e', fontSize: 12, fontWeight: 700, color: '#888' }}>{title}</div>
       {rows.length === 0 ? (
         <div style={{ padding: 24, textAlign: 'center', color: '#444', fontSize: 12 }}>Ingen data</div>
-      ) : rows.slice(0, 8).map((r, i) => (
+      ) : rows.slice(0, 8).map((r, i) => {
+        const tbProc = showTb && r.intakt > 0 ? Math.round(((r.intakt - r.kostnad) / r.intakt) * 100) : null
+        return (
         <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '10px 16px', borderBottom: '1px solid #1a1a1a' }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 12, color: '#d0d0d0', fontWeight: 600, wordBreak: 'break-word' }}>{r.name}</div>
             <div style={{ fontSize: 10, color: '#555' }}>{r.antal} {unit}</div>
           </div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: G, whiteSpace: 'nowrap' }}>{fmtKr(r.intakt)}</div>
+          <div style={{ textAlign: 'right' as const, whiteSpace: 'nowrap' }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: G }}>{fmtKr(r.intakt)}</div>
+            {tbProc !== null && <div style={{ fontSize: 10, fontWeight: 600, color: tbProc >= 0 ? '#4ade80' : '#f87171' }}>{tbProc}% TB</div>}
+          </div>
         </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
