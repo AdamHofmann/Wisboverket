@@ -8,7 +8,7 @@ import { useIsMobile } from '@/hooks/useMediaQuery'
 
 // Bara de fält dashboarden faktiskt hämtar + renderar (matchar select nedan).
 type DashOrder = Pick<Order, 'id' | 'status' | 'bokad_datum' | 'fakturerat' | 'faktureras_inte' | 'tilldelad' | 'titel' | 'fastighet' | 'pris' | 'created_at'>
-// Order-fakturorna ligger i tabellen fakturor (INTE invoices, som är tom).
+// Order-fakturorna ligger i tabellen fakturor.
 type DashFaktura = { id: string; fakturanummer: string; totalt: number; created_at: string; status: string; typ: string; forfallodatum: string | null; order_id: string | null }
 
 const S: Record<string, React.CSSProperties> = {
@@ -36,7 +36,7 @@ const fmtDate = (d: string) => new Date(d).toLocaleDateString('sv-SE', { day: 'n
 export default function DashboardPage() {
   const isMobile = useIsMobile()
   const [orders, setOrders] = useState<DashOrder[]>([])
-  const [invoices, setInvoices] = useState<DashFaktura[]>([])
+  const [fakturor, setFakturor] = useState<DashFaktura[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -51,7 +51,7 @@ export default function DashboardPage() {
         .order('created_at', { ascending: false }),
     ]).then(([{ data: o }, { data: i }]) => {
       setOrders((o || []) as DashOrder[])
-      setInvoices((i || []) as DashFaktura[])
+      setFakturor((i || []) as DashFaktura[])
       setLoading(false)
     })
   }, [])
@@ -63,7 +63,7 @@ export default function DashboardPage() {
   const attFakturera = orders.filter(o => o.status === 'klar' && !o.fakturerat && !o.faktureras_inte)
   const idag = new Date().toISOString().split('T')[0]
   // Bara riktiga fakturor (ej kreditnotor) räknas som "fakturerat".
-  const fakturerade = invoices.filter(i => i.typ === 'faktura')
+  const fakturerade = fakturor.filter(i => i.typ === 'faktura')
   const faktureratIdag = fakturerade.filter(i => i.created_at?.startsWith(idag)).reduce((s, i) => s + (i.totalt || 0), 0)
   const manad = new Date().toLocaleString('sv-SE', { month: 'short' }).toUpperCase()
   const faktureratManad = fakturerade

@@ -11,7 +11,6 @@ type Faktura = {
   id: string; fakturanummer: string; typ: string; status: string
   fakturadatum: string; totalt: number; subtotal: number; moms_belopp: number
   kund_namn: string | null; kund_epost: string | null; referens: string | null; original_faktura_id: string | null
-  original_faktura_nummer?: string | null
   hogia_faktura_id: string | null; hogia_synkad_at: string | null
   rader: Array<{ typ: string; desc: string; antal: number; apris: number; enhet: string; belopp: number }>
 }
@@ -367,9 +366,9 @@ info@wisboverket.se
                 {f.typ === 'kreditnota' ? 'KREDITNOTA' : 'FAKTURA'}
               </div>
               <div style={{ fontSize: 20, fontWeight: 700, color: '#555', marginTop: 2 }}>{f.fakturanummer}</div>
-              {f.typ === 'kreditnota' && (f.original_faktura_nummer || f.original_faktura_id) && (
+              {f.typ === 'kreditnota' && f.original_faktura_id && (
                 <div style={{ fontSize: 12, fontWeight: 600, color: '#dc2626', marginTop: 6 }}>
-                  Avser faktura {f.original_faktura_nummer || (f.fakturanummer.endsWith('-K') ? f.fakturanummer.slice(0, -2) : '')}
+                  Avser faktura {f.fakturanummer.endsWith('-K') ? f.fakturanummer.slice(0, -2) : ''}
                 </div>
               )}
             </div>

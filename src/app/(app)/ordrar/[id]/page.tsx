@@ -132,13 +132,11 @@ export default function OrderDetailPage() {
             {order.kategori && (
               <span style={{ fontSize: 11, color: '#666' }}>{KAT_ICON[order.kategori] || ''} {order.kategori}</span>
             )}
-            {last && (
-              order.fakturerat ? (
-                <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: 'rgba(232,201,106,0.15)', color: '#E8C96A', border: '1px solid #E8C96A66' }}>🔒 Fakturerad</span>
-              ) : (
-                <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: 'rgba(251,146,60,0.15)', color: '#fb923c', border: '1px solid #fb923c66' }}>🔒 Ej deb.</span>
-              )
-            )}
+            {order.fakturerat ? (
+              <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: 'rgba(232,201,106,0.15)', color: '#E8C96A', border: '1px solid #E8C96A66' }}>🔒 Fakturerad</span>
+            ) : order.faktureras_inte ? (
+              <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: 'rgba(251,146,60,0.15)', color: '#fb923c', border: '1px solid #fb923c66' }}>🚫 Stängd utan fakt.</span>
+            ) : null}
           </div>
           <button onClick={() => router.push('/ordrar')} style={{ background: 'none', border: 'none', color: '#444', fontSize: 20, cursor: 'pointer', lineHeight: 1 }}>×</button>
         </div>

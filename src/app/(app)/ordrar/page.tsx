@@ -14,7 +14,7 @@ const KATEGORIER = ['Alla', ...KATEGORIER_BAS]
 const STATUSAR = ['aktiva', 'ny', 'pågående', 'klar', 'inaktiv', 'Alla']
 
 // Bara de fält listan hämtar + renderar (matchar select nedan).
-type OrderRow = Pick<Order, 'id' | 'status' | 'kategori' | 'titel' | 'fastighet' | 'ort' | 'postnummer' | 'order_number' | 'bokad_datum' | 'bokad_start' | 'bokad_slut' | 'tilldelad' | 'fakturerat_belopp' | 'created_at' | 'lagenhet'> & { customer?: Pick<Customer, 'id' | 'namn' | 'telefon'> | null }
+type OrderRow = Pick<Order, 'id' | 'status' | 'kategori' | 'titel' | 'fastighet' | 'ort' | 'postnummer' | 'order_number' | 'bokad_datum' | 'bokad_start' | 'bokad_slut' | 'tilldelad' | 'fakturerat_belopp' | 'fakturerat' | 'faktureras_inte' | 'created_at' | 'lagenhet'> & { customer?: Pick<Customer, 'id' | 'namn' | 'telefon'> | null }
 
 export default function OrdrarPage() {
   return <Suspense><OrdrarInner /></Suspense>
@@ -40,7 +40,7 @@ function OrdrarInner() {
     const sb = createClient()
     sb.from('orders')
       // Bara fält som listan renderar — inte hela raden (beskrivning, anteckningar m.m.).
-      .select('id, status, kategori, titel, fastighet, ort, postnummer, order_number, bokad_datum, bokad_start, bokad_slut, tilldelad, fakturerat_belopp, created_at, lagenhet, customer:customers(id,namn,telefon)')
+      .select('id, status, kategori, titel, fastighet, ort, postnummer, order_number, bokad_datum, bokad_start, bokad_slut, tilldelad, fakturerat_belopp, fakturerat, faktureras_inte, created_at, lagenhet, customer:customers(id,namn,telefon)')
       .order('created_at', { ascending: false })
       .then(({ data }) => { setOrders((data ?? []) as unknown as OrderRow[]); setLoading(false) })
 
@@ -159,9 +159,14 @@ function OrdrarInner() {
                     <div style={{ fontSize: 14, fontWeight: 700, color: '#d0d0d0', minWidth: 0 }}>
                       {KAT_ICON[o.kategori || ''] || '📋'} {o.titel}
                     </div>
-                    <span style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 10, background: (STATUS_COLOR[o.status] || '#555') + '22', color: STATUS_COLOR[o.status] || '#555', border: `1px solid ${STATUS_COLOR[o.status] || '#555'}44` }}>
-                      {STATUS_LABEL[o.status] || o.status}
-                    </span>
+                    <div style={{ flexShrink: 0, display: 'flex', gap: 6, alignItems: 'center' }}>
+                      {o.faktureras_inte && !o.fakturerat && (
+                        <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 10, background: 'rgba(251,146,60,0.15)', color: '#fb923c', border: '1px solid #fb923c66' }}>🚫 Ej fakt.</span>
+                      )}
+                      <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 10, background: (STATUS_COLOR[o.status] || '#555') + '22', color: STATUS_COLOR[o.status] || '#555', border: `1px solid ${STATUS_COLOR[o.status] || '#555'}44` }}>
+                        {STATUS_LABEL[o.status] || o.status}
+                      </span>
+                    </div>
                   </div>
                   {o.order_number && <div style={{ fontSize: 12, color: '#E8C96A', fontWeight: 700, marginTop: 2 }}>{o.order_number}</div>}
 
@@ -267,9 +272,14 @@ function OrdrarInner() {
                     )
                   })()}
                   <td style={{ padding: '12px 14px', borderBottom: '1px solid #1a1a1a', verticalAlign: 'top' }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 10, background: (STATUS_COLOR[o.status] || '#555') + '22', color: STATUS_COLOR[o.status] || '#555', border: `1px solid ${STATUS_COLOR[o.status] || '#555'}44` }}>
-                      {STATUS_LABEL[o.status] || o.status}
-                    </span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 10, background: (STATUS_COLOR[o.status] || '#555') + '22', color: STATUS_COLOR[o.status] || '#555', border: `1px solid ${STATUS_COLOR[o.status] || '#555'}44` }}>
+                        {STATUS_LABEL[o.status] || o.status}
+                      </span>
+                      {o.faktureras_inte && !o.fakturerat && (
+                        <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 10, background: 'rgba(251,146,60,0.15)', color: '#fb923c', border: '1px solid #fb923c66' }}>🚫 Ej fakt.</span>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
