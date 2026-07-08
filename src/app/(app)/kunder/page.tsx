@@ -235,10 +235,11 @@ function KundDetailModal({ kund, onClose, onEdit }: { kund: Customer; onClose: (
 
   const laggTillAvtal = async () => {
     if (!nyAvtalArt || !nyAvtalPris) return
-    await createClient().from('kund_prisavtal').upsert(
+    const { error: err } = await createClient().from('kund_prisavtal').upsert(
       { customer_id: kund.id, artikel_id: nyAvtalArt, avtalspris: parseFloat(nyAvtalPris) || 0 },
       { onConflict: 'customer_id,artikel_id' }
     )
+    if (err) { toast.error('Kunde inte spara prisavtalet: ' + err.message); return }
     setNyAvtalArt(''); setNyAvtalPris('')
     fetchPrisavtal()
   }

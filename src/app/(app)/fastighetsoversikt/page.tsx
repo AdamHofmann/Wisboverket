@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import type { Fastighet, FastighetUnderhall, Order } from '@/types'
 import AdressInput from '@/components/AdressInput'
 import { useIsMobile } from '@/hooks/useMediaQuery'
+import { useToast } from '@/components/Toast'
 
 const PRIO_COLOR: Record<string, string> = { låg: '#636366', normal: '#60a5fa', hög: '#fb923c', akut: '#f87171' }
 const STATUS_ICON: Record<string, string> = { öppen: '🔴', pågående: '🟡', stängd: '✅' }
@@ -148,6 +149,7 @@ export default function FastigheterPage() {
 
 // ─── Panel ────────────────────────────────────────────────────────────────────
 function FastighetPanel({ fastighet, isMobile, onClose, onUpdated }: { fastighet: Fastighet; isMobile: boolean; onClose: () => void; onUpdated: () => void }) {
+  const toast = useToast()
   const [tab, setTab] = useState<'ordrar' | 'underhall'>('ordrar')
   const [ordrar, setOrdrar] = useState<any[]>([])
   const [underhall, setUnderhall] = useState<FastighetUnderhall[]>([])
@@ -166,13 +168,14 @@ function FastighetPanel({ fastighet, isMobile, onClose, onUpdated }: { fastighet
   const laggTillUnderhall = async () => {
     if (!uForm.titel) return
     setSparar(true)
-    await createClient().from('fastighet_underhall').insert({
+    const { error: insErr } = await createClient().from('fastighet_underhall').insert({
       fastighet_id: fastighet.id,
       titel: uForm.titel,
       beskrivning: uForm.beskrivning || null,
       prioritet: uForm.prioritet,
       assignad_till: uForm.assignad_till || null,
     })
+    if (insErr) { toast.error('Kunde inte spara underhållspunkten: ' + insErr.message); setSparar(false); return }
     const { data } = await createClient().from('fastighet_underhall').select('*').eq('fastighet_id', fastighet.id).order('created_at', { ascending: false })
     setUnderhall(data || [])
     setUForm({ titel: '', beskrivning: '', prioritet: 'normal', assignad_till: '' })
@@ -182,7 +185,8 @@ function FastighetPanel({ fastighet, isMobile, onClose, onUpdated }: { fastighet
   }
 
   const byttStatus = async (id: string, status: string) => {
-    await createClient().from('fastighet_underhall').update({ status, updated_at: new Date().toISOString() }).eq('id', id)
+    const { error: err } = await createClient().from('fastighet_underhall').update({ status, updated_at: new Date().toISOString() }).eq('id', id)
+    if (err) { toast.error('Kunde inte ändra status: ' + err.message); return }
     setUnderhall(u => u.map(r => r.id === id ? { ...r, status: status as any } : r))
     onUpdated()
   }
@@ -308,6 +312,7 @@ function SBtn({ label, color, onClick }: { label: string; color: string; onClick
 
 // ─── Modal ────────────────────────────────────────────────────────────────────
 function FastighetModal({ fastighet, isMobile, onClose, onSaved }: { fastighet: Fastighet | null; isMobile: boolean; onClose: () => void; onSaved: () => void }) {
+  const toast = useToast()
   const [form, setForm] = useState({ namn: fastighet?.namn || '', adress: fastighet?.adress || '', postnummer: fastighet?.postnummer || '', ort: fastighet?.ort || '', beteckning: fastighet?.beteckning || '', anteckningar: fastighet?.anteckningar || '' })
   const [saving, setSaving] = useState(false)
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
@@ -317,9 +322,11 @@ function FastighetModal({ fastighet, isMobile, onClose, onSaved }: { fastighet: 
     setSaving(true)
     const sb = createClient()
     const payload = { ...form, postnummer: form.postnummer || null, ort: form.ort || null, beteckning: form.beteckning || null, anteckningar: form.anteckningar || null }
-    if (fastighet) await sb.from('fastigheter').update(payload).eq('id', fastighet.id)
-    else await sb.from('fastigheter').insert(payload)
+    const { error: err } = fastighet
+      ? await sb.from('fastigheter').update(payload).eq('id', fastighet.id)
+      : await sb.from('fastigheter').insert(payload)
     setSaving(false)
+    if (err) { toast.error('Kunde inte spara fastigheten: ' + err.message); return }
     onSaved()
   }
 

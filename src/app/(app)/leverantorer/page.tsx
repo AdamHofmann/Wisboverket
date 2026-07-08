@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useIsMobile } from '@/hooks/useMediaQuery'
 import Sokfalt from '@/components/Sokfalt'
+import { useToast } from '@/components/Toast'
 
 type Leverantor = { id: string; leverantorsnummer: number | null; namn: string; orgnummer: string | null; telefon: string | null; epost: string | null; adress: string | null; kategori: string | null; anteckningar: string | null; created_at: string }
 
@@ -119,6 +120,7 @@ export default function LeverantorerPage() {
 
 function LeverantorModal({ leverantor, onClose, onSaved }: { leverantor: Leverantor | null; onClose: () => void; onSaved: () => void }) {
   const isMobile = useIsMobile()
+  const toast = useToast()
   const [form, setForm] = useState(leverantor ? { ...leverantor } : { ...EMPTY })
   const [saving, setSaving] = useState(false)
 
@@ -133,7 +135,8 @@ function LeverantorModal({ leverantor, onClose, onSaved }: { leverantor: Leveran
       ? await sb.from('suppliers').update(payload).eq('id', leverantor.id)
       : await sb.from('suppliers').insert(payload)
     setSaving(false)
-    if (!error) onSaved()
+    if (error) { toast.error('Kunde inte spara leverantören: ' + error.message); return }
+    onSaved()
   }
 
   const inp = { background: '#111', border: '1px solid #2a2a2a', borderRadius: 8, padding: '8px 12px', color: '#e0e0e0', fontSize: 13, outline: 'none', width: '100%', boxSizing: 'border-box' as const }

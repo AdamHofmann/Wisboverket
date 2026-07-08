@@ -14,6 +14,7 @@ import BilderTab from '@/components/order-tabs/BilderTab'
 import OffertTab from '@/components/order-tabs/OffertTab'
 import { fmtKr, STATUS_LABEL, STATUS_COLOR, PRIO_LABEL, PRIO_COLOR, KAT_ICON } from '@/components/order-tabs/shared'
 import { useConfirm } from '@/components/ConfirmDialog'
+import { useToast } from '@/components/Toast'
 
 type Kommunikation = {
   id: string; typ: string; kanal: string | null; mottagare: string | null; meddelande: string; created_at: string
@@ -40,6 +41,7 @@ export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const confirm = useConfirm()
+  const toast = useToast()
   const [order, setOrder] = useState<Order & { customer?: Customer } | null>(null)
   const [kommunikation, setKommunikation] = useState<Kommunikation[]>([])
   const [loading, setLoading] = useState(true)
@@ -71,25 +73,30 @@ export default function OrderDetailPage() {
   useEffect(() => { fetchAll() }, [id])
 
   const updateStatus = async (status: string) => {
-    await createClient().from('orders').update({ status, updated_at: new Date().toISOString() }).eq('id', id)
+    const { error: err } = await createClient().from('orders').update({ status, updated_at: new Date().toISOString() }).eq('id', id)
+    if (err) { toast.error('Kunde inte uppdatera status: ' + err.message); return }
     fetchAll()
   }
 
   const stangUtanFakturering = async () => {
-    await createClient().from('orders').update({ faktureras_inte: true, updated_at: new Date().toISOString() }).eq('id', id)
+    const { error: err } = await createClient().from('orders').update({ faktureras_inte: true, updated_at: new Date().toISOString() }).eq('id', id)
+    if (err) { toast.error('Kunde inte stänga ordern: ' + err.message); return }
     fetchAll()
   }
 
   const lasUpp = async () => {
     if (order?.fakturerat && !(await confirm({ message: 'Ordern har en faktura — lås upp ändå?', confirmLabel: 'Lås upp' }))) return
-    await createClient().from('orders').update({ faktureras_inte: false, fakturerat: false, updated_at: new Date().toISOString() }).eq('id', id)
+    const { error: err } = await createClient().from('orders').update({ faktureras_inte: false, fakturerat: false, updated_at: new Date().toISOString() }).eq('id', id)
+    if (err) { toast.error('Kunde inte låsa upp ordern: ' + err.message); return }
     fetchAll()
   }
 
   const sparaBetygFn = async () => {
     setSparaBetyg(true)
-    await createClient().from('orders').update({ betyg, betyg_kommentar: betygKommentar }).eq('id', id)
+    const { error: err } = await createClient().from('orders').update({ betyg, betyg_kommentar: betygKommentar }).eq('id', id)
     setSparaBetyg(false)
+    if (err) { toast.error('Kunde inte spara betyget: ' + err.message); return }
+    toast.success('Betyg sparat')
   }
 
   if (loading) return <div style={{ color: '#555', padding: 60, textAlign: 'center' }}>Laddar...</div>

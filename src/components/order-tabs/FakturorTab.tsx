@@ -93,7 +93,8 @@ export default function FakturorTab({ orderId }: { orderId: string }) {
     }
 
     // Uppdatera originalet FÖRST när kreditnotan faktiskt skapats.
-    await sb.from('fakturor').update({ status: isFullKredit ? 'krediterad' : 'delkrediterad' }).eq('id', kreditModal.id)
+    const { error: statusErr } = await sb.from('fakturor').update({ status: isFullKredit ? 'krediterad' : 'delkrediterad' }).eq('id', kreditModal.id)
+    if (statusErr) toast.error('Kreditnotan skapades, men originalfakturans status kunde inte uppdateras: ' + statusErr.message)
 
     setKreditModal(null); setSparar(false); setKreditBelopp(''); setKreditAntal({})
     fetchFakturor()

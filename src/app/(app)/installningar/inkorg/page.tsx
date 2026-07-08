@@ -199,8 +199,9 @@ function FelanmalanTab({ onHandled }: { onHandled: () => void }) {
       status: 'ny',
     }).select('id').single()
     setSkaparOrder(false)
-    if (error || !data) return
-    await sb.from('felanmalningar').update({ status: 'hanterad', order_id: data.id }).eq('id', item.id)
+    if (error || !data) { toast.error('Kunde inte skapa order: ' + (error?.message || 'okänt fel')); return }
+    const { error: uppErr } = await sb.from('felanmalningar').update({ status: 'hanterad', order_id: data.id }).eq('id', item.id)
+    if (uppErr) toast.error('Ordern skapades, men felanmälan kunde inte markeras som hanterad: ' + uppErr.message)
     if (item.status === 'ny') onHandled()
     router.push(`/ordrar?order=${data.id}`)
   }
