@@ -107,7 +107,18 @@ export default function DebiteringTab({
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={pill('rgba(232,201,106,0.12)', C.gold)}>{o.status}</span>
-              <button onClick={() => deleteOmgang(o.id)} style={iconBtn}>🗑️</button>
+              {(() => {
+                const harFakturerad = o.debiteringar.some(d => d.status === 'fakturerad')
+                return (
+                  <button
+                    onClick={() => { if (!harFakturerad) deleteOmgang(o.id) }}
+                    disabled={harFakturerad}
+                    title={harFakturerad ? 'Kan inte tas bort — omgången har fakturerade hyresgäster. Kreditera/ta bort el-fakturorna först.' : 'Ta bort omgången'}
+                    style={{ ...iconBtn, opacity: harFakturerad ? 0.3 : 1, cursor: harFakturerad ? 'not-allowed' : 'pointer' }}>
+                    🗑️
+                  </button>
+                )
+              })()}
             </div>
           </div>
           {(() => {
