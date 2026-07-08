@@ -24,6 +24,7 @@ import { useIsMobile } from '@/hooks/useMediaQuery'
 import { useConfirm } from '@/components/ConfirmDialog'
 import { useToast } from '@/components/Toast'
 import { useBolag } from '@/components/fastigheter/BolagContext'
+import { elKvartalKostnadsGap } from '@/lib/fastigheter/elKostnad'
 import {
   Matare, LevFaktura, Omgang, Fastighet, Lokal, Tab, Sort, MatareForm, LevForm, Avlasning,
 } from './_components/shared'
@@ -247,19 +248,10 @@ export default function ElMatarePage() {
     // (kostsidan ofullständig → blandpriset blir för lågt → hyresgästerna
     // underdebiteras). Aktiv "Skapa ändå" krävs — inte bara en passiv varning.
     const valdaFakturor = fakturorForKvartal().filter(f => omgangValda.has(f.id))
-    const MANADER = ['jan', 'feb', 'mar', 'apr', 'maj', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec']
-    const pad2 = (n: number) => String(n).padStart(2, '0')
-    const saknadeManader = [(omgangKvartal - 1) * 3, (omgangKvartal - 1) * 3 + 1, (omgangKvartal - 1) * 3 + 2]
-      .map(mi => {
-        const mStart = `${omgangAr}-${pad2(mi + 1)}-01`
-        const mSlut = `${omgangAr}-${pad2(mi + 1)}-${pad2(new Date(omgangAr, mi + 1, 0).getDate())}`
-        const tackt = valdaFakturor.some(f => (f.period_fran ?? '') <= mSlut && (f.period_till ?? '') >= mStart)
-        return tackt ? null : MANADER[mi]
-      })
-      .filter(Boolean) as string[]
-    if (valdaFakturor.length > 0 && saknadeManader.length > 0) {
+    const kostnadsGap = elKvartalKostnadsGap(valdaFakturor, omgangAr, omgangKvartal)
+    if (kostnadsGap.length > 0) {
       const ok = await confirm({
-        message: `Kostnaderna täcker inte hela kvartalet — leverantörsfaktura saknas för: ${saknadeManader.join(', ')}. Blandpriset blir då för lågt och hyresgästerna underdebiteras. Skapa omgången ändå?`,
+        message: `Kostnaderna täcker inte hela kvartalet — leverantörsfaktura saknas för: ${kostnadsGap.join(', ')}. Blandpriset blir då för lågt och hyresgästerna underdebiteras. Skapa omgången ändå?`,
         danger: true, confirmLabel: 'Skapa ändå',
       })
       if (!ok) return
