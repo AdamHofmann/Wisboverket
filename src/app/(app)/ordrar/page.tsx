@@ -13,6 +13,9 @@ import { STATUS_LABEL, STATUS_COLOR, KAT_ICON, KATEGORIER as KATEGORIER_BAS, fmt
 const KATEGORIER = ['Alla', ...KATEGORIER_BAS]
 const STATUSAR = ['Alla', 'ny', 'pågående', 'klar', 'inaktiv']
 
+// Bara de fält listan hämtar + renderar (matchar select nedan).
+type OrderRow = Pick<Order, 'id' | 'status' | 'kategori' | 'titel' | 'fastighet' | 'ort' | 'postnummer' | 'order_number' | 'bokad_datum' | 'bokad_start' | 'bokad_slut' | 'tilldelad' | 'fakturerat_belopp' | 'created_at'> & { customer?: Pick<Customer, 'id' | 'namn' | 'telefon'> | null }
+
 export default function OrdrarPage() {
   return <Suspense><OrdrarInner /></Suspense>
 }
@@ -20,7 +23,7 @@ export default function OrdrarPage() {
 function OrdrarInner() {
   const searchParams = useSearchParams()
   const isMobile = useIsMobile()
-  const [orders, setOrders] = useState<(Order & { customer?: Customer })[]>([])
+  const [orders, setOrders] = useState<OrderRow[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [katFilter, setKatFilter] = useState('Alla')
@@ -36,9 +39,10 @@ function OrdrarInner() {
   const fetchOrders = () => {
     const sb = createClient()
     sb.from('orders')
-      .select('*, customer:customers(id,namn,telefon)')
+      // Bara fält som listan renderar — inte hela raden (beskrivning, anteckningar m.m.).
+      .select('id, status, kategori, titel, fastighet, ort, postnummer, order_number, bokad_datum, bokad_start, bokad_slut, tilldelad, fakturerat_belopp, created_at, customer:customers(id,namn,telefon)')
       .order('created_at', { ascending: false })
-      .then(({ data }) => { setOrders(data || []); setLoading(false) })
+      .then(({ data }) => { setOrders((data ?? []) as unknown as OrderRow[]); setLoading(false) })
 
     // Hämta ALLA kostnadsrader i två queries och summera per order_id client-side (undviker N+1)
     Promise.all([

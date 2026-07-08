@@ -21,7 +21,7 @@ export async function GET() {
       .select(`
         *,
         fastighet:f_fastighet ( id, namn ),
-        avlasningar:f_elavlasning (*)
+        avlasningar:f_elavlasning ( id, datum, varde, avlast_av )
       `)
       .order('matarnummer', { ascending: true })
       .order('datum', { ascending: false, foreignTable: 'f_elavlasning' })

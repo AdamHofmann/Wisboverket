@@ -123,22 +123,29 @@ export async function GET(request: Request) {
     // include: rader, hyresavtal { lokaler { lokal { fastighet } }, hyresgast }
     // → nested select. Junction f_hyresavtal_lokal aliasas till "lokaler",
     //   lokal → f_lokal, fastighet → f_fastighet.
+    // Hämta bara de kolumner vyn (fakturering/page.tsx) faktiskt renderar.
+    // Tidigare select('*') med nästlade (*) drog hela f_hyresavtal, f_lokal och
+    // f_fastighet per faktura → stor payload och seg initial laddning på skarpa siten.
     let query = sb
       .from('f_faktura')
       .select(`
-        *,
-        rader:f_fakturarad (*),
-        handelser:f_faktura_handelse (*),
-        hyresgast:f_hyresgast (*),
+        id, fakturanummer, belopp, period, forfallodag, status, typ,
+        original_faktura_id, created_at, hyresgast_id, bolag_id,
+        rader:f_fakturarad (
+          id, artikelkod, beskrivning, antal, apris, belopp, moms,
+          start_varde, slut_varde, avlast_fran, avlast_till
+        ),
+        handelser:f_faktura_handelse ( id, typ, meddelande, created_at ),
+        hyresgast:f_hyresgast ( id, namn, personnummer, epost ),
         hyresavtal:f_hyresavtal (
-          *,
+          faktureringsfrekvens,
           lokaler:f_hyresavtal_lokal (
             lokal:f_lokal (
-              *,
-              fastighet:f_fastighet (*)
+              namn,
+              fastighet:f_fastighet ( namn, bolag_id )
             )
           ),
-          hyresgast:f_hyresgast (*)
+          hyresgast:f_hyresgast ( id, namn, epost, personnummer )
         )
       `)
       .order('created_at', { ascending: false })

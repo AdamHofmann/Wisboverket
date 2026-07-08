@@ -6,6 +6,10 @@ import type { Order, Invoice } from '@/types'
 import Link from 'next/link'
 import { useIsMobile } from '@/hooks/useMediaQuery'
 
+// Bara de fält dashboarden faktiskt hämtar + renderar (matchar select nedan).
+type DashOrder = Pick<Order, 'id' | 'status' | 'bokad_datum' | 'fakturerat' | 'faktureras_inte' | 'tilldelad' | 'titel' | 'fastighet' | 'pris' | 'created_at'>
+type DashInvoice = Pick<Invoice, 'id' | 'invoice_number' | 'total_incl_moms' | 'created_at'>
+
 const S: Record<string, React.CSSProperties> = {
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16, marginBottom: 24 },
   card: { background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 12, padding: '20px 22px', position: 'relative', overflow: 'hidden' },
@@ -30,18 +34,23 @@ const fmtDate = (d: string) => new Date(d).toLocaleDateString('sv-SE', { day: 'n
 
 export default function DashboardPage() {
   const isMobile = useIsMobile()
-  const [orders, setOrders] = useState<Order[]>([])
-  const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [orders, setOrders] = useState<DashOrder[]>([])
+  const [invoices, setInvoices] = useState<DashInvoice[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const supabase = createClient()
     Promise.all([
-      supabase.from('orders').select('*').order('created_at', { ascending: false }),
-      supabase.from('invoices').select('*').order('created_at', { ascending: false }),
+      // Bara de fält dashboarden renderar — undvik select('*') som drar hela raden.
+      supabase.from('orders')
+        .select('id, status, bokad_datum, fakturerat, faktureras_inte, tilldelad, titel, fastighet, pris, created_at')
+        .order('created_at', { ascending: false }),
+      supabase.from('invoices')
+        .select('id, invoice_number, total_incl_moms, created_at')
+        .order('created_at', { ascending: false }),
     ]).then(([{ data: o }, { data: i }]) => {
-      setOrders(o || [])
-      setInvoices(i || [])
+      setOrders((o || []) as DashOrder[])
+      setInvoices((i || []) as DashInvoice[])
       setLoading(false)
     })
   }, [])
