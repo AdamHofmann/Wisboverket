@@ -50,10 +50,9 @@ type PreviewMatare = {
   fastighet_id: string; aktiv: boolean; avlasningar: { datum: string; varde: number }[]
 }
 export function elMatpunkterUtanAvlasning(
-  matare: PreviewMatare[], fastighetId: string, fran: string, till: string,
+  matare: PreviewMatare[], fastighetId: string, _fran: string, till: string,
 ): string[] {
   if (!fastighetId) return []
-  const franT = new Date(fran).getTime()
   const tillT = new Date(till).getTime()
   const saknar: string[] = []
   for (const m of matare) {
@@ -61,9 +60,12 @@ export function elMatpunkterUtanAvlasning(
     const avl = (m.avlasningar ?? [])
       .map(a => ({ datum: new Date(a.datum).getTime(), varde: Number(a.varde) }))
       .sort((a, b) => a.datum - b.datum)
-    const startAvl = avl.find(a => a.datum >= franT) || avl[0]
-    const slutAvl = avl.find(a => a.datum >= tillT) || avl[avl.length - 1]
-    const ok = !!startAvl && !!slutAvl && startAvl !== slutAvl && slutAvl.varde >= startAvl.varde
+    // Samma bracketing som servern: stängande avläsning (första ≥ periodslut) +
+    // närmast föregående avläsning krävs för att kunna debitera perioden.
+    const slutIdx = avl.findIndex(a => a.datum >= tillT)
+    const startAvl = slutIdx > 0 ? avl[slutIdx - 1] : undefined
+    const slutAvl = slutIdx > 0 ? avl[slutIdx] : undefined
+    const ok = !!startAvl && !!slutAvl && slutAvl.varde >= startAvl.varde
     if (!ok) saknar.push(m.beskrivning || m.matarnummer)
   }
   return saknar

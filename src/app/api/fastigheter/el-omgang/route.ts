@@ -202,20 +202,17 @@ async function postHandler(request: Request) {
           datum: new Date(a.datum).getTime(),
           varde: Number(a.varde),
         }))
-        // Avläsningar "bracketar" perioden (avläsning görs vid/EFTER periodslut, t.ex.
-        // 7/4 för Q1→Q2-brytet). Perioden [fran, till] avgränsas av de två avläsningar
-        // som stänger föregående respektive denna period:
-        //  - startAvl = avläsningen som stängde föregående period = OPPNAR denna
-        //    = första avläsning ≥ periodstart (samma avläsning som var förra periodens
-        //      slut → ingen överlappning och inget glapp mellan kvartal).
-        //  - slutAvl = avläsningen som STÄNGER perioden = första avläsning ≥ periodslut
-        //    (annars den senaste avläsningen).
-        // Saknas en riktig slutavläsning (start === slut) hoppas mätaren över nedan —
-        // en period kan inte debiteras utan en avläsning som stänger den.
-        const startAvl = avl.find((a: AvlRad) => a.datum >= periodFran) || avl[0]
-        const slutAvl = avl.find((a: AvlRad) => a.datum >= periodTill) || avl[avl.length - 1]
+        // Avläsning görs vid/EFTER periodslut (t.ex. 7/4 stänger Q1). Förbrukningen
+        // för en period = avläsningen som STÄNGER perioden (första ≥ periodslut) minus
+        // den NÄRMAST FÖREGÅENDE avläsningen (som stängde föregående period). Samma
+        // avläsning blir alltså slut för ett kvartal och start för nästa → inga glapp,
+        // ingen dubbelräkning. Krävs både en stängande avläsning och en föregående —
+        // annars kan perioden inte debiteras (mätaren hoppas över, "Avläsning saknas").
+        const slutIdx = avl.findIndex((a: AvlRad) => a.datum >= periodTill)
+        const startAvl = slutIdx > 0 ? avl[slutIdx - 1] : undefined
+        const slutAvl = slutIdx > 0 ? avl[slutIdx] : undefined
 
-        if (startAvl && slutAvl && startAvl.id !== slutAvl.id && slutAvl.varde >= startAvl.varde) {
+        if (startAvl && slutAvl && slutAvl.varde >= startAvl.varde) {
           forbrukning = Math.round((slutAvl.varde - startAvl.varde) * 100) / 100
           startVarde = startAvl.varde
           slutVarde = slutAvl.varde
