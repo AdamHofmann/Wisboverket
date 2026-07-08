@@ -14,6 +14,7 @@ interface Props {
   matpunktNamn: (matareId: string | null) => string
   skapaElFakturorValda: (perOmgang: { omgangId: string; hyresgaster: string[] }[]) => void
   deleteOmgang: (id: string) => void
+  deleteHyresgastDebitering: (omgangId: string, hyresgastNamn: string) => void
   setOmgangFastighetId: (v: string) => void
   setOmgangAr: (v: number) => void
   setOmgangKvartal: (v: 1 | 2 | 3 | 4) => void
@@ -23,7 +24,7 @@ interface Props {
 
 export default function DebiteringTab({
   isMobile, omgangar, fastigheter, bolagMatch, matpunktNamn,
-  skapaElFakturorValda, deleteOmgang,
+  skapaElFakturorValda, deleteOmgang, deleteHyresgastDebitering,
   setOmgangFastighetId, setOmgangAr, setOmgangKvartal, setOmgangValda, setShowNewOmgang,
 }: Props) {
   // Val av enskilda hyresgäster per omgång (nyckel: "omgangId::hyresgastNamn").
@@ -138,9 +139,15 @@ export default function DebiteringTab({
                   ) : grupper.map(g => {
                     const gKwh = g.rader.reduce((s, d) => s + (d.forbrukning ?? 0), 0)
                     const gBelopp = g.rader.reduce((s, d) => s + d.belopp, 0)
+                    const gFakturerad = g.rader.some(d => d.status === 'fakturerad')
                     return (
                       <div key={g.namn} style={{ borderTop: `1px solid ${C.borderSoft}`, padding: '12px 16px' }}>
-                        <div style={{ fontWeight: 700, color: C.text, fontSize: 13, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}><input type="checkbox" checked={valdaHyresgaster.has(hgKey(o.id, g.namn))} onChange={() => toggleHyresgast(o.id, g.namn)} style={{ width: 14, height: 14, accentColor: C.gold, cursor: 'pointer' }} />{g.namn}</div>
+                        <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                          <span style={{ fontWeight: 700, color: C.text, fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}><input type="checkbox" checked={valdaHyresgaster.has(hgKey(o.id, g.namn))} onChange={() => toggleHyresgast(o.id, g.namn)} style={{ width: 14, height: 14, accentColor: C.gold, cursor: 'pointer' }} />{g.namn}</span>
+                          <button onClick={() => { if (!gFakturerad) deleteHyresgastDebitering(o.id, g.namn) }} disabled={gFakturerad}
+                            title={gFakturerad ? 'Kan inte tas bort — hyresgästen är fakturerad. Kreditera fakturan först.' : 'Ta bort hyresgästen ur omgången'}
+                            style={{ ...iconBtn, opacity: gFakturerad ? 0.3 : 1, cursor: gFakturerad ? 'not-allowed' : 'pointer' }}>🗑️</button>
+                        </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                           {g.rader.map(d => (
                             <div key={d.id} style={{ borderRadius: 8, background: C.panel2, padding: 10, fontSize: 12 }}>
@@ -195,12 +202,13 @@ export default function DebiteringTab({
               ) : grupper.map((g, gi) => {
                 const gKwh = g.rader.reduce((s, d) => s + (d.forbrukning ?? 0), 0)
                 const gBelopp = g.rader.reduce((s, d) => s + d.belopp, 0)
+                const gFakturerad = g.rader.some(d => d.status === 'fakturerad')
                 return (
                   <React.Fragment key={g.namn}>
                     {gi > 0 && <tr aria-hidden="true"><td colSpan={6} style={{ height: 16 }} /></tr>}
                     {g.rader.map((d, i) => (
                       <tr key={d.id}>
-                        <td style={{ ...td, fontWeight: 600, color: C.text, borderTop: i === 0 ? `1px solid ${C.borderSoft}` : 'none' }}>{i === 0 ? (<span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><input type="checkbox" checked={valdaHyresgaster.has(hgKey(o.id, g.namn))} onChange={() => toggleHyresgast(o.id, g.namn)} style={{ width: 14, height: 14, accentColor: C.gold, cursor: 'pointer' }} title="Välj hyresgäst att fakturera" />{g.namn}</span>) : ''}</td>
+                        <td style={{ ...td, fontWeight: 600, color: C.text, borderTop: i === 0 ? `1px solid ${C.borderSoft}` : 'none' }}>{i === 0 ? (<span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><input type="checkbox" checked={valdaHyresgaster.has(hgKey(o.id, g.namn))} onChange={() => toggleHyresgast(o.id, g.namn)} style={{ width: 14, height: 14, accentColor: C.gold, cursor: 'pointer' }} title="Välj hyresgäst att fakturera" />{g.namn}<button onClick={() => { if (!gFakturerad) deleteHyresgastDebitering(o.id, g.namn) }} disabled={gFakturerad} title={gFakturerad ? 'Kan inte tas bort — hyresgästen är fakturerad. Kreditera fakturan först.' : 'Ta bort hyresgästen ur omgången'} style={{ ...iconBtn, opacity: gFakturerad ? 0.3 : 1, cursor: gFakturerad ? 'not-allowed' : 'pointer', fontSize: 12 }}>🗑️</button></span>) : ''}</td>
                         <td style={{ ...td, color: C.text2, borderTop: i === 0 ? `1px solid ${C.borderSoft}` : 'none' }}>{matpunktNamn(d.matare_id)}</td>
                         <td style={{ ...td, borderTop: i === 0 ? `1px solid ${C.borderSoft}` : 'none' }}>{d.forbrukning != null ? fmtKwh(d.forbrukning) : <span style={{ fontSize: 11, color: C.warn }}>Avläsning saknas</span>}</td>
                         <td style={{ ...td, borderTop: i === 0 ? `1px solid ${C.borderSoft}` : 'none' }}>{d.pris_per_kwh.toFixed(4)} kr</td>

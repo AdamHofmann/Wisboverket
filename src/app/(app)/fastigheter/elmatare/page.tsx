@@ -293,6 +293,20 @@ export default function ElMatarePage() {
     }
     load()
   }
+  // Ta bort EN hyresgäst ur en omgång (ej fakturerade — så de inte skvalpar kvar).
+  const deleteHyresgastDebitering = async (omgangId: string, hyresgastNamn: string) => {
+    if (!(await confirm({ message: `Ta bort ${hyresgastNamn} från omgången? Debiteringen tas bort (ingen faktura finns).`, danger: true, confirmLabel: 'Ta bort' }))) return
+    const res = await fetch(`/api/fastigheter/el-omgang/${omgangId}/debitering`, {
+      method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hyresgastNamn }),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      toast.error(data.error || 'Kunde inte ta bort hyresgästen')
+      return
+    }
+    load()
+  }
   // Kör faktureringen för EN omgång; returnerar antal skapade fakturor eller kastar.
   const fakturerOmgang = async (id: string, hyresgastNamn?: string[]): Promise<number> => {
     const res = await fetch(`/api/fastigheter/el-omgang/${id}/fakturera`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hyresgastNamn }) })
@@ -424,6 +438,7 @@ export default function ElMatarePage() {
           matpunktNamn={matpunktNamn}
           skapaElFakturorValda={skapaElFakturorValda}
           deleteOmgang={deleteOmgang}
+          deleteHyresgastDebitering={deleteHyresgastDebitering}
           setOmgangFastighetId={setOmgangFastighetId}
           setOmgangAr={setOmgangAr}
           setOmgangKvartal={setOmgangKvartal}
