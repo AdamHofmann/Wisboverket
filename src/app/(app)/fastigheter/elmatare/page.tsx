@@ -270,7 +270,12 @@ export default function ElMatarePage() {
   }
   const deleteOmgang = async (id: string) => {
     if (!(await confirm({ message: 'Ta bort hela debiteringsomgången?', danger: true, confirmLabel: 'Ta bort' }))) return
-    await fetch(`/api/fastigheter/el-omgang/${id}`, { method: 'DELETE' })
+    const res = await fetch(`/api/fastigheter/el-omgang/${id}`, { method: 'DELETE' })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      toast.error(data.error || 'Kunde inte ta bort debiteringsomgången')
+      return
+    }
     load()
   }
   // Kör faktureringen för EN omgång; returnerar antal skapade fakturor eller kastar.
