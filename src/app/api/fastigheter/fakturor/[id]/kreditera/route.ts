@@ -28,7 +28,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     // Hämta originalfakturan + dess rader.
     const { data: original, error: origErr } = await sb
       .from('f_faktura')
-      .select('id, fakturanummer, hyresavtal_id, belopp, period, forfallodag, rader:f_fakturarad (*)')
+      .select('id, fakturanummer, hyresavtal_id, hyresgast_id, bolag_id, belopp, period, forfallodag, rader:f_fakturarad (*)')
       .eq('id', id)
       .single()
     if (origErr) throw origErr
@@ -41,6 +41,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       .insert({
         fakturanummer: `${original.fakturanummer}-K`,
         hyresavtal_id: original.hyresavtal_id,
+        hyresgast_id: original.hyresgast_id,
+        bolag_id: original.bolag_id,
         belopp: -original.belopp,
         period: original.period,
         forfallodag: original.forfallodag,

@@ -785,7 +785,7 @@ export default function FaktureringPage() {
               const isKreditnota = f.typ === 'kreditnota'
               const isKrediterad = f.status === 'krediterad'
               const original = f.original_faktura_id ? fakturorById.get(f.original_faktura_id) : null
-              const canKreditera = f.typ === 'faktura' && (f.status === 'skickad' || f.status === 'betald')
+              const canKreditera = (f.typ === 'faktura' || f.typ === 'el') && (f.status === 'skickad' || f.status === 'betald')
               return (
                 <div
                   key={f.id}
@@ -945,7 +945,7 @@ export default function FaktureringPage() {
                   const isKreditnota = f.typ === 'kreditnota'
                   const isKrediterad = f.status === 'krediterad'
                   const original = f.original_faktura_id ? fakturorById.get(f.original_faktura_id) : null
-                  const canKreditera = f.typ === 'faktura' && (f.status === 'skickad' || f.status === 'betald')
+                  const canKreditera = (f.typ === 'faktura' || f.typ === 'el') && (f.status === 'skickad' || f.status === 'betald')
                   return (
                     <React.Fragment key={f.id}>
                       <tr
@@ -1212,7 +1212,7 @@ export default function FaktureringPage() {
             {previewFaktura.status === 'ej_skickad' && <button onClick={async () => { if (await skickaMedKontroll(previewFaktura.id)) setPreviewFaktura(null) }} style={{ ...btnPrimary, flex: 1 }}>Skicka</button>}
             {previewFaktura.status === 'skickad' && <button onClick={() => { markeraBetald(previewFaktura.id); setPreviewFaktura(null) }} style={{ ...btnPrimary, flex: 1, background: C.ok }}>Markera betald</button>}
             {isForfallen(previewFaktura) && <button onClick={() => skickaPaminnelse(previewFaktura.id)} style={{ ...btnGhost, color: '#fb923c', borderColor: 'rgba(251,146,60,0.4)' }}>🔔 Påminn{paminnelseAntal(previewFaktura) > 0 ? ` (${paminnelseAntal(previewFaktura)})` : ''}</button>}
-            {previewFaktura.typ === 'faktura' && (previewFaktura.status === 'skickad' || previewFaktura.status === 'betald') && (
+            {(previewFaktura.typ === 'faktura' || previewFaktura.typ === 'el') && (previewFaktura.status === 'skickad' || previewFaktura.status === 'betald') && (
               <button onClick={() => { krediteraFaktura(previewFaktura.id); setPreviewFaktura(null) }} style={btnGhost}>Kreditera</button>
             )}
             {previewFaktura.status === 'ej_skickad' && <button onClick={() => { deleteFaktura(previewFaktura.id); setPreviewFaktura(null) }} style={btnDanger}>Ta bort</button>}
