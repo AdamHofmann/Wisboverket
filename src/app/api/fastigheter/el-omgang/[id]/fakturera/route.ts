@@ -86,8 +86,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const forfallo = new Date()
     forfallo.setDate(forfallo.getDate() + Number(body.betalvillkorDagar ?? 20))
 
-    const skapade: string[] = []
-    for (const key of Object.keys(grupper)) {
+    // Bygg en faktura-payload per hyresgäst (rader + vilka debiteringar som ska
+    // markeras). All beräkning sker här; persisteringen görs sedan atomärt i RPC.
+    const payload = Object.keys(grupper).map((key) => {
       const g = grupper[key]
       const fakturaRader = g.rader.map((d: any) => {
         // Del = mätarens namn (fångat vid omgången, annars mätarens nuvarande beskrivning)
@@ -110,38 +111,29 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         }
       })
       const belopp = r2(fakturaRader.reduce((s, r) => s + r.belopp, 0))
+      return {
+        fakturanummer: fakturanummer(),
+        hyresavtal_id: null,
+        hyresgast_id: g.hyresgastId,
+        bolag_id: g.bolagId,
+        belopp,
+        period,
+        forfallodag: forfallo.toISOString(),
+        status: 'ej_skickad',
+        typ: 'el',
+        rader: fakturaRader,
+        debitering_ids: g.rader.map((d: any) => d.id),
+      }
+    })
 
-      const { data: faktura, error: fErr } = await sb
-        .from('f_faktura')
-        .insert({
-          fakturanummer: fakturanummer(),
-          hyresavtal_id: null,
-          hyresgast_id: g.hyresgastId,
-          bolag_id: g.bolagId,
-          belopp,
-          period,
-          forfallodag: forfallo.toISOString(),
-          status: 'ej_skickad',
-          typ: 'el',
-        })
-        .select()
-        .single()
-      if (fErr) throw fErr
+    // Hela omgången skapas atomärt: f_faktura + f_fakturarad + markering av
+    // f_eldebitering i en transaktion. Fallerar något rullas allt tillbaka →
+    // inga halvskapade fakturor eller orphaned debiteringar.
+    const { data: skapade, error: rpcErr } = await sb.rpc('fakturera_el_omgang', { p_fakturor: payload })
+    if (rpcErr) throw rpcErr
 
-      const { error: rErr } = await sb
-        .from('f_fakturarad')
-        .insert(fakturaRader.map((r) => ({ ...r, faktura_id: faktura.id as string })))
-      if (rErr) throw rErr
-
-      await sb
-        .from('f_eldebitering')
-        .update({ status: 'fakturerad', faktura_id: faktura.id, fakturerad_datum: new Date().toISOString() })
-        .in('id', g.rader.map((d: any) => d.id))
-
-      skapade.push(faktura.id as string)
-    }
-
-    return NextResponse.json({ ok: true, antal: skapade.length, fakturaIds: skapade }, { status: 201 })
+    const fakturaIds = (skapade as string[] | null) ?? []
+    return NextResponse.json({ ok: true, antal: fakturaIds.length, fakturaIds }, { status: 201 })
   } catch (e) {
     console.error('el-fakturera error:', e)
     const msg = e instanceof Error ? e.message : 'Serverfel'

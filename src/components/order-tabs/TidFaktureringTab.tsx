@@ -292,39 +292,38 @@ export default function TidFaktureringTab({ orderId, onUpdated, last = false }: 
     const betalvillkor = Number(orderInfo?.customer?.betalvillkor) || 30
     const forfalloDatum = new Date()
     forfalloDatum.setDate(forfalloDatum.getDate() + betalvillkor)
-    const { data: nyFaktura, error: fakturaErr } = await sb.from('fakturor').insert({
-      fakturanummer: nextFakturaNr,
-      forfallodatum: forfalloDatum.toISOString().split('T')[0],
-      order_id: orderId,
-      customer_id: orderInfo?.customer_id,
-      rader: raderPayload,
-      moms_pct: momsProc,
-      subtotal: fakturaSubtotal,
-      moms_belopp: fakturaMoms,
-      totalt: fakturaTotalt,
-      kund_namn: orderInfo?.customer?.namn,
-      kund_orgnr: orderInfo?.customer?.orgnummer,
-      kund_epost: orderInfo?.customer?.fakturamail || orderInfo?.customer?.epost,
-      referens: fakturaRef,
-      status: 'skickad',
-    }).select('*').single()
-    // Markera INTE ordern fakturerad / lås INTE tidrader om fakturan inte skapades.
+    // Faktura + ordermarkering (fakturerat/belopp/datum/status) + låsning av
+    // tidposter sker atomärt i en RPC — inget partiellt tillstånd om något fallerar.
+    const { data: nyFaktura, error: fakturaErr } = await sb.rpc('skapa_order_faktura', {
+      p_faktura: {
+        fakturanummer: nextFakturaNr,
+        forfallodatum: forfalloDatum.toISOString().split('T')[0],
+        customer_id: orderInfo?.customer_id ?? null,
+        rader: raderPayload,
+        moms_pct: momsProc,
+        subtotal: fakturaSubtotal,
+        moms_belopp: fakturaMoms,
+        totalt: fakturaTotalt,
+        kund_namn: orderInfo?.customer?.namn,
+        kund_orgnr: orderInfo?.customer?.orgnummer,
+        kund_epost: orderInfo?.customer?.fakturamail || orderInfo?.customer?.epost,
+        referens: fakturaRef,
+        status: 'skickad',
+      },
+      p_order_id: orderId,
+      p_order_patch: {
+        fakturerat: true,
+        fakturerat_belopp: fakturaTotalt,
+        fakturadatum: new Date().toISOString().split('T')[0],
+        // Fakturerad order räknas som klar (rör inte manuellt inaktiverade ordrar)
+        status: orderInfo?.status === 'inaktiv' ? 'inaktiv' : 'klar',
+      },
+    })
     if (fakturaErr || !nyFaktura) {
       toast.error('Kunde inte skapa fakturan: ' + (fakturaErr?.message || 'okänt fel'))
       setSkaparFaktura(false)
       return
     }
-    const { error: ordErr } = await sb.from('orders').update({
-      fakturerat: true,
-      fakturerat_belopp: fakturaTotalt,
-      fakturadatum: new Date().toISOString().split('T')[0],
-      // Fakturerad order räknas som klar (rör inte manuellt inaktiverade ordrar)
-      status: orderInfo?.status === 'inaktiv' ? 'inaktiv' : 'klar',
-    }).eq('id', orderId)
-    if (ordErr) toast.error('Fakturan skapades, men ordern kunde inte markeras fakturerad: ' + ordErr.message)
-    // Markera orderns alla tidposter som fakturerade (låser dem)
-    const { error: lasErr } = await sb.from('order_tid_rader').update({ fakturerad: true }).eq('order_id', orderId)
-    if (lasErr) toast.error('Fakturan skapades, men tidraderna kunde inte låsas: ' + lasErr.message)
     await fetchRader()
     setOrderInfo((o: any) => o ? { ...o, fakturerat: true, status: o.status === 'inaktiv' ? 'inaktiv' : 'klar' } : o)
     setSkaparFaktura(false)

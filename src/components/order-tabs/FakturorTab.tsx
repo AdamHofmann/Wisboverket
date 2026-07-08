@@ -72,28 +72,27 @@ export default function FakturorTab({ orderId }: { orderId: string }) {
 
     const isFullKredit = Math.abs(kreditTotalt) >= kreditModal.totalt * 0.99
 
-    // Skapa kreditnota — kolla felet, annars kan originalet markeras krediterat utan att notan skapas.
-    const { error: kreditErr } = await sb.from('fakturor').insert({
-      fakturanummer: `${kreditModal.fakturanummer}-K`,
-      order_id: orderId,
-      typ: 'kreditnota',
-      status: 'kreditnota',
-      rader: kreditRader,
-      subtotal: kreditTotalt / 1.25,
-      moms_belopp: kreditTotalt - kreditTotalt / 1.25,
-      totalt: kreditTotalt,
-      kund_namn: kreditModal.kund_namn,
-      original_faktura_id: kreditModal.id,
+    // Kreditnota + originalets statusändring sker atomärt i en RPC (allt-eller-inget).
+    const { error: kreditErr } = await sb.rpc('kreditera_faktura', {
+      p_kreditnota: {
+        fakturanummer: `${kreditModal.fakturanummer}-K`,
+        order_id: orderId,
+        typ: 'kreditnota',
+        status: 'kreditnota',
+        rader: kreditRader,
+        subtotal: kreditTotalt / 1.25,
+        moms_belopp: kreditTotalt - kreditTotalt / 1.25,
+        totalt: kreditTotalt,
+        kund_namn: kreditModal.kund_namn,
+      },
+      p_original_id: kreditModal.id,
+      p_is_full: isFullKredit,
     })
     if (kreditErr) {
       toast.error('Kunde inte skapa kreditnotan: ' + kreditErr.message)
       setSparar(false)
       return
     }
-
-    // Uppdatera originalet FÖRST när kreditnotan faktiskt skapats.
-    const { error: statusErr } = await sb.from('fakturor').update({ status: isFullKredit ? 'krediterad' : 'delkrediterad' }).eq('id', kreditModal.id)
-    if (statusErr) toast.error('Kreditnotan skapades, men originalfakturans status kunde inte uppdateras: ' + statusErr.message)
 
     setKreditModal(null); setSparar(false); setKreditBelopp(''); setKreditAntal({})
     fetchFakturor()
