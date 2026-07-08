@@ -70,8 +70,8 @@ export default function FakturorTab({ orderId }: { orderId: string }) {
 
     const isFullKredit = Math.abs(kreditTotalt) >= kreditModal.totalt * 0.99
 
-    // Skapa kreditnota
-    await sb.from('fakturor').insert({
+    // Skapa kreditnota — kolla felet, annars kan originalet markeras krediterat utan att notan skapas.
+    const { error: kreditErr } = await sb.from('fakturor').insert({
       fakturanummer: `${kreditModal.fakturanummer}-K`,
       order_id: orderId,
       typ: 'kreditnota',
@@ -82,10 +82,14 @@ export default function FakturorTab({ orderId }: { orderId: string }) {
       totalt: kreditTotalt,
       kund_namn: kreditModal.kund_namn,
       original_faktura_id: kreditModal.id,
-      original_faktura_nummer: kreditModal.fakturanummer,
     })
+    if (kreditErr) {
+      alert('Kunde inte skapa kreditnotan: ' + kreditErr.message)
+      setSparar(false)
+      return
+    }
 
-    // Uppdatera original
+    // Uppdatera originalet FÖRST när kreditnotan faktiskt skapats.
     await sb.from('fakturor').update({ status: isFullKredit ? 'krediterad' : 'delkrediterad' }).eq('id', kreditModal.id)
 
     setKreditModal(null); setSparar(false); setKreditBelopp(''); setKreditAntal({})
