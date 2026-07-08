@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useToast } from '@/components/Toast'
 import { useIsMobile } from '@/hooks/useMediaQuery'
 import type { Customer } from '@/types'
 import AdressInput from '@/components/AdressInput'
@@ -195,6 +196,7 @@ type ArtikelOpt = { id: string; namn: string; enhet: string; a_pris: number }
 
 function KundDetailModal({ kund, onClose, onEdit }: { kund: Customer; onClose: () => void; onEdit: () => void }) {
   const isMobile = useIsMobile()
+  const toast = useToast()
   const [ordrar, setOrdrar] = useState<any[]>([])
   const [prisavtal, setPrisavtal] = useState<Prisavtal[]>([])
   const [artiklar, setArtiklar] = useState<ArtikelOpt[]>([])
@@ -242,7 +244,8 @@ function KundDetailModal({ kund, onClose, onEdit }: { kund: Customer; onClose: (
   }
 
   const taBortAvtal = async (id: string) => {
-    await createClient().from('kund_prisavtal').delete().eq('id', id)
+    const { error } = await createClient().from('kund_prisavtal').delete().eq('id', id)
+    if (error) { toast.error('Kunde inte ta bort prisavtalet: ' + error.message); return }
     fetchPrisavtal()
   }
 

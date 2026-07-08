@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { useToast } from '@/components/Toast'
 
 type Forfragan = {
   id: string; typ: 'uthyrning' | 'offert' | 'kontakt'; namn: string | null; telefon: string | null; epost: string | null
@@ -57,6 +58,7 @@ export default function InkorgPage() {
 }
 
 function ForfragningarTab({ onHandled }: { onHandled: () => void }) {
+  const toast = useToast()
   const [items, setItems] = useState<Forfragan[]>([])
   const [flik, setFlik] = useState('alla')
   const [selected, setSelected] = useState<Forfragan | null>(null)
@@ -69,7 +71,8 @@ function ForfragningarTab({ onHandled }: { onHandled: () => void }) {
   useEffect(() => { fetchItems() }, [])
 
   const markHandled = async (item: Forfragan) => {
-    await createClient().from('forfragningar').update({ status: 'hanterad' }).eq('id', item.id)
+    const { error } = await createClient().from('forfragningar').update({ status: 'hanterad' }).eq('id', item.id)
+    if (error) { toast.error('Kunde inte markera som hanterad: ' + error.message); return }
     setItems(prev => prev.map(x => x.id === item.id ? { ...x, status: 'hanterad' } : x))
     if (selected?.id === item.id) setSelected(s => s && { ...s, status: 'hanterad' })
     onHandled()
@@ -156,6 +159,7 @@ function ForfragningarTab({ onHandled }: { onHandled: () => void }) {
 }
 
 function FelanmalanTab({ onHandled }: { onHandled: () => void }) {
+  const toast = useToast()
   const [items, setItems] = useState<Felanmalan[]>([])
   const [selected, setSelected] = useState<Felanmalan | null>(null)
   const [loading, setLoading] = useState(true)
@@ -169,7 +173,8 @@ function FelanmalanTab({ onHandled }: { onHandled: () => void }) {
   useEffect(() => { fetchItems() }, [])
 
   const markHandled = async (item: Felanmalan) => {
-    await createClient().from('felanmalningar').update({ status: 'hanterad' }).eq('id', item.id)
+    const { error } = await createClient().from('felanmalningar').update({ status: 'hanterad' }).eq('id', item.id)
+    if (error) { toast.error('Kunde inte markera som hanterad: ' + error.message); return }
     setItems(prev => prev.map(x => x.id === item.id ? { ...x, status: 'hanterad' } : x))
     if (selected?.id === item.id) setSelected(s => s && { ...s, status: 'hanterad' })
     onHandled()

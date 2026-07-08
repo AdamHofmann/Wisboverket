@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useToast } from '@/components/Toast'
 
 type Artikel = { id: string; artikelnummer: string | null; namn: string; enhet: string; a_pris: number; kostnad_per_enhet: number; kategori: string | null; aktiv: boolean; konto: string | null; momssats: number; hogia_artikel_id: string | null; hogia_synkad_at: string | null }
 
@@ -13,6 +14,7 @@ const fmtKr = (n: number) => n.toLocaleString('sv-SE', { minimumFractionDigits: 
 const EMPTY = { artikelnummer: '', namn: '', enhet: 'tim', a_pris: 0, kostnad_per_enhet: 0, kategori: 'bemanning', aktiv: true, konto: '', momssats: 25 }
 
 export default function ArtikalarPage() {
+  const toast = useToast()
   const [artiklar, setArtiklar] = useState<Artikel[]>([])
   const [loading, setLoading] = useState(true)
   const [edit, setEdit] = useState<Artikel | null>(null)
@@ -28,7 +30,8 @@ export default function ArtikalarPage() {
   useEffect(() => { fetch() }, [])
 
   const toggleAktiv = async (a: Artikel) => {
-    await createClient().from('artiklar').update({ aktiv: !a.aktiv }).eq('id', a.id)
+    const { error } = await createClient().from('artiklar').update({ aktiv: !a.aktiv }).eq('id', a.id)
+    if (error) { toast.error('Kunde inte uppdatera artikeln: ' + error.message); return }
     fetch()
   }
 
