@@ -11,7 +11,7 @@ import Sokfalt from '@/components/Sokfalt'
 import { STATUS_LABEL, STATUS_COLOR, KAT_ICON, KATEGORIER as KATEGORIER_BAS, fmtKr } from '@/components/order-tabs/shared'
 
 const KATEGORIER = ['Alla', ...KATEGORIER_BAS]
-const STATUSAR = ['Alla', 'ny', 'pågående', 'klar', 'inaktiv']
+const STATUSAR = ['aktiva', 'ny', 'pågående', 'klar', 'inaktiv', 'Alla']
 
 // Bara de fält listan hämtar + renderar (matchar select nedan).
 type OrderRow = Pick<Order, 'id' | 'status' | 'kategori' | 'titel' | 'fastighet' | 'ort' | 'postnummer' | 'order_number' | 'bokad_datum' | 'bokad_start' | 'bokad_slut' | 'tilldelad' | 'fakturerat_belopp' | 'created_at' | 'lagenhet'> & { customer?: Pick<Customer, 'id' | 'namn' | 'telefon'> | null }
@@ -29,7 +29,7 @@ function OrdrarInner() {
   const [katFilter, setKatFilter] = useState('Alla')
   const [statusFilter, setStatusFilter] = useState(() => {
     const s = searchParams.get('status')
-    return s && ['ny', 'pågående', 'klar', 'inaktiv'].includes(s) ? s : 'Alla'
+    return s && ['ny', 'pågående', 'klar', 'inaktiv', 'aktiva'].includes(s) ? s : 'aktiva'
   })
   const [showNyOrder, setShowNyOrder] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(() => searchParams.get('order'))
@@ -71,7 +71,8 @@ function OrdrarInner() {
   }, [searchParams])
 
   const filtered = useMemo(() => orders.filter(o => {
-    if (statusFilter !== 'Alla' && o.status !== statusFilter) return false
+    if (statusFilter === 'aktiva') { if (o.status !== 'ny' && o.status !== 'pågående') return false }
+    else if (statusFilter !== 'Alla' && o.status !== statusFilter) return false
     if (katFilter !== 'Alla' && o.kategori !== katFilter) return false
     if (search) {
       const q = search.toLowerCase()
@@ -113,7 +114,7 @@ function OrdrarInner() {
         <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
           <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
             style={{ flex: 1, minWidth: 0, background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 8, padding: '9px 12px', color: '#e0e0e0', fontSize: 13, outline: 'none' }}>
-            {STATUSAR.map(s => <option key={s} value={s}>{s === 'Alla' ? 'Alla statusar' : STATUS_LABEL[s] || s}</option>)}
+            {STATUSAR.map(s => <option key={s} value={s}>{s === 'aktiva' ? 'Aktiva' : s === 'Alla' ? 'Alla statusar' : STATUS_LABEL[s] || s}</option>)}
           </select>
           <select value={katFilter} onChange={e => setKatFilter(e.target.value)}
             style={{ flex: 1, minWidth: 0, background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 8, padding: '9px 12px', color: '#e0e0e0', fontSize: 13, outline: 'none' }}>
@@ -124,7 +125,7 @@ function OrdrarInner() {
         <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
           {STATUSAR.map(s => (
             <div key={s} style={chip(statusFilter === s)} onClick={() => setStatusFilter(s)}>
-              {s === 'Alla' ? 'Alla statusar' : STATUS_LABEL[s] || s}
+              {s === 'aktiva' ? 'Aktiva' : s === 'Alla' ? 'Alla statusar' : STATUS_LABEL[s] || s}
             </div>
           ))}
           <div style={{ width: 1, background: '#2a2a2a', margin: '0 4px', alignSelf: 'stretch' }} />
