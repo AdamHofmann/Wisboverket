@@ -121,18 +121,17 @@ function OrdrarInner() {
           </select>
         </div>
       ) : (
-        <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
           {STATUSAR.map(s => (
             <div key={s} style={chip(statusFilter === s)} onClick={() => setStatusFilter(s)}>
               {s === 'Alla' ? 'Alla statusar' : STATUS_LABEL[s] || s}
             </div>
           ))}
-          <div style={{ width: 1, background: '#2a2a2a', margin: '0 4px' }} />
-          {KATEGORIER.map(k => (
-            <div key={k} style={chip(katFilter === k)} onClick={() => setKatFilter(k)}>
-              {k !== 'Alla' ? (KAT_ICON[k] || '') + ' ' : ''}{k}
-            </div>
-          ))}
+          <div style={{ width: 1, background: '#2a2a2a', margin: '0 4px', alignSelf: 'stretch' }} />
+          <select value={katFilter} onChange={e => setKatFilter(e.target.value)}
+            style={{ background: '#1a1a1a', border: `1px solid ${katFilter !== 'Alla' ? '#E8C96A' : '#2a2a2a'}`, borderRadius: 20, padding: '6px 12px', color: katFilter !== 'Alla' ? '#E8C96A' : '#888', fontSize: 11, fontWeight: 600, outline: 'none', cursor: 'pointer' }}>
+            {KATEGORIER.map(k => <option key={k} value={k} style={{ color: '#e0e0e0', background: '#1a1a1a' }}>{k === 'Alla' ? 'Alla kategorier' : `${KAT_ICON[k] || ''} ${k}`}</option>)}
+          </select>
         </div>
       )}
 
@@ -183,16 +182,16 @@ function OrdrarInner() {
                   <div style={{ display: 'flex', gap: 14, marginTop: 10, paddingTop: 10, borderTop: '1px solid #1e1e1e', flexWrap: 'wrap' }}>
                     <div>
                       <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: '#555' }}>INTÄKT</div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: intakt > 0 ? '#4ade80' : '#555' }}>{intakt > 0 ? fmtKr(intakt) : '—'}</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: intakt > 0 ? '#4ade80' : '#555' }}>{intakt > 0 ? fmtKr(Math.round(intakt)) : '—'}</div>
                     </div>
                     <div>
                       <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: '#555' }}>KOSTNAD</div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: kostnad > 0 ? '#f87171' : '#555' }}>{kostnad > 0 ? fmtKr(kostnad) : '—'}</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: kostnad > 0 ? '#f87171' : '#555' }}>{kostnad > 0 ? fmtKr(Math.round(kostnad)) : '—'}</div>
                     </div>
                     <div>
                       <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: '#555' }}>TB</div>
                       <div style={{ fontSize: 13, fontWeight: 700, color: tomTB ? '#555' : (tb >= 0 ? '#4ade80' : '#f87171') }}>
-                        {tomTB ? '—' : fmtKr(tb)}
+                        {tomTB ? '—' : fmtKr(Math.round(tb))}
                         {tbProc !== null && <span style={{ fontSize: 11, fontWeight: 600, opacity: 0.75 }}> {tbProc.toFixed(0)}%</span>}
                       </div>
                     </div>
@@ -227,22 +226,22 @@ function OrdrarInner() {
                   style={{ cursor: 'pointer' }}
                   onMouseEnter={e => e.currentTarget.style.background = '#1a1a1a'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                  <td style={{ padding: '12px 14px', borderBottom: '1px solid #1a1a1a', fontSize: 13, color: '#d0d0d0' }}>
+                  <td style={{ padding: '12px 14px', borderBottom: '1px solid #1a1a1a', fontSize: 13, color: '#d0d0d0', verticalAlign: 'top' }}>
                     <div style={{ fontWeight: 600 }}>{KAT_ICON[o.kategori || ''] || '📋'} {o.titel}</div>
                     {o.order_number && <div style={{ fontSize: 12, color: '#E8C96A', fontWeight: 700, marginTop: 2 }}>{o.order_number}</div>}
                   </td>
-                  <td style={{ padding: '12px 14px', borderBottom: '1px solid #1a1a1a', fontSize: 13, color: '#d0d0d0' }}>
+                  <td style={{ padding: '12px 14px', borderBottom: '1px solid #1a1a1a', fontSize: 13, color: '#d0d0d0', verticalAlign: 'top' }}>
                     <div>{o.customer?.namn || <span style={{ color: '#555' }}>—</span>}</div>
                   </td>
-                  <td style={{ padding: '12px 14px', borderBottom: '1px solid #1a1a1a', fontSize: 13, color: '#d0d0d0' }}>
+                  <td style={{ padding: '12px 14px', borderBottom: '1px solid #1a1a1a', fontSize: 13, color: '#d0d0d0', verticalAlign: 'top' }}>
                     <div>{o.fastighet || <span style={{ color: '#555' }}>—</span>}</div>
                     {o.ort && <div style={{ fontSize: 11, color: '#666' }}>{o.postnummer} {o.ort}</div>}
                   </td>
-                  <td style={{ padding: '12px 14px', borderBottom: '1px solid #1a1a1a', fontSize: 13, color: '#d0d0d0' }}>
+                  <td style={{ padding: '12px 14px', borderBottom: '1px solid #1a1a1a', fontSize: 13, color: '#d0d0d0', verticalAlign: 'top' }}>
                     {o.bokad_datum ? <div>{new Date(o.bokad_datum).toLocaleDateString('sv-SE')}</div> : <span style={{ color: '#555' }}>—</span>}
                     {o.bokad_start && <div style={{ fontSize: 11, color: '#666' }}>{o.bokad_start}{o.bokad_slut ? `–${o.bokad_slut}` : ''}</div>}
                   </td>
-                  <td style={{ padding: '12px 14px', borderBottom: '1px solid #1a1a1a', fontSize: 13, color: '#d0d0d0' }}>
+                  <td style={{ padding: '12px 14px', borderBottom: '1px solid #1a1a1a', fontSize: 13, color: '#d0d0d0', verticalAlign: 'top' }}>
                     {o.tilldelad?.length ? o.tilldelad.map(p => p.split(' ')[0]).join(', ') : <span style={{ color: '#555' }}>—</span>}
                   </td>
                   {(() => {
@@ -252,20 +251,20 @@ function OrdrarInner() {
                     const tbProc = intakt > 0 ? (tb / intakt) * 100 : null
                     return (
                       <>
-                        <td style={{ padding: '12px 14px', borderBottom: '1px solid #1a1a1a', fontSize: 13, textAlign: 'right', fontWeight: 600, color: intakt > 0 ? '#4ade80' : '#555' }}>
-                          {intakt > 0 ? fmtKr(intakt) : '—'}
+                        <td style={{ padding: '12px 14px', borderBottom: '1px solid #1a1a1a', fontSize: 13, textAlign: 'right', verticalAlign: 'top', fontWeight: 600, color: intakt > 0 ? '#4ade80' : '#555' }}>
+                          {intakt > 0 ? fmtKr(Math.round(intakt)) : '—'}
                         </td>
-                        <td style={{ padding: '12px 14px', borderBottom: '1px solid #1a1a1a', fontSize: 13, textAlign: 'right', fontWeight: 600, color: kostnad > 0 ? '#f87171' : '#555' }}>
-                          {kostnad > 0 ? fmtKr(kostnad) : '—'}
+                        <td style={{ padding: '12px 14px', borderBottom: '1px solid #1a1a1a', fontSize: 13, textAlign: 'right', verticalAlign: 'top', fontWeight: 600, color: kostnad > 0 ? '#f87171' : '#555' }}>
+                          {kostnad > 0 ? fmtKr(Math.round(kostnad)) : '—'}
                         </td>
-                        <td style={{ padding: '12px 14px', borderBottom: '1px solid #1a1a1a', fontSize: 13, textAlign: 'right', fontWeight: 700, color: (intakt === 0 && kostnad === 0) ? '#555' : (tb >= 0 ? '#4ade80' : '#f87171') }}>
-                          {(intakt === 0 && kostnad === 0) ? '—' : fmtKr(tb)}
+                        <td style={{ padding: '12px 14px', borderBottom: '1px solid #1a1a1a', fontSize: 13, textAlign: 'right', verticalAlign: 'top', fontWeight: 700, color: (intakt === 0 && kostnad === 0) ? '#555' : (tb >= 0 ? '#4ade80' : '#f87171') }}>
+                          {(intakt === 0 && kostnad === 0) ? '—' : fmtKr(Math.round(tb))}
                           {tbProc !== null && <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.75 }}>{tbProc.toFixed(0)}%</div>}
                         </td>
                       </>
                     )
                   })()}
-                  <td style={{ padding: '12px 14px', borderBottom: '1px solid #1a1a1a' }}>
+                  <td style={{ padding: '12px 14px', borderBottom: '1px solid #1a1a1a', verticalAlign: 'top' }}>
                     <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 10, background: (STATUS_COLOR[o.status] || '#555') + '22', color: STATUS_COLOR[o.status] || '#555', border: `1px solid ${STATUS_COLOR[o.status] || '#555'}44` }}>
                       {STATUS_LABEL[o.status] || o.status}
                     </span>
