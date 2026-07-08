@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useConfirm } from '@/components/ConfirmDialog'
+import { useToast } from '@/components/Toast'
 import { useIsMobile } from '@/hooks/useMediaQuery'
 import type { Order, Customer } from '@/types'
 import SendModal from '@/components/SendModal'
@@ -54,6 +55,7 @@ const ContactRow = ({ icon, href, value, fontSize, last }: { icon: string; href:
 export default function OrderPanel({ orderId, onClose, onUpdated }: Props) {
   const m = useIsMobile()
   const confirm = useConfirm()
+  const toast = useToast()
   const [order, setOrder] = useState<Order & { customer?: Customer } | null>(null)
   const [kommunikation, setKommunikation] = useState<Kommunikation[]>([])
   const [loading, setLoading] = useState(true)
@@ -93,34 +95,39 @@ export default function OrderPanel({ orderId, onClose, onUpdated }: Props) {
   }, [onClose])
 
   const updateStatus = async (status: string) => {
-    await createClient().from('orders').update({ status, updated_at: new Date().toISOString() }).eq('id', orderId)
+    const { error } = await createClient().from('orders').update({ status, updated_at: new Date().toISOString() }).eq('id', orderId)
+    if (error) { toast.error('Kunde inte ändra status: ' + error.message); return }
     fetchAll(); onUpdated()
   }
 
   const stangUtanFakturering = async () => {
-    await createClient().from('orders').update({ faktureras_inte: true, updated_at: new Date().toISOString() }).eq('id', orderId)
+    const { error } = await createClient().from('orders').update({ faktureras_inte: true, updated_at: new Date().toISOString() }).eq('id', orderId)
+    if (error) { toast.error('Kunde inte stänga ordern: ' + error.message); return }
     await fetchAll(); onUpdated()
   }
 
   const lasUpp = async () => {
     if (order?.fakturerat && !(await confirm({ message: 'Ordern har en faktura — lås upp ändå?', confirmLabel: 'Lås upp' }))) return
-    await createClient().from('orders').update({ faktureras_inte: false, fakturerat: false, updated_at: new Date().toISOString() }).eq('id', orderId)
+    const { error } = await createClient().from('orders').update({ faktureras_inte: false, fakturerat: false, updated_at: new Date().toISOString() }).eq('id', orderId)
+    if (error) { toast.error('Kunde inte låsa upp: ' + error.message); return }
     await fetchAll(); onUpdated()
   }
 
   const sparaBetygFn = async () => {
     setSparaBetyg(true)
-    await createClient().from('orders').update({ betyg, betyg_kommentar: betygKommentar }).eq('id', orderId)
+    const { error } = await createClient().from('orders').update({ betyg, betyg_kommentar: betygKommentar }).eq('id', orderId)
     setSparaBetyg(false)
+    if (error) { toast.error('Kunde inte spara betyg: ' + error.message); return }
   }
 
   const toggleTilldelad = async (person: string) => {
     const nuvarande = order?.tilldelad || []
     const nya = nuvarande.includes(person) ? nuvarande.filter(p => p !== person) : [...nuvarande, person]
     setTilldeladSaving(true)
-    await createClient().from('orders').update({ tilldelad: nya.length ? nya : null, updated_at: new Date().toISOString() }).eq('id', orderId)
-    await fetchAll(); onUpdated()
+    const { error } = await createClient().from('orders').update({ tilldelad: nya.length ? nya : null, updated_at: new Date().toISOString() }).eq('id', orderId)
     setTilldeladSaving(false)
+    if (error) { toast.error('Kunde inte uppdatera resurs: ' + error.message); return }
+    await fetchAll(); onUpdated()
   }
 
   if (loading || !order) {

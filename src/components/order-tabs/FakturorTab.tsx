@@ -39,7 +39,8 @@ export default function FakturorTab({ orderId }: { orderId: string }) {
   useEffect(() => { fetchFakturor() }, [orderId])
 
   const uppdateraStatus = async (id: string, status: string) => {
-    await createClient().from('fakturor').update({ status }).eq('id', id)
+    const { error } = await createClient().from('fakturor').update({ status }).eq('id', id)
+    if (error) { toast.error('Kunde inte uppdatera fakturan: ' + error.message); return }
     fetchFakturor()
   }
 

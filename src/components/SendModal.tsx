@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useIsMobile } from '@/hooks/useMediaQuery'
+import { useToast } from '@/components/Toast'
 
 const TYPER = [
   { id: 'orderbekräftelse', label: 'Orderbekräftelse', icon: '📩' },
@@ -60,6 +61,7 @@ type Props = {
 
 export default function SendModal({ orderId, orderTitel, kundEpost, kundTelefon, onClose, onSent }: Props) {
   const m = useIsMobile()
+  const toast = useToast()
   const [typ, setTyp] = useState('orderbekräftelse')
   const [meddelande, setMeddelande] = useState('')
   const [epost, setEpost] = useState(kundEpost || '')
@@ -71,13 +73,14 @@ export default function SendModal({ orderId, orderTitel, kundEpost, kundTelefon,
   const [smsError, setSmsError] = useState('')
 
   const loggaUtskick = async (kanal: string) => {
-    await createClient().from('order_kommunikation').insert({
+    const { error } = await createClient().from('order_kommunikation').insert({
       order_id: orderId,
       typ,
       kanal,
       mottagare: kanal === 'email' ? epost : kanal === 'sms' ? telefon : null,
       meddelande,
     })
+    if (error) { toast.error('Kunde inte logga utskicket: ' + error.message); return }
     setSentKanal(kanal)
     setSent(true)
     onSent()

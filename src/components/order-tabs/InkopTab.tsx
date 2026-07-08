@@ -151,7 +151,7 @@ export default function InkopTab({ orderId }: { orderId: string }) {
       }
     }
 
-    await sb.from('order_inkop').insert({
+    const { error } = await sb.from('order_inkop').insert({
       order_id: orderId,
       beskrivning,
       leverantor: leverantor || null,
@@ -161,6 +161,7 @@ export default function InkopTab({ orderId }: { orderId: string }) {
       fil_url,
       fil_namn,
     })
+    if (error) { toast.error('Kunde inte spara inköpet: ' + error.message); setSaving(false); return }
 
     setBeskrivning(''); setLeverantor(''); setBelopp(''); setDatum('')
     setFil(null); setScanResultat(null); setArtikelId(''); setNyLeverantor(false)
@@ -169,7 +170,8 @@ export default function InkopTab({ orderId }: { orderId: string }) {
   }
 
   const taBort = async (id: string) => {
-    await createClient().from('order_inkop').delete().eq('id', id)
+    const { error } = await createClient().from('order_inkop').delete().eq('id', id)
+    if (error) { toast.error('Kunde inte ta bort inköpet: ' + error.message); return }
     fetchAll()
   }
 
