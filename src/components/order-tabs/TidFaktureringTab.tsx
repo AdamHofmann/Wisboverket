@@ -103,7 +103,8 @@ export default function TidFaktureringTab({ orderId, onUpdated, last = false }: 
     if (!orderInfo || orderInfo.status === 'inaktiv') return
     const nyStatus = (harTid || orderInfo.fakturerat) ? 'klar' : 'ny'
     if (nyStatus === orderInfo.status) return
-    await createClient().from('orders').update({ status: nyStatus }).eq('id', orderId)
+    const { error } = await createClient().from('orders').update({ status: nyStatus }).eq('id', orderId)
+    if (error) { toast.error('Kunde inte uppdatera orderstatus: ' + error.message); return }
     setOrderInfo((o: any) => o ? { ...o, status: nyStatus } : o)
     onUpdated?.()
   }
@@ -121,7 +122,7 @@ export default function TidFaktureringTab({ orderId, onUpdated, last = false }: 
       const [eh, em] = r.slut.split(':').map(Number)
       const min = (eh * 60 + em) - (sh * 60 + sm)
       const antal = min > 0 ? min / 60 : 0
-      await sb.from('order_tid_rader').insert({
+      const { error } = await sb.from('order_tid_rader').insert({
         order_id: orderId,
         resurs: resurs || null,
         artikel_id: artikelId,
@@ -135,6 +136,7 @@ export default function TidFaktureringTab({ orderId, onUpdated, last = false }: 
         slut_tid: r.slut,
         anteckning: anteckning || null,
       })
+      if (error) { toast.error('Kunde inte spara tidrad: ' + error.message); setSaving(false); return }
     }
     setArtikelId(''); setFranDatum(''); setTillDatum(''); setDagRader([]); setAnteckning('')
     await fetchRader()
@@ -169,7 +171,7 @@ export default function TidFaktureringTab({ orderId, onUpdated, last = false }: 
       const [eh, em] = r.slut.split(':').map(Number)
       const min = (eh * 60 + em) - (sh * 60 + sm)
       const antal = min > 0 ? min / 60 : 0
-      await sb.from('order_tid_rader').insert({
+      const { error } = await sb.from('order_tid_rader').insert({
         order_id: orderId,
         resurs: r.resurs,
         artikel_id: r.artikelId,
@@ -183,6 +185,7 @@ export default function TidFaktureringTab({ orderId, onUpdated, last = false }: 
         slut_tid: r.slut,
         anteckning: null,
       })
+      if (error) { toast.error('Kunde inte spara plan-tidrad: ' + error.message); setSavingPlan(false); return }
     }
     setPlanRader([])
     await fetchRader()
@@ -194,7 +197,8 @@ export default function TidFaktureringTab({ orderId, onUpdated, last = false }: 
     if (last) return
     if (rader.find(r => r.id === id)?.fakturerad) return
     const sb = createClient()
-    await sb.from('order_tid_rader').delete().eq('id', id)
+    const { error } = await sb.from('order_tid_rader').delete().eq('id', id)
+    if (error) { toast.error('Kunde inte ta bort tidrad: ' + error.message); return }
     await fetchRader()
     const { count } = await sb.from('order_tid_rader').select('id', { count: 'exact', head: true }).eq('order_id', orderId)
     await synkaOrderStatus((count || 0) > 0)
@@ -310,15 +314,17 @@ export default function TidFaktureringTab({ orderId, onUpdated, last = false }: 
       setSkaparFaktura(false)
       return
     }
-    await sb.from('orders').update({
+    const { error: ordErr } = await sb.from('orders').update({
       fakturerat: true,
       fakturerat_belopp: fakturaTotalt,
       fakturadatum: new Date().toISOString().split('T')[0],
       // Fakturerad order räknas som klar (rör inte manuellt inaktiverade ordrar)
       status: orderInfo?.status === 'inaktiv' ? 'inaktiv' : 'klar',
     }).eq('id', orderId)
+    if (ordErr) toast.error('Fakturan skapades, men ordern kunde inte markeras fakturerad: ' + ordErr.message)
     // Markera orderns alla tidposter som fakturerade (låser dem)
-    await sb.from('order_tid_rader').update({ fakturerad: true }).eq('order_id', orderId)
+    const { error: lasErr } = await sb.from('order_tid_rader').update({ fakturerad: true }).eq('order_id', orderId)
+    if (lasErr) toast.error('Fakturan skapades, men tidraderna kunde inte låsas: ' + lasErr.message)
     await fetchRader()
     setOrderInfo((o: any) => o ? { ...o, fakturerat: true, status: o.status === 'inaktiv' ? 'inaktiv' : 'klar' } : o)
     setSkaparFaktura(false)
