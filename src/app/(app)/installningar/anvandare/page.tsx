@@ -118,8 +118,8 @@ export default function AnvandarePage() {
       {error && <div style={{ background: '#f8717111', border: '1px solid #f8717144', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: '#f87171' }}>{error}</div>}
       {info && <div style={{ background: '#4ade8011', border: '1px solid #4ade8044', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: '#4ade80' }}>{info}</div>}
 
-      <div style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: 10, overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' as const }}>
+      <div style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: 10, overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' as const, minWidth: 520 }}>
           <thead>
             <tr>
               {['NAMN', 'E-POST', 'ROLL', 'ORDER', 'FASTIGHET', 'SKAPAD', 'ÅTGÄRDER'].map(h => (

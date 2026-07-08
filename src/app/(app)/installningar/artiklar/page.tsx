@@ -63,8 +63,8 @@ export default function ArtikalarPage() {
           return (
             <div key={kat} style={{ marginBottom: 24 }}>
               <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, color: '#555', marginBottom: 10 }}>{KAT_LABEL[kat] || kat.toUpperCase()}</div>
-              <div style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: 10, overflow: 'hidden' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' as const }}>
+              <div style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: 10, overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' as const, minWidth: 520 }}>
                   <thead>
                     <tr>
                       <th style={{ textAlign: 'left' as const, padding: '8px 14px', fontSize: 10, fontWeight: 700, letterSpacing: 1, color: '#555', borderBottom: '1px solid #1e1e1e' }}>ARTIKEL</th>
