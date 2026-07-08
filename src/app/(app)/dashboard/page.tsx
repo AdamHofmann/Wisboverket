@@ -9,7 +9,7 @@ import { useIsMobile } from '@/hooks/useMediaQuery'
 // Bara de fält dashboarden faktiskt hämtar + renderar (matchar select nedan).
 type DashOrder = Pick<Order, 'id' | 'status' | 'bokad_datum' | 'fakturerat' | 'faktureras_inte' | 'tilldelad' | 'titel' | 'fastighet' | 'pris' | 'created_at'>
 // Order-fakturorna ligger i tabellen fakturor (INTE invoices, som är tom).
-type DashFaktura = { id: string; fakturanummer: string; totalt: number; created_at: string; status: string; typ: string; forfallodatum: string | null }
+type DashFaktura = { id: string; fakturanummer: string; totalt: number; created_at: string; status: string; typ: string; forfallodatum: string | null; order_id: string | null }
 
 const S: Record<string, React.CSSProperties> = {
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16, marginBottom: 24 },
@@ -47,7 +47,7 @@ export default function DashboardPage() {
         .select('id, status, bokad_datum, fakturerat, faktureras_inte, tilldelad, titel, fastighet, pris, created_at')
         .order('created_at', { ascending: false }),
       supabase.from('fakturor')
-        .select('id, fakturanummer, totalt, created_at, status, typ, forfallodatum')
+        .select('id, fakturanummer, totalt, created_at, status, typ, forfallodatum, order_id')
         .order('created_at', { ascending: false }),
     ]).then(([{ data: o }, { data: i }]) => {
       setOrders((o || []) as DashOrder[])
@@ -167,13 +167,24 @@ export default function DashboardPage() {
           </div>
           {senastFakturerade.length === 0
             ? <div style={S.kbEmpty}>Inga fakturor ännu</div>
-            : senastFakturerade.map(i => (
-              <div key={i.id} style={S.kbItem}>
-                <div style={S.kbItemTitle}>{i.fakturanummer || 'Faktura'}</div>
-                <div style={S.kbItemSub}>{fmtDate(i.created_at)}</div>
-                <div style={S.kbItemAmount}>{fmt(i.totalt)}</div>
-              </div>
-            ))}
+            : senastFakturerade.map(i => {
+              const inner = (
+                <>
+                  <div style={S.kbItemTitle}>{i.fakturanummer || 'Faktura'}</div>
+                  <div style={S.kbItemSub}>{fmtDate(i.created_at)}</div>
+                  <div style={S.kbItemAmount}>{fmt(i.totalt)}</div>
+                </>
+              )
+              return i.order_id ? (
+                <Link href={`/ordrar?order=${i.order_id}`} key={i.id} style={{ ...S.kbItem, display: 'block', textDecoration: 'none' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = '#1e1e1e')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                  {inner}
+                </Link>
+              ) : (
+                <div key={i.id} style={S.kbItem}>{inner}</div>
+              )
+            })}
         </div>
       </div>
     </div>

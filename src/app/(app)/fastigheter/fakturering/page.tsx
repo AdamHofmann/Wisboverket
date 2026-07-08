@@ -755,7 +755,7 @@ export default function FaktureringPage() {
 
       {/* Sticky bulk-rad (visas när något är valt) */}
       {selected.size > 0 && (
-        <div style={{ position: 'sticky', top: 0, zIndex: 20, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', borderRadius: 10, border: `1px solid ${C.border}`, background: C.panel, padding: '10px 14px', ...(isMobile ? { flexDirection: 'column', alignItems: 'stretch' } : {}) }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', borderRadius: 10, border: `1px solid ${C.border}`, background: C.panel, padding: '10px 14px', ...(isMobile ? { position: 'fixed', left: 12, right: 12, bottom: 16, zIndex: 50, flexDirection: 'column', alignItems: 'stretch', boxShadow: '0 10px 30px rgba(0,0,0,0.6)' } : { position: 'sticky', top: 0, zIndex: 20 }) }}>
           <span style={{ fontSize: 13, fontWeight: 700, color: C.text, ...(isMobile ? { textAlign: 'center' } : {}) }}>{selected.size} valda</span>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', ...(isMobile ? { flexDirection: 'column' } : { marginLeft: 'auto' }) }}>
             <button onClick={bulkSkicka} disabled={bulkSkickaAntal === 0} style={{ ...btnPrimary, opacity: bulkSkickaAntal === 0 ? 0.4 : 1, cursor: bulkSkickaAntal === 0 ? 'not-allowed' : 'pointer', ...(isMobile ? { textAlign: 'center' } : {}) }}>Skicka valda{bulkSkickaAntal > 0 ? ` (${bulkSkickaAntal})` : ''}</button>
@@ -776,7 +776,7 @@ export default function FaktureringPage() {
             {tomText}
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingBottom: selected.size > 0 ? 96 : 0 }}>
             {sorted.map((f) => {
               const sc = statusConfig[f.status] || statusConfig.ej_skickad
               const expanded = expandedRows.has(f.id)

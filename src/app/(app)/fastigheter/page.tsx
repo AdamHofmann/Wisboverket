@@ -150,7 +150,7 @@ export default function FastigheterDashboard() {
       ) : (
         <>
           {/* KPI-kort rad 1 */}
-          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
             <StatCard
               title="Totalt lokaler"
               value={data?.totalLokaler ?? 0}
