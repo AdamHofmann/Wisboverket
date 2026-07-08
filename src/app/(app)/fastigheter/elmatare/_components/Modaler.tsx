@@ -335,6 +335,21 @@ export default function Modaler(props: Props) {
         const blandpris = totalKwh > 0 ? totalKostnad / totalKwh : 0
         const { fran, till } = kvartalPeriod(omgangAr, omgangKvartal)
         const arOptions = Array.from({ length: 7 }, (_, i) => new Date().getFullYear() - 5 + i)
+
+        // Varning: täcker de markerade fakturorna hela kvartalet? Saknas någon månad
+        // är sannolikt inte alla kostnader inrapporterade → för lågt blandpris →
+        // hyresgästerna underdebiteras. Icke-blockerande, bara en heads-up.
+        const MANADER = ['jan', 'feb', 'mar', 'apr', 'maj', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec']
+        const pad2 = (n: number) => String(n).padStart(2, '0')
+        const saknadeManader = [(omgangKvartal - 1) * 3, (omgangKvartal - 1) * 3 + 1, (omgangKvartal - 1) * 3 + 2]
+          .map(mi => {
+            const mStart = `${omgangAr}-${pad2(mi + 1)}-01`
+            const mSlut = `${omgangAr}-${pad2(mi + 1)}-${pad2(new Date(omgangAr, mi + 1, 0).getDate())}`
+            const tackt = valda.some(f => (f.period_fran ?? '') <= mSlut && (f.period_till ?? '') >= mStart)
+            return tackt ? null : MANADER[mi]
+          })
+          .filter(Boolean) as string[]
+        const ejFullTackning = valda.length > 0 && saknadeManader.length > 0
         return (
           <SlideOver open={showNewOmgang} onClose={() => setShowNewOmgang(false)} title="Ny debiteringsomgång" width="md"
             subtitle={fastigheter.find(f => f.id === omgangFastighetId)?.namn}
@@ -403,6 +418,18 @@ export default function Modaler(props: Props) {
                   </div>
                 )}
               </div>
+
+              {ejFullTackning && (
+                <div style={{ borderRadius: 10, border: '1px solid rgba(251,146,60,0.4)', background: 'rgba(251,146,60,0.12)', padding: '12px 14px', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  <span style={{ fontSize: 16, lineHeight: 1 }}>⚠️</span>
+                  <div>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: '#fb923c', margin: 0 }}>OBS – alla kostnader är kanske inte inrapporterade</p>
+                    <p style={{ fontSize: 12, color: C.text2, margin: '3px 0 0', lineHeight: 1.5 }}>
+                      De markerade fakturorna täcker inte hela kvartalet (saknas: {saknadeManader.join(', ')}). Kontrollera att alla leverantörsfakturor är med innan du skapar omgången — annars blir blandpriset för lågt och hyresgästerna underdebiteras.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Live-summering */}
               <div style={{ borderRadius: 12, border: `1px solid ${C.borderSoft}`, background: C.panel2, padding: 16, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 12 }}>
