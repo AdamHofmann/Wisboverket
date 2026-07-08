@@ -14,7 +14,7 @@ const KATEGORIER = ['Alla', ...KATEGORIER_BAS]
 const STATUSAR = ['Alla', 'ny', 'pågående', 'klar', 'inaktiv']
 
 // Bara de fält listan hämtar + renderar (matchar select nedan).
-type OrderRow = Pick<Order, 'id' | 'status' | 'kategori' | 'titel' | 'fastighet' | 'ort' | 'postnummer' | 'order_number' | 'bokad_datum' | 'bokad_start' | 'bokad_slut' | 'tilldelad' | 'fakturerat_belopp' | 'created_at'> & { customer?: Pick<Customer, 'id' | 'namn' | 'telefon'> | null }
+type OrderRow = Pick<Order, 'id' | 'status' | 'kategori' | 'titel' | 'fastighet' | 'ort' | 'postnummer' | 'order_number' | 'bokad_datum' | 'bokad_start' | 'bokad_slut' | 'tilldelad' | 'fakturerat_belopp' | 'created_at' | 'lagenhet'> & { customer?: Pick<Customer, 'id' | 'namn' | 'telefon'> | null }
 
 export default function OrdrarPage() {
   return <Suspense><OrdrarInner /></Suspense>
@@ -40,7 +40,7 @@ function OrdrarInner() {
     const sb = createClient()
     sb.from('orders')
       // Bara fält som listan renderar — inte hela raden (beskrivning, anteckningar m.m.).
-      .select('id, status, kategori, titel, fastighet, ort, postnummer, order_number, bokad_datum, bokad_start, bokad_slut, tilldelad, fakturerat_belopp, created_at, customer:customers(id,namn,telefon)')
+      .select('id, status, kategori, titel, fastighet, ort, postnummer, order_number, bokad_datum, bokad_start, bokad_slut, tilldelad, fakturerat_belopp, created_at, lagenhet, customer:customers(id,namn,telefon)')
       .order('created_at', { ascending: false })
       .then(({ data }) => { setOrders((data ?? []) as unknown as OrderRow[]); setLoading(false) })
 
@@ -166,7 +166,7 @@ function OrdrarInner() {
 
                   {/* Sekundärrad: kund / fastighet / datum */}
                   <div style={{ fontSize: 12, color: '#888', marginTop: 6, lineHeight: 1.5 }}>
-                    <div>{o.customer?.namn || '—'}</div>
+                    <div>{o.customer?.namn || o.lagenhet || '—'}{o.customer?.namn && o.lagenhet ? ` · ${o.lagenhet}` : ''}</div>
                     <div>
                       {o.fastighet || '—'}
                       {o.ort ? ` · ${o.postnummer ? o.postnummer + ' ' : ''}${o.ort}` : ''}
@@ -231,7 +231,8 @@ function OrdrarInner() {
                     {o.order_number && <div style={{ fontSize: 12, color: '#E8C96A', fontWeight: 700, marginTop: 2 }}>{o.order_number}</div>}
                   </td>
                   <td style={{ padding: '12px 14px', borderBottom: '1px solid #1a1a1a', fontSize: 13, color: '#d0d0d0', verticalAlign: 'top' }}>
-                    <div>{o.customer?.namn || <span style={{ color: '#555' }}>—</span>}</div>
+                    <div>{o.customer?.namn || o.lagenhet || <span style={{ color: '#555' }}>—</span>}</div>
+                    {o.customer?.namn && o.lagenhet && <div style={{ fontSize: 11, color: '#666' }}>{o.lagenhet}</div>}
                   </td>
                   <td style={{ padding: '12px 14px', borderBottom: '1px solid #1a1a1a', fontSize: 13, color: '#d0d0d0', verticalAlign: 'top' }}>
                     <div>{o.fastighet || <span style={{ color: '#555' }}>—</span>}</div>
