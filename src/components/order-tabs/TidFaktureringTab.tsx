@@ -282,8 +282,13 @@ export default function TidFaktureringTab({ orderId, onUpdated, last = false }: 
       }
       return { typ: 'rad', desc: r.text, antal: r.antal, apris: r.apris, enhet: r.enhet, belopp: r.antal * r.apris }
     })
+    // Förfallodatum = idag + kundens betalningsvillkor (default 30 dgr) → låser upp reskontra/förfallna.
+    const betalvillkor = Number(orderInfo?.customer?.betalvillkor) || 30
+    const forfalloDatum = new Date()
+    forfalloDatum.setDate(forfalloDatum.getDate() + betalvillkor)
     const { data: nyFaktura, error: fakturaErr } = await sb.from('fakturor').insert({
       fakturanummer: nextFakturaNr,
+      forfallodatum: forfalloDatum.toISOString().split('T')[0],
       order_id: orderId,
       customer_id: orderInfo?.customer_id,
       rader: raderPayload,

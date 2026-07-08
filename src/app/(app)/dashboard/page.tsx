@@ -9,7 +9,7 @@ import { useIsMobile } from '@/hooks/useMediaQuery'
 // Bara de fält dashboarden faktiskt hämtar + renderar (matchar select nedan).
 type DashOrder = Pick<Order, 'id' | 'status' | 'bokad_datum' | 'fakturerat' | 'faktureras_inte' | 'tilldelad' | 'titel' | 'fastighet' | 'pris' | 'created_at'>
 // Order-fakturorna ligger i tabellen fakturor (INTE invoices, som är tom).
-type DashFaktura = { id: string; fakturanummer: string; totalt: number; created_at: string; status: string; typ: string }
+type DashFaktura = { id: string; fakturanummer: string; totalt: number; created_at: string; status: string; typ: string; forfallodatum: string | null }
 
 const S: Record<string, React.CSSProperties> = {
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16, marginBottom: 24 },
@@ -47,7 +47,7 @@ export default function DashboardPage() {
         .select('id, status, bokad_datum, fakturerat, faktureras_inte, tilldelad, titel, fastighet, pris, created_at')
         .order('created_at', { ascending: false }),
       supabase.from('fakturor')
-        .select('id, fakturanummer, totalt, created_at, status, typ')
+        .select('id, fakturanummer, totalt, created_at, status, typ, forfallodatum')
         .order('created_at', { ascending: false }),
     ]).then(([{ data: o }, { data: i }]) => {
       setOrders((o || []) as DashOrder[])
@@ -70,6 +70,10 @@ export default function DashboardPage() {
     .filter(i => i.created_at?.startsWith(new Date().toISOString().slice(0, 7)))
     .reduce((s, i) => s + (i.totalt || 0), 0)
 
+  // Förfallna: skickade fakturor vars förfallodatum passerat (ej betalda/krediterade).
+  const forfallna = fakturerade.filter(i => i.status === 'skickad' && i.forfallodatum && i.forfallodatum < idag)
+  const forfallnaBelopp = forfallna.reduce((s, i) => s + (i.totalt || 0), 0)
+
   const senastFakturerade = fakturerade.slice(0, 5)
 
   const statCards = [
@@ -77,6 +81,7 @@ export default function DashboardPage() {
     { label: 'Ej planerade', value: ejPlanerade.length, sub: 'saknar datum', color: '#f59e0b', href: '/ordrar?status=ny' },
     { label: 'Ej tilldelad', value: ejTilldelad.length, sub: 'planerat, saknar resurs', color: '#f87171', href: '/ordrar?status=pågående' },
     { label: 'Att fakturera', value: attFakturera.length, sub: 'slutförda', color: '#e0e0e0', href: '/ordrar?status=klar' },
+    { label: 'Förfallna', value: forfallna.length, sub: forfallna.length ? fmt(forfallnaBelopp) + ' obetalt' : 'inga', color: forfallna.length ? '#f87171' : '#4ade80', href: '/fakturor' },
     { label: 'Fakturerat idag', value: fmt(faktureratIdag), sub: 'ink. moms', color: '#4ade80', wide: true, href: '/fakturor' },
     { label: manad, value: fmt(faktureratManad), sub: 'fakturerat', color: '#E8C96A', wide: true, href: '/fakturor' },
   ]
