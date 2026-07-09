@@ -16,7 +16,12 @@ export const metadata: Metadata = {
 export const viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 5,
+  // Lås zoomen till exakt 1.0. iOS-webviewen hamnade annars på ~1.14x
+  // (layoutbredd 402 vs fönster 352) vilket sköt hela sidan i sidled så
+  // rubriker klipptes av vänsterkanten. Ingen zoom → layout = fönster.
+  minimumScale: 1,
+  maximumScale: 1,
+  userScalable: false,
   themeColor: '#111111',
   // Låt innehållet nå ut i hörnen så env(safe-area-inset-*) blir tillgängligt
   // (behövs för att undvika krock med statusrad/notch/home-indikator i app-skalet).
