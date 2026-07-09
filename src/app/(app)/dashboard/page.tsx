@@ -77,9 +77,9 @@ export default function DashboardPage() {
   const senastFakturerade = fakturerade.slice(0, 5)
 
   const statCards = [
-    { label: 'Öppna ordrar', value: aktiva.length, sub: `${ejPlanerade.length} nya`, color: '#60a5fa', href: '/ordrar?status=pågående' },
-    { label: 'Ej planerade', value: ejPlanerade.length, sub: 'saknar datum', color: '#f59e0b', href: '/ordrar?status=ny' },
-    { label: 'Ej tilldelad', value: ejTilldelad.length, sub: 'planerat, saknar resurs', color: '#f87171', href: '/ordrar?status=pågående' },
+    { label: 'Öppna ordrar', value: aktiva.length, sub: `${ejPlanerade.length} nya`, color: '#60a5fa', href: '/ordrar?status=aktiva' },
+    { label: 'Ej planerade', value: ejPlanerade.length, sub: 'saknar datum', color: '#f59e0b', href: '/ordrar?status=aktiva' },
+    { label: 'Ej tilldelad', value: ejTilldelad.length, sub: 'planerat, saknar resurs', color: '#f87171', href: '/ordrar?status=aktiva' },
     { label: 'Att fakturera', value: attFakturera.length, sub: 'slutförda', color: '#e0e0e0', href: '/ordrar?status=klar' },
     { label: 'Förfallna', value: forfallna.length, sub: forfallna.length ? fmt(forfallnaBelopp) + ' obetalt' : 'inga', color: forfallna.length ? '#f87171' : '#4ade80', href: '/fakturor' },
     { label: 'Fakturerat idag', value: fmt(faktureratIdag), sub: 'ink. moms', color: '#4ade80', wide: true, href: '/fakturor' },
