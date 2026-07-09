@@ -149,7 +149,7 @@ export default function SendModal({ orderId, orderTitel, kundEpost, kundTelefon,
   return (
     <div style={m ? { ...S.overlay, padding: 0, alignItems: 'flex-end' } : S.overlay} onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={m ? { ...S.modal, width: '100vw', maxWidth: '100vw', maxHeight: '100vh', borderRadius: 0, display: 'flex', flexDirection: 'column' } : S.modal}>
-        <div style={S.header}>
+        <div className="modal-safe-top" style={S.header}>
           <div>
             <div style={S.title}>ÅTERRAPPORTERING</div>
             <div style={S.subtitle}>{orderTitel}</div>
@@ -214,7 +214,7 @@ export default function SendModal({ orderId, orderTitel, kundEpost, kundTelefon,
             </div>
 
             {smsError && <div style={{ padding: '0 22px', fontSize: 12, color: '#f87171' }}>{smsError}</div>}
-            <div style={m ? { ...S.footer, position: 'sticky', bottom: 0, background: '#1a1a1a', paddingBottom: 'calc(14px + env(safe-area-inset-bottom))' } : S.footer}>
+            <div className="modal-safe-bottom" style={m ? { ...S.footer, position: 'sticky', bottom: 0, background: '#1a1a1a', paddingBottom: 'calc(14px + env(safe-area-inset-bottom))' } : S.footer}>
               <button style={S.sendBtn('#60a5fa', !epost || !meddelande)} onClick={skickaEmail}>📧 E-post</button>
               <button style={S.sendBtn('#4ade80', !telefon || !meddelande || smsSending)} onClick={skickaSMS}>{smsSending ? '...' : '💬 SMS'}</button>
               <button style={S.sendBtn('#888', !meddelande)} onClick={kopiera}>📋 Kopiera</button>

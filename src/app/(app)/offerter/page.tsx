@@ -447,7 +447,7 @@ info@wisboverket.se
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'center', padding: isMobile ? 0 : 20 }}
       onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={{ background: '#1a1a1a', border: isMobile ? 'none' : '1px solid #2a2a2a', borderRadius: isMobile ? 0 : 14, width: '100%', maxWidth: isMobile ? '100vw' : 640, maxHeight: isMobile ? '100vh' : '90vh', display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
-        <div style={{ padding: isMobile ? '16px' : '18px 22px', borderBottom: '1px solid #222', display: 'flex', justifyContent: 'space-between', flexShrink: 0 }}>
+        <div className="modal-safe-top" style={{ padding: isMobile ? '16px' : '18px 22px', borderBottom: '1px solid #222', display: 'flex', justifyContent: 'space-between', flexShrink: 0 }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: '#e0e0e0' }}>{offert ? 'Redigera offert' : 'Ny offert'}</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#666', fontSize: 20, cursor: 'pointer' }}>×</button>
         </div>
@@ -653,7 +653,7 @@ info@wisboverket.se
           {error && <div style={{ fontSize: 12, color: '#f87171' }}>{error}</div>}
         </div>
 
-        <div style={{ padding: isMobile ? '12px 16px' : '14px 22px', borderTop: '1px solid #222', display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 10 : 8, justifyContent: 'space-between', flexWrap: 'wrap' as const, position: isMobile ? 'sticky' : undefined, bottom: isMobile ? 0 : undefined, background: isMobile ? '#1a1a1a' : undefined, flexShrink: 0 }}>
+        <div className="modal-safe-bottom" style={{ padding: isMobile ? '12px 16px' : '14px 22px', borderTop: '1px solid #222', display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 10 : 8, justifyContent: 'space-between', flexWrap: 'wrap' as const, position: isMobile ? 'sticky' : undefined, bottom: isMobile ? 0 : undefined, background: isMobile ? '#1a1a1a' : undefined, flexShrink: 0 }}>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' as const, ...(isMobile ? { width: '100%' } : {}) }}>
             {emailSent && <span style={{ fontSize: 11, color: '#4ade80', fontWeight: 600, ...(isMobile ? { width: '100%' } : {}) }}>✓ PDF och e-postklient öppnade — spara PDF och bifoga!</span>}
             {offert && (

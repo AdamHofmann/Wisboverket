@@ -161,7 +161,7 @@ export default function OrderPanel({ orderId, onClose, onUpdated }: Props) {
         <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 80 }}>
 
           {/* Toprad */}
-          <div style={{ padding: '16px 20px', borderBottom: `1px solid ${BORDER}`, display: 'flex', alignItems: m ? 'flex-start' : 'center', justifyContent: 'space-between', gap: m ? 8 : 0, position: 'sticky', top: 0, background: BG_TOP, zIndex: 10 }}>
+          <div className="modal-safe-top" style={{ padding: '16px 20px', borderBottom: `1px solid ${BORDER}`, display: 'flex', alignItems: m ? 'flex-start' : 'center', justifyContent: 'space-between', gap: m ? 8 : 0, position: 'sticky', top: 0, background: BG_TOP, zIndex: 10 }}>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', minWidth: 0, flex: m ? 1 : undefined }}>
               <span style={{ fontSize: 13, fontWeight: 800, color: '#E8C96A' }}>{orderNr}</span>
               <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: statusColor + '33', color: statusColor, border: `1px solid ${statusColor}66` }}>
@@ -402,7 +402,7 @@ export default function OrderPanel({ orderId, onClose, onUpdated }: Props) {
             { label: order.status === 'inaktiv' ? 'Aktivera' : 'Inaktivera', icon: order.status === 'inaktiv' ? '▶' : '🚫', action: () => updateStatus(order.status === 'inaktiv' ? 'ny' : 'inaktiv'), color: order.status === 'inaktiv' ? '#4ade80' : '#f87171', disabled: false },
           ]
           return (
-            <div style={{ borderTop: `1px solid ${BORDER}`, background: BG_TOP, flexShrink: 0,
+            <div className="modal-safe-bottom" style={{ borderTop: `1px solid ${BORDER}`, background: BG_TOP, flexShrink: 0,
               ...(m ? { display: 'grid', gridTemplateColumns: '1fr 1fr', position: 'sticky', bottom: 0, zIndex: 10 } : { display: 'flex', flexDirection: 'row' }) }}>
               {bar.map((btn, i) => (
                 <button key={btn.label} onClick={btn.disabled ? undefined : btn.action} disabled={btn.disabled}

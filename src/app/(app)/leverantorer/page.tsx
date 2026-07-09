@@ -149,7 +149,7 @@ function LeverantorModal({ leverantor, onClose, onSaved }: { leverantor: Leveran
       <div style={isMobile
         ? { background: '#1a1a1a', border: 'none', borderRadius: 0, width: '100%', maxWidth: '100vw', display: 'flex', flexDirection: 'column' as const }
         : { background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 14, width: '100%', maxWidth: 480 }}>
-        <div style={{ padding: '18px 22px', borderBottom: '1px solid #222', display: 'flex', justifyContent: 'space-between' }}>
+        <div className="modal-safe-top" style={{ padding: '18px 22px', borderBottom: '1px solid #222', display: 'flex', justifyContent: 'space-between' }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: '#e0e0e0' }}>
             {leverantor ? 'Redigera' : 'Ny leverantör'}
             {leverantor?.leverantorsnummer && <span style={{ fontSize: 12, color: '#E8C96A', fontWeight: 700, marginLeft: 8 }}>#{leverantor.leverantorsnummer}</span>}
@@ -180,7 +180,7 @@ function LeverantorModal({ leverantor, onClose, onSaved }: { leverantor: Leveran
             <textarea spellCheck={true} style={{ ...inp, minHeight: 70, resize: 'vertical' as const }} value={(form as any).anteckningar || ''} onChange={e => set('anteckningar', e.target.value)} onFocus={fo} onBlur={fb} />
           </div>
         </div>
-        <div style={{ padding: '14px 22px', borderTop: '1px solid #222', display: 'flex', gap: 8, justifyContent: 'flex-end', ...(isMobile ? { position: 'sticky' as const, bottom: 0, background: '#1a1a1a' } : {}) }}>
+        <div className="modal-safe-bottom" style={{ padding: '14px 22px', borderTop: '1px solid #222', display: 'flex', gap: 8, justifyContent: 'flex-end', ...(isMobile ? { position: 'sticky' as const, bottom: 0, background: '#1a1a1a' } : {}) }}>
           <button onClick={onClose} style={{ padding: '9px 20px', background: 'none', border: '1px solid #2a2a2a', borderRadius: 8, color: '#888', cursor: 'pointer', fontSize: 13 }}>Avbryt</button>
           <button onClick={spara} disabled={saving} style={{ padding: '9px 24px', background: '#E8C96A', border: 'none', borderRadius: 8, color: '#000', fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: saving ? 0.6 : 1 }}>
             {saving ? 'Sparar...' : 'Spara'}

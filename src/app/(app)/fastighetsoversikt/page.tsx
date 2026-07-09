@@ -195,7 +195,7 @@ function FastighetPanel({ fastighet, isMobile, onClose, onUpdated }: { fastighet
 
   return (
     <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, left: isMobile ? 0 : undefined, width: isMobile ? '100%' : 680, maxWidth: isMobile ? '100vw' : undefined, background: '#1a1a1a', zIndex: 200, display: 'flex', flexDirection: 'column', boxShadow: '-8px 0 40px rgba(0,0,0,0.6)', borderLeft: isMobile ? 'none' : '1px solid #222' }}>
-      <div style={{ padding: '20px 24px', borderBottom: '1px solid #222', flexShrink: 0 }}>
+      <div className="modal-safe-top" style={{ padding: '20px 24px', borderBottom: '1px solid #222', flexShrink: 0 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
             <div style={{ fontSize: 18, fontWeight: 800, color: '#f2f2f7' }}>{fastighet.namn}</div>
@@ -334,7 +334,7 @@ function FastighetModal({ fastighet, isMobile, onClose, onSaved }: { fastighet: 
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1500, display: 'flex', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'center', padding: isMobile ? 0 : 20 }}
       onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={{ background: '#1a1a1a', border: isMobile ? 'none' : '1px solid #2a2a2a', borderRadius: isMobile ? 0 : 14, width: '100%', maxWidth: isMobile ? '100vw' : 500, ...(isMobile ? { display: 'flex', flexDirection: 'column' } : {}) }}>
-        <div style={{ padding: '18px 22px', borderBottom: '1px solid #222', display: 'flex', justifyContent: 'space-between' }}>
+        <div className="modal-safe-top" style={{ padding: '18px 22px', borderBottom: '1px solid #222', display: 'flex', justifyContent: 'space-between' }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: '#e0e0e0' }}>{fastighet ? 'Redigera fastighet' : 'Ny fastighet'}</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#666', fontSize: 20, cursor: 'pointer' }}>×</button>
         </div>
@@ -369,7 +369,7 @@ function FastighetModal({ fastighet, isMobile, onClose, onSaved }: { fastighet: 
             <textarea spellCheck={true} style={{ ...inp, minHeight: 80, resize: 'vertical' }} value={form.anteckningar} onChange={e => set('anteckningar', e.target.value)} onFocus={fo} onBlur={fb} />
           </div>
         </div>
-        <div style={{ padding: '14px 22px', borderTop: '1px solid #222', display: 'flex', gap: 8, justifyContent: 'flex-end', ...(isMobile ? { position: 'sticky', bottom: 0, background: '#1a1a1a', flexShrink: 0 } : {}) }}>
+        <div className="modal-safe-bottom" style={{ padding: '14px 22px', borderTop: '1px solid #222', display: 'flex', gap: 8, justifyContent: 'flex-end', ...(isMobile ? { position: 'sticky', bottom: 0, background: '#1a1a1a', flexShrink: 0 } : {}) }}>
           <button onClick={onClose} style={{ padding: '9px 20px', background: 'none', border: '1px solid #2a2a2a', borderRadius: 8, color: '#888', cursor: 'pointer', fontSize: 13 }}>Avbryt</button>
           <button onClick={spara} disabled={saving || !form.namn || !form.adress}
             style={{ padding: '9px 24px', background: '#E8C96A', border: 'none', borderRadius: 8, color: '#000', fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: !form.namn || !form.adress ? 0.5 : 1 }}>

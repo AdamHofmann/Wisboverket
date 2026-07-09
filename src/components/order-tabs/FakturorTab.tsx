@@ -321,7 +321,7 @@ info@wisboverket.se
       onClick={e => e.target === e.currentTarget && onClose()}>
 
       {/* Verktygsfält */}
-      <div className="no-print" style={{ background: '#1c1c1e', borderBottom: '1px solid #2a2a2a', padding: m ? '10px 14px' : '10px 20px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, flexWrap: m ? 'wrap' : 'nowrap' }}>
+      <div className="no-print modal-safe-top" style={{ background: '#1c1c1e', borderBottom: '1px solid #2a2a2a', padding: m ? '10px 14px' : '10px 20px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, flexWrap: m ? 'wrap' : 'nowrap' }}>
         <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#8e8e93', fontSize: 20, cursor: 'pointer', lineHeight: 1, padding: '0 4px' }}>←</button>
         <span style={{ fontSize: 14, fontWeight: 700, color: '#f2f2f7' }}>{f.fakturanummer}</span>
         <span style={{ fontSize: 12, color: '#636366', marginLeft: 4 }}>{f.kund_namn || '—'}</span>

@@ -58,7 +58,7 @@ export default function SlideOver({ open, onClose, title, subtitle, children, fo
         }}
       >
         {/* Header */}
-        <div style={{
+        <div className="modal-safe-top" style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '16px 24px', borderBottom: `1px solid ${C.borderSoft}`, flexShrink: 0,
         }}>
@@ -85,7 +85,7 @@ export default function SlideOver({ open, onClose, title, subtitle, children, fo
 
         {/* Footer */}
         {footer && (
-          <div style={{
+          <div className="modal-safe-bottom" style={{
             flexShrink: 0, borderTop: `1px solid ${C.borderSoft}`, padding: '16px 24px', background: C.panel,
           }}>
             {footer}

@@ -254,7 +254,7 @@ function KundDetailModal({ kund, onClose, onEdit }: { kund: Customer; onClose: (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 1000, display: 'flex', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'center', padding: isMobile ? 0 : 20 }}
       onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: isMobile ? 0 : 14, width: '100%', maxWidth: isMobile ? '100vw' : 580, maxHeight: isMobile ? '100vh' : '85vh', overflow: 'auto' }}>
-        <div style={{ padding: '18px 22px', borderBottom: '1px solid #222', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="modal-safe-top" style={{ padding: '18px 22px', borderBottom: '1px solid #222', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <div style={{ fontSize: 18, fontWeight: 800, color: '#E8C96A' }}>{kund.namn}</div>
             <div style={{ fontSize: 11, color: '#555', marginTop: 2 }}>
@@ -431,7 +431,7 @@ function KundModal({ kund, onClose, onSaved }: { kund: Customer | null; onClose:
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1100, display: 'flex', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'center', padding: isMobile ? 0 : 20 }}
       onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: isMobile ? 0 : 14, width: '100%', maxWidth: isMobile ? '100vw' : 540, maxHeight: isMobile ? '100vh' : '90vh', overflow: 'auto' }}>
-        <div style={{ padding: '18px 22px', borderBottom: '1px solid #222', display: 'flex', justifyContent: 'space-between' }}>
+        <div className="modal-safe-top" style={{ padding: '18px 22px', borderBottom: '1px solid #222', display: 'flex', justifyContent: 'space-between' }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: '#e0e0e0' }}>{kund ? 'Redigera kund' : 'Ny kund'}</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#666', fontSize: 20, cursor: 'pointer' }}>×</button>
         </div>
@@ -548,7 +548,7 @@ function KundModal({ kund, onClose, onSaved }: { kund: Customer | null; onClose:
           {error && <div style={{ fontSize: 12, color: '#f87171', background: '#f8717111', padding: '8px 12px', borderRadius: 8 }}>{error}</div>}
         </div>
 
-        <div style={{ padding: '14px 22px', borderTop: '1px solid #222', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+        <div className="modal-safe-bottom" style={{ padding: '14px 22px', borderTop: '1px solid #222', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
           <button onClick={onClose} style={{ padding: '9px 20px', background: 'none', border: '1px solid #2a2a2a', borderRadius: 8, color: '#888', cursor: 'pointer', fontSize: 13 }}>Avbryt</button>
           <button onClick={spara} disabled={saving} style={{ padding: '9px 24px', background: '#E8C96A', border: 'none', borderRadius: 8, color: '#000', fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: saving ? 0.6 : 1 }}>
             {saving ? 'Sparar...' : kund ? 'Spara' : 'Lägg till'}
