@@ -25,6 +25,14 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* Sidan får aldrig scrolla horisontellt (brett innehåll scrollar i egna
+   containrar). Utan detta kan ett överspill knuffa hela vyn i sidled så att
+   t.ex. rubriker kläms av vänsterkanten i app-skalet. */
+html, body {
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
 /* Neutralisera Chromes autofyll-/inklistringsstyling (ljus/vit bakgrund) så mörka fält förblir mörka */
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
