@@ -10,7 +10,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <div style={{ minHeight: '100vh', background: '#111' }}>
           <LoggProvider />
           <Navbar />
-          <main style={{ padding: '24px calc(20px + env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) calc(20px + env(safe-area-inset-left))', maxWidth: 1400, margin: '0 auto' }}>
+          <main className="app-main" style={{ padding: '24px calc(20px + env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) calc(20px + env(safe-area-inset-left))' }}>
             {children}
           </main>
         </div>

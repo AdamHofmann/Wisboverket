@@ -33,6 +33,21 @@ html, body {
   max-width: 100%;
 }
 
+/* App-innehållets bredd/centrering. På iOS-webviewen blir layoutbredden större
+   än fönstret (viewport-fit=cover), och då centrerar margin:auto main UTANFÖR
+   vänsterkanten så rubriker klipps. Därför: centrera bara på desktop, och
+   vänsterjustera på mobil så inget skjuts utanför. */
+.app-main {
+  max-width: 1400px;
+  margin-inline: auto;
+}
+@media (max-width: 768px) {
+  .app-main {
+    max-width: 100%;
+    margin-inline: 0;
+  }
+}
+
 /* Neutralisera Chromes autofyll-/inklistringsstyling (ljus/vit bakgrund) så mörka fält förblir mörka */
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
