@@ -65,7 +65,11 @@ export default function PullToRefresh() {
         refreshingRef.current = true
         setRefreshing(true)
         set(THRESHOLD)
-        window.setTimeout(() => window.location.reload(), 300)
+        // Mjuk uppdatering INUTI appen (remountar sidan → all data hämtas om).
+        // INTE location.reload() — en full omladdning kan i Capacitor-skalet
+        // kastas ut till Safari (redirect/värd-gräns).
+        window.dispatchEvent(new Event('wb:refresh'))
+        window.setTimeout(() => { refreshingRef.current = false; setRefreshing(false); set(0) }, 650)
       } else {
         set(0)
       }
