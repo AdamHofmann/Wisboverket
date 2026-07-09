@@ -10,7 +10,8 @@ const config: CapacitorConfig = {
   appName: 'Wisboverket',
   webDir: 'public',
   server: {
-    url: 'https://wisboverket.vercel.app',
+    // Öppna direkt i appens inloggning, inte på publika marknadsförings-hemsidan.
+    url: 'https://wisboverket.vercel.app/login',
     cleartext: false,
   },
 }
