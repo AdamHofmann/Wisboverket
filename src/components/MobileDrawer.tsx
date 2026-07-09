@@ -17,10 +17,12 @@ const D: Record<string, React.CSSProperties> = {
     zIndex: 1000,
   },
   panel: {
-    position: 'fixed', top: 0, right: 0, bottom: 0, width: 'min(80vw, 320px)',
+    position: 'fixed', top: 0, right: 0, bottom: 0, width: 'min(85vw, 340px)',
     background: '#141414', borderLeft: '1px solid #222',
     zIndex: 1001, display: 'flex', flexDirection: 'column' as const,
-    padding: '12px 12px calc(12px + env(safe-area-inset-bottom))',
+    // Safe-area i toppen så ×-knappen + menyvalen hamnar under statusrad/notch
+    // (inte instängt), och i botten för home-indikatorn.
+    padding: 'calc(12px + env(safe-area-inset-top)) 12px calc(12px + env(safe-area-inset-bottom))',
     overflowY: 'auto',
   },
   header: {
