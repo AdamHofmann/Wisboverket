@@ -335,7 +335,7 @@ export default function NyOrderModal({ onClose, onSaved, order }: Props) {
   return (
     <div style={{ ...S.overlay, ...(m ? { padding: 0, alignItems: 'stretch' } : {}) }} onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={{ ...S.modal, ...(m ? { width: '100%', maxWidth: '100vw', maxHeight: '100vh', borderRadius: 0, border: 'none' } : {}) }}>
-        <div style={S.header}>
+        <div style={{ ...S.header, ...(m ? { paddingTop: 'calc(20px + env(safe-area-inset-top))', position: 'sticky' as const, top: 0, background: '#1a1a1a', zIndex: 1 } : {}) }}>
           <div style={S.title}>{isEdit ? 'Redigera order' : 'Ny order'}</div>
           <button style={S.closeBtn} onClick={onClose}>×</button>
         </div>
@@ -707,7 +707,7 @@ export default function NyOrderModal({ onClose, onSaved, order }: Props) {
           </div>
         </div>
 
-        <div style={{ ...S.footer, ...(m ? { position: 'sticky' as const, bottom: 0, background: '#1a1a1a', zIndex: 1 } : {}) }}>
+        <div style={{ ...S.footer, ...(m ? { position: 'sticky' as const, bottom: 0, background: '#1a1a1a', zIndex: 1, paddingBottom: 'calc(16px + env(safe-area-inset-bottom))' } : {}) }}>
           {saveError && <div style={{ color: '#ef4444', fontSize: 12, flex: 1 }}>{saveError}</div>}
           <button style={S.cancelBtn} onClick={onClose}>Avbryt</button>
           <button style={{ ...S.saveBtn, opacity: saving ? 0.6 : 1 }} onClick={handleSave} disabled={saving}>
