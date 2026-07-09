@@ -18,6 +18,9 @@ export const viewport = {
   initialScale: 1,
   maximumScale: 5,
   themeColor: '#111111',
+  // Låt innehållet nå ut i hörnen så env(safe-area-inset-*) blir tillgängligt
+  // (behövs för att undvika krock med statusrad/notch/home-indikator i app-skalet).
+  viewportFit: 'cover' as const,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

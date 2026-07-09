@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400">
+  <defs>
+    <linearGradient id="goldIDN" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f4e0a0"/>
+      <stop offset="0.45" stop-color="#c9a840"/>
+      <stop offset="1" stop-color="#9c7527"/>
+    </linearGradient>
+  </defs>
+  <circle cx="200" cy="200" r="196" fill="#0d0d0d"/>
+  <circle cx="200" cy="200" r="192" fill="none" stroke="url(#goldIDN)" stroke-width="5"/>
+  <circle cx="200" cy="200" r="177" fill="none" stroke="url(#goldIDN)" stroke-width="1" opacity="0.55"/>
+  <text x="200" y="188" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="36" letter-spacing="3" fill="url(#goldIDN)">FASTIGHETEN</text>
+  <text x="200" y="236" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="36" letter-spacing="4" fill="url(#goldIDN)">IDN AB</text>
+</svg>

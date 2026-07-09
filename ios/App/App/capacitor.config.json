@@ -1,0 +1,10 @@
+{
+	"appId": "se.wisboverket.app",
+	"appName": "Wisboverket",
+	"webDir": "public",
+	"server": {
+		"url": "https://wisboverket.vercel.app/login",
+		"cleartext": false
+	},
+	"packageClassList": []
+}

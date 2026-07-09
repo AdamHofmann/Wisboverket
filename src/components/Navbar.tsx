@@ -23,7 +23,9 @@ const ORDER_LINKS = [
 ]
 
 const S: Record<string, React.CSSProperties> = {
-  nav: { background: '#141414', borderBottom: '1px solid #222', position: 'sticky', top: 0, zIndex: 100 },
+  // paddingTop = safe-area så navbarens innehåll hamnar under statusrad/notch i
+  // app-skalet (navbarens bakgrund fyller ändå ut hela statusrads-ytan).
+  nav: { background: '#141414', borderBottom: '1px solid #222', position: 'sticky', top: 0, zIndex: 100, paddingTop: 'env(safe-area-inset-top)' },
   inner: { display: 'flex', alignItems: 'center', gap: 0, padding: '0 16px', height: 56, overflowX: 'auto' },
   logoWrap: { display: 'flex', alignItems: 'center', gap: 10, marginRight: 20, flexShrink: 0, textDecoration: 'none' },
   logoText: { display: 'flex', flexDirection: 'column' as const, lineHeight: 1.1 },
