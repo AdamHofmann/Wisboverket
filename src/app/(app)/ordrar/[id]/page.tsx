@@ -109,6 +109,7 @@ export default function OrderDetailPage() {
 
   return (
     <div style={{ maxWidth: 780, margin: '0 auto', paddingBottom: 100 }}>
+      <DebugViewport />
 
       {/* Tillbaka */}
       <button onClick={() => router.push('/ordrar')}
@@ -340,6 +341,47 @@ export default function OrderDetailPage() {
         <SendModal orderId={order.id} orderTitel={order.titel} kundEpost={order.customer?.epost} kundTelefon={order.customer?.telefon}
           onClose={() => setShowSend(false)} onSent={() => { fetchAll(); setTab('utskick') }} />
       )}
+    </div>
+  )
+}
+
+// TILLFÄLLIG diagnostik för action-bar-buggen på iOS — tas bort efteråt.
+function DebugViewport() {
+  const [i, setI] = useState<Record<string, number | string>>({})
+  useEffect(() => {
+    const measure = () => {
+      const bar = Array.from(document.querySelectorAll('div')).find(
+        d => getComputedStyle(d).position === 'fixed' && (d.textContent || '').includes('KONTAKTA KUND')
+      )
+      const r = bar?.getBoundingClientRect()
+      let anc = 0
+      let n: HTMLElement | null = (bar as HTMLElement) || null
+      while (n && n !== document.body) {
+        const s = getComputedStyle(n)
+        if (s.transform !== 'none' || s.filter !== 'none' || s.perspective !== 'none' || s.willChange !== 'auto' || (s.contain && s.contain !== 'none')) anc++
+        n = n.parentElement
+      }
+      const vv = window.visualViewport
+      setI({
+        barTop: r ? Math.round(r.top) : '—',
+        barBot: r ? Math.round(r.bottom) : '—',
+        innerH: window.innerHeight,
+        vvH: vv ? Math.round(vv.height) : '—',
+        vvOff: vv ? Math.round(vv.offsetTop) : '—',
+        vvScale: vv ? Math.round(vv.scale * 100) / 100 : '—',
+        scrollY: Math.round(window.scrollY),
+        anc,
+      })
+    }
+    measure()
+    window.addEventListener('scroll', measure, { passive: true })
+    window.addEventListener('resize', measure)
+    const id = window.setInterval(measure, 500)
+    return () => { window.removeEventListener('scroll', measure); window.removeEventListener('resize', measure); window.clearInterval(id) }
+  }, [])
+  return (
+    <div style={{ position: 'fixed', top: 'env(safe-area-inset-top)', left: 0, zIndex: 99999, background: 'rgba(220,0,0,0.9)', color: '#fff', fontSize: 11, fontFamily: 'monospace', padding: '4px 8px', lineHeight: 1.45, pointerEvents: 'none', whiteSpace: 'pre' }}>
+      {`barTop:${i.barTop}  barBot:${i.barBot}\ninnerH:${i.innerH}  vvH:${i.vvH}  vvOff:${i.vvOff}\nvvScale:${i.vvScale}  scrollY:${i.scrollY}  anc:${i.anc}`}
     </div>
   )
 }
