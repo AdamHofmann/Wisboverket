@@ -7,7 +7,7 @@ export const fmtDatum = (d: string) =>
 
 export const inp: CSSProperties = {
   background: '#1c1c1e', border: '1px solid #3a3a3c', borderRadius: 8, padding: '8px 12px',
-  color: '#f2f2f7', fontSize: 13, outline: 'none', width: '100%', boxSizing: 'border-box',
+  color: '#f2f2f7', fontSize: 13, outline: 'none', width: '100%', minWidth: 0, boxSizing: 'border-box',
 }
 
 export const lbl: CSSProperties = {
