@@ -108,7 +108,7 @@ export default function OrderDetailPage() {
   const last = !!(order.fakturerat || order.faktureras_inte)
 
   return (
-    <div style={{ maxWidth: 780, margin: '0 auto', paddingBottom: 24 }}>
+    <div style={{ maxWidth: 780, margin: '0 auto', paddingBottom: 24, minHeight: '100%', display: 'flex', flexDirection: 'column' }}>
 
       {/* Tillbaka */}
       <button onClick={() => router.push('/ordrar')}
@@ -319,7 +319,7 @@ export default function OrderDetailPage() {
           { label: order.status === 'inaktiv' ? 'Aktivera' : 'Inaktivera', icon: order.status === 'inaktiv' ? '▶' : '🚫', action: () => updateStatus(order.status === 'inaktiv' ? 'aktiv' : 'inaktiv'), color: order.status === 'inaktiv' ? '#4ade80' : '#f87171', disabled: false },
         ]
         return (
-          <div style={{ marginTop: 16, background: '#141414', border: '1px solid #1e1e1e', borderRadius: 12, overflow: 'hidden', paddingBottom: 'env(safe-area-inset-bottom)', display: 'flex' }}>
+          <div style={{ marginTop: 'auto', background: '#141414', border: '1px solid #1e1e1e', borderRadius: 12, overflow: 'hidden', paddingBottom: 'env(safe-area-inset-bottom)', display: 'flex' }}>
             {bar.map(btn => (
               <button key={btn.label} onClick={btn.disabled ? undefined : btn.action} disabled={btn.disabled}
                 style={{ flex: 1, background: 'none', border: 'none', borderRight: '1px solid #1e1e1e', padding: '14px 8px', cursor: btn.disabled ? 'not-allowed' : 'pointer', opacity: btn.disabled ? 0.4 : 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}
