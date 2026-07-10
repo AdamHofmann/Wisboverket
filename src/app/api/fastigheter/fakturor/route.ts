@@ -387,6 +387,16 @@ export async function POST(request: Request) {
       if (mergeErr) throw mergeErr
     }
 
+    // VERIFIERA mot databasen att fakturorna faktiskt landade. RPC:ns returvärde
+    // kan säga "3 skapade" även om skrivningen inte committades via API-lagret —
+    // vi litar bara på vad som faktiskt går att läsa tillbaka. (Samfakturerings-
+    // merge kan legitimt minska antalet, så vi räknar kvarvarande fakturanummer.)
+    if (fakturorAttSkapa.length > 0) {
+      const nummer = fakturorAttSkapa.map((f) => f.fakturanummer)
+      const { data: funna } = await sb.from('f_faktura').select('fakturanummer').in('fakturanummer', nummer)
+      skapadeAntal = funna?.length ?? 0
+    }
+
     const msg = [
       skapadeAntal > 0 ? `${skapadeAntal} fakturor skapade` : null,
       skippadePgaDublett.length > 0 ? `${skippadePgaDublett.length} hoppades över (redan fakturerad)` : null,
@@ -396,7 +406,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       message: msg || 'Inga fakturor att skapa',
-      count: skapadeAntal,               // faktiskt sparade (RPC-returvärde)
+      count: skapadeAntal,               // VERIFIERAT antal som faktiskt finns i databasen
       built: fakturorAttSkapa.length,    // antal appen försökte skapa → klienten kan varna vid diff
       skippade: skippadePgaDublett,
     })

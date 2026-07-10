@@ -362,10 +362,9 @@ export default function FaktureringPage() {
       const skippedMsg = data.skippade?.length > 0 ? ` · ${data.skippade.length} redan fakturerade hoppades över` : ''
 
       if (built > 0 && saved === 0) {
-        // Byggde fakturor men inget landade i databasen → nästan alltid backend/anslutning.
+        // Byggde fakturor men INGET gick att läsa tillbaka ur databasen → skrivningen
+        // committades inte (nästan alltid ett tillfälligt backend-/anslutningsproblem).
         setMessage({ text: `⚠️ ${built} fakturor kunde INTE sparas — databasen tog inte emot skrivningen (ofta ett tillfälligt Supabase-problem). Inget skapades. Vänta en stund och försök igen.${skippedMsg}`, type: 'error' })
-      } else if (saved > 0 && saved < built) {
-        setMessage({ text: `⚠️ Bara ${saved} av ${built} fakturor sparades — resten misslyckades. Kör igen så skapas de som saknas.${skippedMsg}`, type: 'error' })
       } else if (saved > 0) {
         setMessage({ text: `${saved} ${saved === 1 ? 'faktura' : 'fakturor'} skapade${skippedMsg}`, type: 'success' })
       } else {
