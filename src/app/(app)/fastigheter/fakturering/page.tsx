@@ -142,7 +142,7 @@ export default function FaktureringPage() {
   const [filterHyresgast, setFilterHyresgast] = useState('')
   const [previewFaktura, setPreviewFaktura] = useState<Faktura | null>(null)
   const [preview, setPreview] = useState<Preview | null>(null)
-  const [message, setMessage] = useState<{ text: string; type: 'success' | 'info' } | null>(null)
+  const [message, setMessage] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null)
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
   const [sortCol, setSortCol] = useState<string>('period')
   const [sortDir, setSortDir] = useState<1 | -1>(-1)
@@ -343,21 +343,47 @@ export default function FaktureringPage() {
     if (!selectedPeriod) return
     setGenerating(true)
     setMessage(null)
-    const res = await fetch('/api/fastigheter/fakturor', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ period: selectedPeriod, bolagId: valtBolagId ?? null, meddelande: omgangMsg.trim() || null }),
-    })
-    const data = await res.json()
-    const skippedMsg = data.skippade?.length > 0 ? ` (${data.skippade.length} redan fakturerade hoppades över)` : ''
-    setMessage({ text: (data.message || 'Klart') + skippedMsg, type: data.count > 0 ? 'success' : 'info' })
-    setGenerating(false)
-    setOmgangMsg('') // engångsmeddelandet gäller bara denna omgång
-    // Scrolla listan till just det kvartal vi genererade + visa "Att skicka" (nya = ej skickade)
-    setFilterPeriod(periodKvartal(selectedPeriod))
-    setVy('attskicka')
-    setSelected(new Set()) // rensa markeringar så inget hänger kvar efter generering
-    load()
+    try {
+      const res = await fetch('/api/fastigheter/fakturor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ period: selectedPeriod, bolagId: valtBolagId ?? null, meddelande: omgangMsg.trim() || null }),
+      })
+      const data = await res.json().catch(() => ({}))
+
+      // Serverfel (t.ex. Supabase-incident) → tydligt backend-fel istället för tyst/vilseledande.
+      if (!res.ok) {
+        setMessage({ text: `⚠️ Servern svarade med ett fel${res.status ? ` (${res.status})` : ''} — inget sparades. Oftast ett tillfälligt databasproblem (Supabase). Vänta en stund och försök igen.`, type: 'error' })
+        return
+      }
+
+      const built: number = data.built ?? 0          // antal appen försökte skapa
+      const saved: number = data.count ?? 0          // antal som RPC:en faktiskt sparade
+      const skippedMsg = data.skippade?.length > 0 ? ` · ${data.skippade.length} redan fakturerade hoppades över` : ''
+
+      if (built > 0 && saved === 0) {
+        // Byggde fakturor men inget landade i databasen → nästan alltid backend/anslutning.
+        setMessage({ text: `⚠️ ${built} fakturor kunde INTE sparas — databasen tog inte emot skrivningen (ofta ett tillfälligt Supabase-problem). Inget skapades. Vänta en stund och försök igen.${skippedMsg}`, type: 'error' })
+      } else if (saved > 0 && saved < built) {
+        setMessage({ text: `⚠️ Bara ${saved} av ${built} fakturor sparades — resten misslyckades. Kör igen så skapas de som saknas.${skippedMsg}`, type: 'error' })
+      } else if (saved > 0) {
+        setMessage({ text: `${saved} ${saved === 1 ? 'faktura' : 'fakturor'} skapade${skippedMsg}`, type: 'success' })
+      } else {
+        setMessage({ text: (data.message || 'Inga nya fakturor att skapa') + skippedMsg, type: 'info' })
+      }
+
+      setOmgangMsg('') // engångsmeddelandet gäller bara denna omgång
+      // Scrolla listan till just det kvartal vi genererade + visa "Att skicka" (nya = ej skickade)
+      setFilterPeriod(periodKvartal(selectedPeriod))
+      setVy('attskicka')
+      setSelected(new Set()) // rensa markeringar så inget hänger kvar efter generering
+      load()
+    } catch {
+      // Nådde inte servern alls (nätverk/offline).
+      setMessage({ text: '⚠️ Kunde inte nå servern. Kontrollera internetanslutningen och försök igen.', type: 'error' })
+    } finally {
+      setGenerating(false)
+    }
   }
 
   const updateStatus = async (id: string, status: string) => {
@@ -681,9 +707,16 @@ export default function FaktureringPage() {
           </p>
         )}
         {message && (
-          <p style={{ marginTop: 12, fontSize: 13, fontWeight: 600, color: message.type === 'success' ? C.ok : C.blue }}>
+          <div style={{
+            marginTop: 12, fontSize: 13, fontWeight: 600, lineHeight: 1.5,
+            color: message.type === 'success' ? C.ok : message.type === 'error' ? C.danger : C.blue,
+            ...(message.type === 'error' ? {
+              padding: '10px 14px', borderRadius: 8,
+              background: 'rgba(248,113,113,0.10)', border: '1px solid rgba(248,113,113,0.4)',
+            } : {}),
+          }}>
             {message.text}
-          </p>
+          </div>
         )}
         {/* Manuell faktura — tydligt separerad från kvartals-genereringen */}
         <div style={{ marginTop: 20, paddingTop: 16, borderTop: `1px solid ${C.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', ...(isMobile ? { flexDirection: 'column', alignItems: 'stretch' } : {}) }}>

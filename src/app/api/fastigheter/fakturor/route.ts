@@ -396,7 +396,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       message: msg || 'Inga fakturor att skapa',
-      count: skapadeAntal,
+      count: skapadeAntal,               // faktiskt sparade (RPC-returvärde)
+      built: fakturorAttSkapa.length,    // antal appen försökte skapa → klienten kan varna vid diff
       skippade: skippadePgaDublett,
     })
   } catch (e) {
