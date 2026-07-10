@@ -155,7 +155,7 @@ export default function OrderPanel({ orderId, onClose, onUpdated }: Props) {
     <>
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200 }} />
 
-      <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: m ? '100%' : 760, maxWidth: '100vw', background: BG, zIndex: 201, display: 'flex', flexDirection: 'column', boxShadow: '-8px 0 40px rgba(0,0,0,0.5)' }}>
+      <div style={{ position: 'fixed', top: 0, right: 0, height: '100dvh', maxHeight: '100dvh', width: m ? '100%' : 760, maxWidth: '100vw', background: BG, zIndex: 201, display: 'flex', flexDirection: 'column', boxShadow: '-8px 0 40px rgba(0,0,0,0.5)' }}>
 
         {/* Scrollbart innehåll */}
         <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 80 }}>
@@ -403,7 +403,7 @@ export default function OrderPanel({ orderId, onClose, onUpdated }: Props) {
           ]
           return (
             <div className="modal-safe-bottom" style={{ borderTop: `1px solid ${BORDER}`, background: BG_TOP, flexShrink: 0,
-              ...(m ? { display: 'grid', gridTemplateColumns: '1fr 1fr', position: 'sticky', bottom: 0, zIndex: 10 } : { display: 'flex', flexDirection: 'row' }) }}>
+              ...(m ? { display: 'grid', gridTemplateColumns: '1fr 1fr' } : { display: 'flex', flexDirection: 'row' }) }}>
               {bar.map((btn, i) => (
                 <button key={btn.label} onClick={btn.disabled ? undefined : btn.action} disabled={btn.disabled}
                   style={{ flex: m ? undefined : 1, background: 'none', border: 'none',
