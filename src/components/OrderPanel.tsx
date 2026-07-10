@@ -155,10 +155,10 @@ export default function OrderPanel({ orderId, onClose, onUpdated }: Props) {
     <>
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200 }} />
 
-      <div style={{ position: 'fixed', top: 0, right: 0, height: '100dvh', maxHeight: '100dvh', width: m ? '100%' : 760, maxWidth: '100vw', background: BG, zIndex: 201, display: 'flex', flexDirection: 'column', boxShadow: '-8px 0 40px rgba(0,0,0,0.5)' }}>
+      <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: m ? '100%' : 760, maxWidth: '100vw', background: BG, zIndex: 201, display: 'flex', flexDirection: 'column', boxShadow: '-8px 0 40px rgba(0,0,0,0.5)' }}>
 
         {/* Scrollbart innehåll */}
-        <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 80 }}>
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
 
           {/* Toprad */}
           <div className="modal-safe-top" style={{ padding: '16px 20px', borderBottom: `1px solid ${BORDER}`, display: 'flex', alignItems: m ? 'flex-start' : 'center', justifyContent: 'space-between', gap: m ? 8 : 0, position: 'sticky', top: 0, background: BG_TOP, zIndex: 10 }}>
