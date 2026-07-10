@@ -177,6 +177,8 @@ function OffertModal({ offert, autoPdf, onClose, onSaved }: { offert: Offert | n
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  // Dagens datum (lokalt, YYYY-MM-DD) — offertens giltighetsdatum får inte vara bakåt i tiden.
+  const idagStr = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` })()
 
   useEffect(() => {
     const sb = createClient()
@@ -463,7 +465,7 @@ info@wisboverket.se
               </select>
             </MF>
             <MF label="GILTIG TILL">
-              <DatumValjare value={form.giltig_till} onChange={d => set('giltig_till', d)} style={inp} />
+              <DatumValjare value={form.giltig_till} onChange={d => set('giltig_till', d)} style={inp} minDate={idagStr} />
             </MF>
           </div>
 
