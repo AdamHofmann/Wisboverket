@@ -365,11 +365,15 @@ export async function POST(request: Request) {
     }
 
     // Persistera alla fakturor + rader ATOMÄRT via RPC.
+    // Använd RPC:ns FAKTISKA returnerade antal (inte antalet vi byggde) så
+    // meddelandet aldrig visar "X skapade" om inget faktiskt sparades.
+    let skapadeAntal = 0
     if (fakturorAttSkapa.length > 0) {
-      const { error: rpcErr } = await sb.rpc('f_skapa_fakturor', {
+      const { data: rpcAntal, error: rpcErr } = await sb.rpc('f_skapa_fakturor', {
         p_fakturor: fakturorAttSkapa,
       })
       if (rpcErr) throw rpcErr
+      skapadeAntal = typeof rpcAntal === 'number' ? rpcAntal : fakturorAttSkapa.length
     }
 
     // Samfakturering: slå ihop fakturor per hyresgäst+period (atomärt via RPC).
@@ -384,7 +388,7 @@ export async function POST(request: Request) {
     }
 
     const msg = [
-      fakturorAttSkapa.length > 0 ? `${fakturorAttSkapa.length} fakturor skapade` : null,
+      skapadeAntal > 0 ? `${skapadeAntal} fakturor skapade` : null,
       skippadePgaDublett.length > 0 ? `${skippadePgaDublett.length} hoppades över (redan fakturerad)` : null,
     ]
       .filter(Boolean)
@@ -392,7 +396,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       message: msg || 'Inga fakturor att skapa',
-      count: fakturorAttSkapa.length,
+      count: skapadeAntal,
       skippade: skippadePgaDublett,
     })
   } catch (e) {
