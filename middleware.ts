@@ -31,6 +31,7 @@ export async function middleware(request: NextRequest) {
     p === '/robots.txt' ||             // SEO
     p === '/sitemap.xml' ||            // SEO
     p === '/manifest.webmanifest' ||   // PWA-manifest
+    p === '/sw.js' ||                  // service worker (får ej redirectas → annars kan den ej registreras/uppdateras)
     p.startsWith('/login') ||
     p.startsWith('/api/public/')       // publika formulär (uthyrning/förfrågan/felanmälan)
   if ((error || !user) && !ärOffentlig) {
