@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/Toast'
+import { useIsMobile } from '@/hooks/useMediaQuery'
 
 type Forfragan = {
   id: string; typ: 'uthyrning' | 'offert' | 'kontakt'; namn: string | null; telefon: string | null; epost: string | null
@@ -59,6 +60,7 @@ export default function InkorgPage() {
 
 function ForfragningarTab({ onHandled }: { onHandled: () => void }) {
   const toast = useToast()
+  const m = useIsMobile()
   const [items, setItems] = useState<Forfragan[]>([])
   const [flik, setFlik] = useState('alla')
   const [selected, setSelected] = useState<Forfragan | null>(null)
@@ -84,8 +86,8 @@ function ForfragningarTab({ onHandled }: { onHandled: () => void }) {
   if (loading) return <div style={{ textAlign: 'center', padding: 60, color: '#555' }}>Laddar...</div>
 
   return (
-    <div style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: 10, display: 'flex', minHeight: 400 }}>
-      <div style={{ width: 300, flexShrink: 0, borderRight: '1px solid #1e1e1e' }}>
+    <div style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: 10, display: 'flex', flexDirection: m ? 'column' : 'row', minHeight: 400 }}>
+      <div style={{ width: m ? '100%' : 300, flexShrink: 0, borderRight: m ? 'none' : '1px solid #1e1e1e', borderBottom: m ? '1px solid #1e1e1e' : 'none', ...(m ? { maxHeight: 260, overflowY: 'auto' as const } : {}) }}>
         <div style={{ display: 'flex', gap: 4, padding: '10px 12px', borderBottom: '1px solid #1e1e1e', flexWrap: 'wrap' as const }}>
           {FLIKAR.map(f => (
             <button key={f.id} onClick={() => { setFlik(f.id); setSelected(null) }}
@@ -160,6 +162,7 @@ function ForfragningarTab({ onHandled }: { onHandled: () => void }) {
 
 function FelanmalanTab({ onHandled }: { onHandled: () => void }) {
   const toast = useToast()
+  const m = useIsMobile()
   const [items, setItems] = useState<Felanmalan[]>([])
   const [selected, setSelected] = useState<Felanmalan | null>(null)
   const [loading, setLoading] = useState(true)
@@ -209,8 +212,8 @@ function FelanmalanTab({ onHandled }: { onHandled: () => void }) {
   if (loading) return <div style={{ textAlign: 'center', padding: 60, color: '#555' }}>Laddar...</div>
 
   return (
-    <div style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: 10, display: 'flex', minHeight: 400 }}>
-      <div style={{ width: 300, flexShrink: 0, borderRight: '1px solid #1e1e1e', overflowY: 'auto' as const, maxHeight: 540 }}>
+    <div style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: 10, display: 'flex', flexDirection: m ? 'column' : 'row', minHeight: 400 }}>
+      <div style={{ width: m ? '100%' : 300, flexShrink: 0, borderRight: m ? 'none' : '1px solid #1e1e1e', borderBottom: m ? '1px solid #1e1e1e' : 'none', overflowY: 'auto' as const, maxHeight: m ? 260 : 540 }}>
         {items.length === 0 ? (
           <div style={{ color: '#555', fontSize: 13, textAlign: 'center' as const, padding: 32 }}>Inga felanmälningar ännu.</div>
         ) : items.map(item => {
