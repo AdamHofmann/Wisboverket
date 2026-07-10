@@ -7,11 +7,12 @@ import { fmtKr } from './shared'
 export default function EkonomiTab({ orderId, faktureradeBelopp }: { orderId: string; faktureradeBelopp?: number | null }) {
   const [tidSumma, setTidSumma] = useState({ intakt: 0, kostnad: 0, antal: 0 })
   const [inkopSumma, setInkopSumma] = useState({ belopp: 0, antal: 0 })
+  const [perArtikel, setPerArtikel] = useState<{ namn: string; enhet: string; antal: number; intakt: number; kostnad: number }[]>([])
 
   useEffect(() => {
     const sb = createClient()
     Promise.all([
-      sb.from('order_tid_rader').select('total_intakt, total_kostnad').eq('order_id', orderId),
+      sb.from('order_tid_rader').select('artikel_namn, enhet, antal, total_intakt, total_kostnad').eq('order_id', orderId),
       sb.from('order_inkop').select('belopp').eq('order_id', orderId),
     ]).then(([{ data: tid }, { data: inkop }]) => {
       setTidSumma({
@@ -23,6 +24,18 @@ export default function EkonomiTab({ orderId, faktureradeBelopp }: { orderId: st
         belopp: (inkop || []).reduce((s, i) => s + i.belopp, 0),
         antal: (inkop || []).length,
       })
+      // Gruppera tidrader per artikel → antal (timmar/st), intäkt, kostnad.
+      const grupp: Record<string, { namn: string; enhet: string; antal: number; intakt: number; kostnad: number }> = {}
+      for (const r of (tid || [])) {
+        const namn = (r.artikel_namn as string) || 'Övrigt'
+        const enhet = (r.enhet as string) || ''
+        const key = `${namn}|${enhet}`
+        if (!grupp[key]) grupp[key] = { namn, enhet, antal: 0, intakt: 0, kostnad: 0 }
+        grupp[key].antal += (r.antal as number) || 0
+        grupp[key].intakt += r.total_intakt || 0
+        grupp[key].kostnad += r.total_kostnad || 0
+      }
+      setPerArtikel(Object.values(grupp).sort((a, b) => b.intakt - a.intakt))
     })
   }, [orderId])
 
@@ -76,6 +89,25 @@ export default function EkonomiTab({ orderId, faktureradeBelopp }: { orderId: st
           <div style={{ fontSize: 15, fontWeight: 800, color: '#f87171' }}>{fmtKr(totalKostnad)}</div>
         </div>
       </div>
+
+      {/* Per artikel — vad intäkt/kostnad/tid kom från */}
+      {perArtikel.length > 0 && (
+        <div style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: 10, padding: '18px 20px', marginBottom: 12 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, color: '#555', marginBottom: 12 }}>PER ARTIKEL</div>
+          {perArtikel.map((a, i) => (
+            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, ...(i < perArtikel.length - 1 ? { marginBottom: 10, paddingBottom: 10, borderBottom: '1px solid #1e1e1e' } : {}) }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#d0d0d0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.namn}</div>
+                <div style={{ fontSize: 11, color: '#666', marginTop: 2 }}>{a.antal % 1 === 0 ? a.antal : a.antal.toFixed(1)} {a.enhet}</div>
+              </div>
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#4ade80' }}>{fmtKr(a.intakt)}</div>
+                {a.kostnad > 0 && <div style={{ fontSize: 11, color: '#f87171', marginTop: 2 }}>−{fmtKr(a.kostnad)} kostnad</div>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Resultat */}
       {fakturerat > 0 && (
