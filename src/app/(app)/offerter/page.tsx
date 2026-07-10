@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import DatumValjare from '@/components/DatumValjare'
 import { useKundPrisavtal } from '@/hooks/useKundPrisavtal'
@@ -163,6 +164,8 @@ export default function OfferterPage() {
 function OffertModal({ offert, autoPdf, onClose, onSaved }: { offert: Offert | null; autoPdf?: boolean; onClose: () => void; onSaved: () => void }) {
   const isMobile = useIsMobile()
   const toast = useToast()
+  const router = useRouter()
+  const [skaparOrder, setSkaparOrder] = useState(false)
   const [kunder, setKunder] = useState<{ id: string; namn: string; epost: string | null; adress: string | null; postnummer: string | null; ort: string | null }[]>([])
   const [artiklar, setArtiklar] = useState<Artikel[]>([])
   const [emailSent, setEmailSent] = useState(false)
@@ -188,6 +191,46 @@ function OffertModal({ offert, autoPdf, onClose, onSaved }: { offert: Offert | n
   }, [])
 
   const { prisavtal, artikelPris } = useKundPrisavtal(form.customer_id, artiklar)
+
+  // Slå om offert → order: skapa order, kopiera raderna till tidrader, länka och öppna ordern.
+  const skapaOrderFrånOffert = async () => {
+    if (!offert) return
+    if (offert.order_id) { router.push(`/ordrar?order=${offert.order_id}`); return } // redan konverterad
+    setSkaparOrder(true)
+    const sb = createClient()
+    const { data: order, error: orderErr } = await sb.from('orders').insert({
+      titel: form.titel || offert.titel || 'Order från offert',
+      kategori: 'Annat',
+      status: 'ny',
+      customer_id: form.customer_id || null,
+      beskrivning: form.beskrivning || null,
+      intern_anteckning: offert.offer_number ? `Skapad från offert ${offert.offer_number}.` : 'Skapad från offert.',
+    }).select('id').single()
+    if (orderErr || !order) { setSkaparOrder(false); toast.error('Kunde inte skapa order: ' + (orderErr?.message || 'okänt fel')); return }
+
+    // Kopiera offertens rader → tidrader. Vik in resurs-multiplikatorn i antalet så beloppet stämmer.
+    const tidRader = (form.rader || [])
+      .filter(r => (r.antal || 0) !== 0)
+      .map(r => ({
+        order_id: order.id,
+        artikel_id: r.typ === 'artikel' && r.artikel_id ? r.artikel_id : null,
+        artikel_namn: r.typ === 'artikel' ? (artiklar.find(a => a.id === r.artikel_id)?.namn || r.text || '') : (r.text || ''),
+        enhet: r.enhet || 'tim',
+        antal: (r.antal || 0) * (r.resurser || 1),
+        a_pris: r.typ === 'artikel' && r.artikel_id ? artikelPris(r.artikel_id) : (r.apris || 0),
+      }))
+    if (tidRader.length > 0) {
+      const { error: radErr } = await sb.from('order_tid_rader').insert(tidRader)
+      if (radErr) toast.error('Ordern skapades, men raderna kunde inte kopieras: ' + radErr.message)
+    }
+
+    const { error: linkErr } = await sb.from('offers').update({ order_id: order.id }).eq('id', offert.id)
+    if (linkErr) toast.error('Ordern skapades, men offerten kunde inte länkas: ' + linkErr.message)
+
+    setSkaparOrder(false)
+    onSaved()
+    router.push(`/ordrar?order=${order.id}`)
+  }
 
   const set = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }))
 
@@ -674,6 +717,13 @@ info@wisboverket.se
               <button onClick={async () => { const { error: err } = await createClient().from('offers').update({ status: 'skickad', skickad_at: new Date().toISOString() }).eq('id', offert.id); if (err) { toast.error('Kunde inte markera som skickad: ' + err.message); return } onSaved() }}
                 style={{ flex: isMobile ? 1 : undefined, padding: '11px 16px', background: '#60a5fa11', border: '1px solid #60a5fa44', borderRadius: 8, color: '#60a5fa', fontWeight: 700, cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap' as const }}>
                 📤 Markera skickad
+              </button>
+            )}
+            {offert && (
+              <button onClick={skapaOrderFrånOffert} disabled={skaparOrder}
+                style={{ flex: isMobile ? 1 : undefined, padding: '11px 16px', background: 'rgba(74,222,128,0.12)', border: '1px solid rgba(74,222,128,0.4)', borderRadius: 8, color: '#4ade80', fontWeight: 700, cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap' as const, opacity: skaparOrder ? 0.6 : 1 }}
+                title={offert.order_id ? 'Öppna kopplad order' : 'Skapa en order från denna offert och kopiera raderna'}>
+                {skaparOrder ? 'Skapar…' : offert.order_id ? '🔧 Öppna order' : '🔧 Skapa order'}
               </button>
             )}
           </div>
