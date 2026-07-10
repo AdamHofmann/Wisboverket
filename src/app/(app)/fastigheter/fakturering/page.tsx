@@ -480,8 +480,10 @@ export default function FaktureringPage() {
   }
 
   const filtered = fakturor.filter(f => {
-    // Respektera bolagsväljaren uppe till höger (fastighetens bolag via lokal → fastighet)
-    if (valtBolagId && bolagId(f) !== valtBolagId) return false
+    // Respektera bolagsväljaren uppe till höger (fastighetens bolag via lokal → fastighet).
+    // Dölj bara fakturor vars bolag är KÄNT och skiljer sig — okänt bolag (null) visas
+    // alltid, annars göms allt om API:t inte returnerar nästlad fastighet.bolag_id.
+    if (valtBolagId && bolagId(f) && bolagId(f) !== valtBolagId) return false
     if (search) {
       const q = search.toLowerCase()
       const match = f.fakturanummer.toLowerCase().includes(q)

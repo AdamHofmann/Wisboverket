@@ -100,9 +100,6 @@ export default function HyresavtalPage() {
   const confirm = useConfirm()
   const [items, setItems] = useState<Hyresavtal[]>([])
   const [loading, setLoading] = useState(true)
-  const [indexAvtal, setIndexAvtal] = useState<Hyresavtal | null>(null)
-  const [indexProcent, setIndexProcent] = useState('')
-  const [indexSaving, setIndexSaving] = useState(false)
   const [sagaUpAvtal, setSagaUpAvtal] = useState<Hyresavtal | null>(null)
   const [sagaUpSaving, setSagaUpSaving] = useState(false)
   const [sagaUpForm, setSagaUpForm] = useState({ uppsagningsdatum: '', slutdatum: '', kommentar: '' })
@@ -157,21 +154,6 @@ export default function HyresavtalPage() {
       .then((data: Artikel[]) => { if (Array.isArray(data)) setArtiklar(data.filter(a => (a as unknown as { aktiv: boolean }).aktiv !== false)) })
       .catch(() => {})
   }, [])
-
-  const openIndex = (a: Hyresavtal) => { setIndexAvtal(a); setIndexProcent('') }
-
-  const applyIndex = async () => {
-    if (!indexAvtal || !indexProcent) return
-    setIndexSaving(true)
-    await fetch(`/api/fastigheter/indexhojningar/${indexAvtal.id}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ procent: parseFloat(indexProcent), skapadAv: 'Manuell' }),
-    })
-    setIndexSaving(false)
-    setIndexAvtal(null)
-    load()
-  }
 
   // Beräknar rätt sista hyresdag vid uppsägning.
   // Om uppsägningstiden redan passerat och avtalet har förlängning → nästa period.
@@ -539,7 +521,6 @@ export default function HyresavtalPage() {
                   </div>
                   {a.status === 'aktiv' && (
                     <div style={{ display: 'flex', gap: 8, borderTop: `1px solid ${C.borderSoft}`, paddingTop: 8 }}>
-                      <button onClick={(e) => { e.stopPropagation(); openIndex(a) }} style={{ ...btnGhost, flex: 1, fontSize: 12 }}>📈 Indexhöjning</button>
                       <button onClick={(e) => {
                         e.stopPropagation()
                         setSagaUpAvtal(a)
@@ -642,7 +623,6 @@ export default function HyresavtalPage() {
                       <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
                         {a.status === 'aktiv' && (
                           <>
-                            <button onClick={(e) => { e.stopPropagation(); openIndex(a) }} title="Indexhöjning" style={iconBtn}>📈</button>
                             <button onClick={(e) => {
                               e.stopPropagation()
                               setSagaUpAvtal(a)
@@ -663,51 +643,6 @@ export default function HyresavtalPage() {
           </table>
         </div>
       )}
-
-      {/* Indexhöjning SlideOver */}
-      <SlideOver
-        open={!!indexAvtal}
-        onClose={() => setIndexAvtal(null)}
-        title="Indexhöjning"
-        subtitle={indexAvtal ? `${indexAvtal.hyresgast.namn} – ${indexAvtal.lokaler.map(l => l.lokal.namn).join(', ')}` : undefined}
-        width="md"
-        footer={
-          <div style={{ display: 'flex', gap: 12 }}>
-            <button onClick={() => setIndexAvtal(null)} style={{ ...btnGhost, flex: 1 }}>Avbryt</button>
-            <button
-              onClick={applyIndex}
-              disabled={indexSaving || !indexProcent || parseFloat(indexProcent) <= 0}
-              style={{ ...btnPrimary, flex: 1, opacity: indexSaving || !indexProcent || parseFloat(indexProcent) <= 0 ? 0.5 : 1 }}
-            >
-              {indexSaving ? 'Sparar...' : 'Tillämpa höjning'}
-            </button>
-          </div>
-        }
-      >
-        {indexAvtal && (
-          <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
-            <div style={{ borderRadius: 8, background: C.field, border: `1px solid ${C.borderSoft}`, padding: '12px 16px' }}>
-              <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>Nuvarande bashyra</p>
-              <p style={{ fontSize: 20, fontWeight: 700, color: C.text, marginTop: 2 }}>{formatSEK(indexAvtal.bashyra)}</p>
-            </div>
-            <div>
-              <label style={smallLbl}>Höjning (%)</label>
-              <input spellCheck={false} type="number" step="0.01" style={inp} onFocus={fo} onBlur={fb} value={indexProcent} onChange={e => setIndexProcent(e.target.value)} placeholder="t.ex. 3.5" autoFocus />
-            </div>
-            {indexProcent && parseFloat(indexProcent) > 0 && (
-              <div style={{ borderRadius: 8, background: C.goldSoft, border: `1px solid rgba(232,201,106,0.25)`, padding: '12px 16px' }}>
-                <p style={{ fontSize: 13, color: C.gold, margin: 0 }}>Ny bashyra</p>
-                <p style={{ fontSize: 20, fontWeight: 700, color: C.text, marginTop: 2 }}>
-                  {formatSEK(Math.round(indexAvtal.bashyra * (1 + parseFloat(indexProcent) / 100) * 100) / 100)}
-                </p>
-                <p style={{ fontSize: 12, color: C.gold, marginTop: 4 }}>
-                  +{formatSEK(Math.round((indexAvtal.bashyra * parseFloat(indexProcent) / 100) * 100) / 100)} per månad
-                </p>
-              </div>
-            )}
-          </div>
-        )}
-      </SlideOver>
 
       {/* Säg upp avtal SlideOver */}
       <SlideOver

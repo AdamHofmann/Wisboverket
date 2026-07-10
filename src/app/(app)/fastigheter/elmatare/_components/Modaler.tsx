@@ -134,7 +134,7 @@ export default function Modaler(props: Props) {
           </>}
           <div>
             <label style={lbl}>Mätpunkt / Namn *</label>
-            <input style={inp} onFocus={fo} onBlur={fb} value={matareForm.beskrivning} onChange={e => setMatareForm({ ...matareForm, beskrivning: e.target.value })} placeholder="T.ex. Verkstad, Bod, Uppvärmning" autoFocus />
+            <input style={inp} onFocus={fo} onBlur={fb} value={matareForm.beskrivning} onChange={e => setMatareForm({ ...matareForm, beskrivning: e.target.value })} placeholder="T.ex. Verkstad, Bod, Uppvärmning" />
           </div>
           <div>
             <label style={lbl}>Schablon kWh/mån <span style={{ color: C.muted2, fontWeight: 400, letterSpacing: 0, textTransform: 'none' }}>(fast förbrukning istället för avläsning)</span></label>

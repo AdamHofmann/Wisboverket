@@ -459,9 +459,9 @@ export default function HyresgasterPage() {
               {h.hyresavtal && h.hyresavtal.filter(a => a.status === 'aktiv').length > 0 && (
                 <div style={{ paddingTop: 8, borderTop: `1px solid ${C.borderSoft}`, marginBottom: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
                   {h.hyresavtal.filter(a => a.status === 'aktiv').map(a => (
-                    <div key={a.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12 }}>
-                      <span style={{ color: C.text2, fontWeight: 600 }}>{a.lokaler.map(l => l.lokal.namn).join(', ')} <span style={{ color: C.muted2, fontWeight: 400 }}>· {a.lokaler[0]?.lokal.fastighet.namn}</span></span>
-                      <span style={{ color: C.muted }}>{formatSEK(a.bashyra)}/mån</span>
+                    <div key={a.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, fontSize: 12 }}>
+                      <span style={{ color: C.text2, fontWeight: 600, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.lokaler.map(l => l.lokal.namn).join(', ')} <span style={{ color: C.muted2, fontWeight: 400 }}>· {a.lokaler[0]?.lokal.fastighet.namn}</span></span>
+                      <span style={{ color: C.muted, flexShrink: 0, whiteSpace: 'nowrap' }}>{formatSEK(a.bashyra)}/mån</span>
                     </div>
                   ))}
                 </div>
