@@ -56,10 +56,13 @@ export default function DashboardPage() {
     })
   }, [])
 
-  const aktiva = orders.filter(o => o.status === 'ny' || o.status === 'pågående')
-  const ejPlanerade = orders.filter(o => (o.status === 'ny' || o.status === 'pågående') && !o.bokad_datum)
+  // En fakturerad/avbokad order är klar — räkna den aldrig som aktiv/ej planerad,
+  // även om dess status-fält råkar stå kvar på 'ny' (t.ex. order omslagen från felanmälan).
+  const ärÖppen = (o: typeof orders[number]) => (o.status === 'ny' || o.status === 'pågående') && !o.fakturerat && !o.faktureras_inte
+  const aktiva = orders.filter(ärÖppen)
+  const ejPlanerade = orders.filter(o => ärÖppen(o) && !o.bokad_datum)
   // Planerade jobb (har datum) men saknar tilldelad resurs
-  const ejTilldelad = orders.filter(o => (o.status === 'ny' || o.status === 'pågående') && o.bokad_datum && (!o.tilldelad || o.tilldelad.length === 0))
+  const ejTilldelad = orders.filter(o => ärÖppen(o) && o.bokad_datum && (!o.tilldelad || o.tilldelad.length === 0))
   const attFakturera = orders.filter(o => o.status === 'klar' && !o.fakturerat && !o.faktureras_inte)
   const idag = new Date().toISOString().split('T')[0]
   // Bara riktiga fakturor (ej kreditnotor) räknas som "fakturerat".

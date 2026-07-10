@@ -71,7 +71,9 @@ function OrdrarInner() {
   }, [searchParams])
 
   const filtered = useMemo(() => orders.filter(o => {
-    if (statusFilter === 'aktiva') { if (o.status !== 'ny' && o.status !== 'pågående') return false }
+    // Aktiva = öppna jobb. En fakturerad/avbokad order är klar även om status-fältet
+    // råkar stå kvar på 'ny' (t.ex. order omslagen från felanmälan) → visa ej här.
+    if (statusFilter === 'aktiva') { if ((o.status !== 'ny' && o.status !== 'pågående') || o.fakturerat || o.faktureras_inte) return false }
     else if (statusFilter !== 'Alla' && o.status !== statusFilter) return false
     if (katFilter !== 'Alla' && o.kategori !== katFilter) return false
     if (search) {

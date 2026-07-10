@@ -107,9 +107,9 @@ export default function UthyrningPage() {
         <button style={S.newBtn} onClick={() => { setVald(nyttObjekt()); setShowModal(true) }}>+ Nytt objekt</button>
       </div>
 
-      <div style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
         <input spellCheck={false} placeholder="Sök titel, fastighet, typ..." value={search} onChange={e => setSearch(e.target.value)}
-          style={S.search}
+          style={{ ...S.search, flex: '1 1 200px', minWidth: 0 }}
           onFocus={e => (e.currentTarget.style.borderColor = '#E8C96A')}
           onBlur={e => (e.currentTarget.style.borderColor = '#2a2a2a')} />
         <div style={{ display: 'flex', gap: 6 }}>
