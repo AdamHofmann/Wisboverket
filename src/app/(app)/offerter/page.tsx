@@ -177,6 +177,7 @@ function OffertModal({ offert, autoPdf, onClose, onSaved }: { offert: Offert | n
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [pdfHtml, setPdfHtml] = useState<string | null>(null) // in-app PDF-förhandsvisning (window.open funkar ej i app-webvyn)
   // Dagens datum (lokalt, YYYY-MM-DD) — offertens giltighetsdatum får inte vara bakåt i tiden.
   const idagStr = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` })()
 
@@ -371,11 +372,8 @@ td.bold{font-weight:700}
     <div>${offerNr} &nbsp;|&nbsp; ${new Date().toLocaleDateString('sv-SE')}</div>
   </div>
 </div>
-<script>window.onload=function(){window.print();}<\/script>
 </body></html>`
-    const w = window.open('', '_blank')
-    w?.document.write(html)
-    w?.document.close()
+    setPdfHtml(html)
   }
 
   const skickaMedPDF = () => {
@@ -576,8 +574,8 @@ info@wisboverket.se
                     {Fält('RES.',
                       <input spellCheck={false} type="number" min="1"
                         style={{ ...cell, visibility: visaResurser ? 'visible' : 'hidden', color: '#aaa' }}
-                        value={r.resurser || 1}
-                        onChange={e => updateRad(i, 'resurser', parseInt(e.target.value) || 1)}
+                        value={r.resurser || ''}
+                        onChange={e => updateRad(i, 'resurser', parseInt(e.target.value) || 0)}
                         onFocus={cFo} onBlur={cFb} />
                     )}
 
@@ -687,6 +685,19 @@ info@wisboverket.se
           </div>
         </div>
       </div>
+
+      {pdfHtml && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 3000, background: '#525659', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', padding: 'calc(10px + env(safe-area-inset-top)) 14px 10px', background: '#1a1a1a', borderBottom: '1px solid #2a2a2a', flexShrink: 0 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#e0e0e0', flex: 1 }}>Förhandsvisning</span>
+            <button onClick={() => { const f = document.getElementById('pdf-preview-frame') as HTMLIFrameElement | null; f?.contentWindow?.print() }}
+              style={{ padding: '8px 14px', background: 'rgba(232,201,106,0.12)', border: '1px solid rgba(232,201,106,0.4)', borderRadius: 8, color: '#E8C96A', fontWeight: 700, cursor: 'pointer', fontSize: 12, whiteSpace: 'nowrap' as const }}>🖨 Skriv ut / PDF</button>
+            <button onClick={() => setPdfHtml(null)}
+              style={{ padding: '8px 14px', background: 'none', border: '1px solid #2a2a2a', borderRadius: 8, color: '#ccc', cursor: 'pointer', fontSize: 12 }}>Stäng</button>
+          </div>
+          <iframe id="pdf-preview-frame" srcDoc={pdfHtml} title="Offert" style={{ flex: 1, border: 'none', width: '100%', background: '#fff' }} />
+        </div>
+      )}
     </div>
   )
 }

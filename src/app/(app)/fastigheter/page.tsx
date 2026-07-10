@@ -142,7 +142,6 @@ export default function FastigheterDashboard() {
       {/* Header */}
       <div>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: C.text, margin: 0 }}>Översikt</h1>
-        <p style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>Välkommen till Wisboverket</p>
       </div>
 
       {loading ? (
@@ -226,7 +225,7 @@ export default function FastigheterDashboard() {
                           <span style={{ color: C.muted2 }}>Lokaler</span>
                           <span style={{ color: C.muted }}>
                             {f.uthyrdYta > 0 ? f.antalLokaler - f.ledigaLokaler : '–'}/{f.antalLokaler}
-                            {f.ledigaLokaler > 0 && <span style={{ marginLeft: 4, fontSize: 12, color: C.danger }}>({f.ledigaLokaler} ledig)</span>}
+                            {f.ledigaLokaler > 0 && <span style={{ marginLeft: 4, fontSize: 12, color: C.danger }}>({f.ledigaLokaler} ledig{f.vakantYta === 0 ? ' · yta saknas' : ''})</span>}
                           </span>
                         </div>
                         {hasYtadata && (
