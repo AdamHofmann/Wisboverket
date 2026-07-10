@@ -19,7 +19,7 @@ type FocusableElement = HTMLInputElement | HTMLSelectElement | HTMLTextAreaEleme
 export const fo = (e: FocusEvent<FocusableElement>) => { e.target.style.borderColor = '#E8C96A' }
 export const fb = (e: FocusEvent<FocusableElement>) => { e.target.style.borderColor = '#3a3a3c' }
 
-export const STATUS_LABEL: Record<string, string> = { ny: 'Ny', pågående: 'Pågående', klar: 'Klar', inaktiv: 'Inaktiv' }
+export const STATUS_LABEL: Record<string, string> = { ny: 'Ny', pågående: 'Pågående', klar: 'Klar', inaktiv: 'Avbokad' }
 export const STATUS_COLOR: Record<string, string> = { ny: '#60a5fa', pågående: '#E8C96A', klar: '#4ade80', inaktiv: '#666' }
 export const PRIO_LABEL: Record<string, string> = { lag: 'Låg', normal: 'Normal', hog: 'Hög', akut: 'Akut' }
 export const PRIO_COLOR: Record<string, string> = { lag: '#777', normal: '#aaa', hog: '#fb923c', akut: '#f87171' }

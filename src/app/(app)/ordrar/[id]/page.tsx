@@ -316,7 +316,7 @@ export default function OrderDetailPage() {
           { label: 'Kontakta kund', icon: '📬', action: () => setShowSend(true), color: '#a78bfa', disabled: false },
           { label: 'Redigera', icon: '✏️', action: () => setShowEdit(true), color: '#E8C96A', disabled: last },
           { label: last ? 'Lås upp' : 'Stäng utan fakt.', icon: last ? '🔓' : '🚷', action: last ? lasUpp : stangUtanFakturering, color: last ? '#4ade80' : '#fb923c', disabled: false },
-          { label: order.status === 'inaktiv' ? 'Aktivera' : 'Inaktivera', icon: order.status === 'inaktiv' ? '▶' : '🚫', action: () => updateStatus(order.status === 'inaktiv' ? 'aktiv' : 'inaktiv'), color: order.status === 'inaktiv' ? '#4ade80' : '#f87171', disabled: false },
+          { label: order.status === 'inaktiv' ? 'Återställ' : 'Avboka', icon: order.status === 'inaktiv' ? '↩️' : '🚫', action: () => updateStatus(order.status === 'inaktiv' ? 'aktiv' : 'inaktiv'), color: order.status === 'inaktiv' ? '#4ade80' : '#f87171', disabled: false },
         ]
         return (
           <div style={{ marginTop: 'auto', background: '#141414', border: '1px solid #1e1e1e', borderRadius: 12, overflow: 'hidden', paddingBottom: 'env(safe-area-inset-bottom)', display: 'flex' }}>

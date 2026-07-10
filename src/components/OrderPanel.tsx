@@ -399,7 +399,7 @@ export default function OrderPanel({ orderId, onClose, onUpdated }: Props) {
             { label: 'Kontakta kund', icon: '📬', action: () => setShowSend(true), color: '#a78bfa', disabled: false },
             { label: 'Redigera', icon: '✏️', action: () => setShowEdit(true), color: '#E8C96A', disabled: last },
             { label: last ? 'Lås upp' : 'Stäng utan fakt.', icon: last ? '🔓' : '🚷', action: last ? lasUpp : stangUtanFakturering, color: last ? '#4ade80' : '#fb923c', disabled: false },
-            { label: order.status === 'inaktiv' ? 'Aktivera' : 'Inaktivera', icon: order.status === 'inaktiv' ? '▶' : '🚫', action: () => updateStatus(order.status === 'inaktiv' ? 'ny' : 'inaktiv'), color: order.status === 'inaktiv' ? '#4ade80' : '#f87171', disabled: false },
+            { label: order.status === 'inaktiv' ? 'Återställ' : 'Avboka', icon: order.status === 'inaktiv' ? '↩️' : '🚫', action: () => updateStatus(order.status === 'inaktiv' ? 'ny' : 'inaktiv'), color: order.status === 'inaktiv' ? '#4ade80' : '#f87171', disabled: false },
           ]
           return (
             <div className="modal-safe-bottom" style={{ borderTop: `1px solid ${BORDER}`, background: BG_TOP, flexShrink: 0,
