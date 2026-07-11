@@ -31,11 +31,12 @@ Deno.serve(async (req) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Basic ${ONESIGNAL_REST_KEY}`,
+        // Nya OneSignal-nycklar (os_v2_app_…) använder "Key", inte "Basic".
+        'Authorization': `Key ${ONESIGNAL_REST_KEY}`,
       },
       body: JSON.stringify({
         app_id: ONESIGNAL_APP_ID,
-        included_segments: ['Subscribed Users'], // hela teamet; kan riktas per user senare
+        included_segments: ['Total Subscriptions'], // hela teamet; kan riktas per user senare
         headings: { en: heading },
         contents: { en: content },
         // Öppnar appen till rätt vy när man trycker på notisen.
