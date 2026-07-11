@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/Toast'
+import { useIsMobile } from '@/hooks/useMediaQuery'
 import { fmtKr, fmtKrExakt } from '@/lib/format'
 
 type Artikel = { id: string; artikelnummer: string | null; namn: string; enhet: string; a_pris: number; kostnad_per_enhet: number; kategori: string | null; aktiv: boolean; konto: string | null; momssats: number; hogia_artikel_id: string | null; hogia_synkad_at: string | null }
@@ -14,6 +15,7 @@ const EMPTY = { artikelnummer: '', namn: '', enhet: 'tim', a_pris: 0, kostnad_pe
 
 export default function ArtikalarPage() {
   const toast = useToast()
+  const m = useIsMobile()
   const [artiklar, setArtiklar] = useState<Artikel[]>([])
   const [loading, setLoading] = useState(true)
   const [edit, setEdit] = useState<Artikel | null>(null)
@@ -65,6 +67,34 @@ export default function ArtikalarPage() {
           return (
             <div key={kat} style={{ marginBottom: 24 }}>
               <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, color: '#555', marginBottom: 10 }}>{KAT_LABEL[kat] || kat.toUpperCase()}</div>
+              {m ? (
+                <div style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: 10, overflow: 'hidden' }}>
+                  {rader.map(a => {
+                    const marginal = a.a_pris > 0 ? ((a.a_pris - a.kostnad_per_enhet) / a.a_pris) * 100 : 0
+                    const margFarg = marginal >= 30 ? '#4ade80' : marginal >= 15 ? '#fb923c' : '#f87171'
+                    return (
+                      <div key={a.id} onClick={() => { setEdit(a); setNewArtikel(false); setShowModal(true) }}
+                        style={{ padding: '12px 14px', borderBottom: '1px solid #1a1a1a', opacity: a.aktiv ? 1 : 0.4, cursor: 'pointer' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: 14, fontWeight: 600, color: '#d0d0d0' }}>{a.namn}</div>
+                            <div style={{ fontSize: 11, color: '#555', marginTop: 2 }}>{[a.artikelnummer, a.enhet].filter(Boolean).join(' · ')}</div>
+                          </div>
+                          <button onClick={e => { e.stopPropagation(); toggleAktiv(a) }}
+                            style={{ flexShrink: 0, background: 'none', border: `1px solid ${a.aktiv ? '#2a2a2a' : '#4ade8044'}`, borderRadius: 6, padding: '4px 10px', color: a.aktiv ? '#555' : '#4ade80', fontSize: 11, cursor: 'pointer' }}>
+                            {a.aktiv ? 'Inaktivera' : 'Aktivera'}
+                          </button>
+                        </div>
+                        <div style={{ display: 'flex', gap: 16, marginTop: 8, fontSize: 12, flexWrap: 'wrap' }}>
+                          <span style={{ color: '#888' }}>À-pris <b style={{ color: '#4ade80' }}>{fmtKrExakt(a.a_pris)}</b></span>
+                          <span style={{ color: '#888' }}>Kostnad <b style={{ color: '#f87171' }}>{fmtKrExakt(a.kostnad_per_enhet)}</b></span>
+                          <span style={{ color: '#888' }}>Marginal <b style={{ color: margFarg }}>{marginal.toFixed(0)}%</b></span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
               <div style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: 10, overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' as const, minWidth: 520 }}>
                   <thead>
@@ -107,6 +137,7 @@ export default function ArtikalarPage() {
                   </tbody>
                 </table>
               </div>
+              )}
             </div>
           )
         })

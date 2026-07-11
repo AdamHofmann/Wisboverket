@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useIsMobile } from '@/hooks/useMediaQuery'
 import type { Profile } from '@/types'
 
 const fmtDatum = (d: string) => new Date(d).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short', year: 'numeric' })
 
 export default function AnvandarePage() {
+  const m = useIsMobile()
   const [users, setUsers] = useState<Profile[]>([])
   const [loading, setLoading] = useState(true)
   const [savingId, setSavingId] = useState<string | null>(null)
@@ -118,6 +120,40 @@ export default function AnvandarePage() {
       {error && <div style={{ background: '#f8717111', border: '1px solid #f8717144', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: '#f87171' }}>{error}</div>}
       {info && <div style={{ background: '#4ade8011', border: '1px solid #4ade8044', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: '#4ade80' }}>{info}</div>}
 
+      {m ? (
+        <div style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: 10, overflow: 'hidden' }}>
+          {users.map(u => {
+            const inaktiv = !u.modul_order && !u.modul_fastighet
+            return (
+              <div key={u.id} style={{ padding: '12px 14px', borderBottom: '1px solid #1a1a1a', opacity: savingId === u.id ? 0.6 : inaktiv ? 0.55 : 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: '#d0d0d0' }}>{u.namn}</span>
+                  {inaktiv && <span style={{ fontSize: 10, fontWeight: 700, color: '#f87171', border: '1px solid #f8717144', borderRadius: 4, padding: '1px 6px' }}>INAKTIV</span>}
+                </div>
+                <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>{u.epost || '—'}</div>
+                <div style={{ display: 'flex', gap: 14, alignItems: 'center', marginTop: 10, flexWrap: 'wrap' }}>
+                  <select style={{ ...inp, width: 'auto' }} value={u.roll} onChange={e => uppdatera(u.id, { roll: e.target.value as Profile['roll'] })}>
+                    <option value="användare">Användare</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                  <label style={{ fontSize: 12, color: '#888', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <input type="checkbox" checked={u.modul_order} onChange={e => uppdatera(u.id, { modul_order: e.target.checked })} style={{ accentColor: '#E8C96A', width: 16, height: 16, cursor: 'pointer' }} /> Order
+                  </label>
+                  <label style={{ fontSize: 12, color: '#888', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <input type="checkbox" checked={u.modul_fastighet} onChange={e => uppdatera(u.id, { modul_fastighet: e.target.checked })} style={{ accentColor: '#E8C96A', width: 16, height: 16, cursor: 'pointer' }} /> Fastighet
+                  </label>
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                  <button style={btnSmall} onClick={() => aterstallLosenord(u.epost)}>Återställ lösenord</button>
+                  {inaktiv
+                    ? <button style={{ ...btnSmall, color: '#4ade80', borderColor: '#4ade8044' }} onClick={() => uppdatera(u.id, { modul_order: true })}>Aktivera</button>
+                    : <button style={{ ...btnSmall, color: '#f87171', borderColor: '#f8717144' }} onClick={() => uppdatera(u.id, { modul_order: false, modul_fastighet: false })}>Inaktivera</button>}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      ) : (
       <div style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: 10, overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' as const, minWidth: 520 }}>
           <thead>
@@ -166,6 +202,7 @@ export default function AnvandarePage() {
           </tbody>
         </table>
       </div>
+      )}
     </div>
   )
 }
