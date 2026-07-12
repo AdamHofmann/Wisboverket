@@ -785,6 +785,21 @@ export default function FaktureringPage() {
           <option value="">Alla hyresgäster</option>
           {uniqueHyresgaster.map(h => <option key={h} value={h}>{h}</option>)}
         </select>
+        {/* Sorterings-väljare (mobil) — desktop sorterar via tabellhuvudena */}
+        {isMobile && (
+          <select
+            value={`${sortCol}:${sortDir}`}
+            onChange={e => { const [c, d] = e.target.value.split(':'); setSortCol(c); setSortDir(Number(d) as 1 | -1) }}
+            onFocus={fo} onBlur={fb}
+            style={{ ...selStyle, width: '100%' }}
+          >
+            <option value="hyresgast:1">↕ Sortera: Hyresgäst (A–Ö)</option>
+            <option value="period:-1">↕ Sortera: Period (nyast först)</option>
+            <option value="belopp:-1">↕ Sortera: Belopp (störst först)</option>
+            <option value="forfall:1">↕ Sortera: Förfallodatum</option>
+            <option value="status:1">↕ Sortera: Status</option>
+          </select>
+        )}
       </div>
 
       {/* Sticky bulk-rad (visas när något är valt) */}
