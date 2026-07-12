@@ -811,6 +811,10 @@ export default function FaktureringPage() {
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingBottom: selected.size > 0 ? 96 : 0 }}>
+            {/* Markera alla (mobil) — motsvarar kryssrutan i desktop-tabellhuvudet */}
+            <button onClick={toggleSelectAll} style={{ ...btnGhost, width: '100%', textAlign: 'center' }}>
+              {allVisibleSelected ? '☑ Avmarkera alla' : `☐ Markera alla (${sorted.length})`}
+            </button>
             {sorted.map((f) => {
               const sc = statusConfig[f.status] || statusConfig.ej_skickad
               const expanded = expandedRows.has(f.id)
