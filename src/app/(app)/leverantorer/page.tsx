@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import useSWR from 'swr'
 import { createClient } from '@/lib/supabase/client'
 import { useIsMobile } from '@/hooks/useMediaQuery'
 import Sokfalt from '@/components/Sokfalt'
@@ -12,19 +13,19 @@ const EMPTY = { namn: '', orgnummer: '', telefon: '', epost: '', adress: '', kat
 
 export default function LeverantorerPage() {
   const isMobile = useIsMobile()
-  const [leverantorer, setLeverantorer] = useState<Leverantor[]>([])
-  const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [edit, setEdit] = useState<Leverantor | null>(null)
   const [search, setSearch] = useState('')
 
-  const fetch = async () => {
+  // SWR-cache: cachad data visas direkt vid återbesök, revalideras tyst i bakgrunden.
+  // fetch() = revalidera (anropas från modalens onSaved).
+  const { data, isLoading, mutate } = useSWR('leverantorer', async () => {
     const { data } = await createClient().from('suppliers').select('*').order('namn')
-    setLeverantorer(data || [])
-    setLoading(false)
-  }
-
-  useEffect(() => { fetch() }, [])
+    return (data || []) as Leverantor[]
+  })
+  const leverantorer = data ?? []
+  const loading = isLoading && !data
+  const fetch = () => { mutate() }
 
   const filtered = leverantorer.filter(l =>
     !search || l.namn.toLowerCase().includes(search.toLowerCase()) || l.kategori?.includes(search.toLowerCase())

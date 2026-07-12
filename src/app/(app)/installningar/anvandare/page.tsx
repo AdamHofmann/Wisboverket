@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import useSWR from 'swr'
 import { createClient } from '@/lib/supabase/client'
 import { useIsMobile } from '@/hooks/useMediaQuery'
 import type { Profile } from '@/types'
@@ -9,8 +10,6 @@ const fmtDatum = (d: string) => new Date(d).toLocaleDateString('sv-SE', { day: '
 
 export default function AnvandarePage() {
   const m = useIsMobile()
-  const [users, setUsers] = useState<Profile[]>([])
-  const [loading, setLoading] = useState(true)
   const [savingId, setSavingId] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [info, setInfo] = useState('')
@@ -22,21 +21,26 @@ export default function AnvandarePage() {
   const [nyLosen, setNyLosen] = useState('')
   const [skapar, setSkapar] = useState(false)
 
-  const fetchUsers = () => {
-    createClient().from('profiles').select('*').order('namn').then(({ data }) => { setUsers(data || []); setLoading(false) })
-  }
-
-  useEffect(() => { fetchUsers() }, [])
+  // SWR-cache: cachad data visas direkt vid återbesök, revalideras tyst i bakgrunden.
+  // fetchUsers() = revalidera (anropas från skapaAnvandare).
+  const { data, isLoading, mutate } = useSWR('anvandare', async () => {
+    const { data } = await createClient().from('profiles').select('*').order('namn')
+    return (data || []) as Profile[]
+  })
+  const users = data ?? []
+  const loading = isLoading && !data
+  const fetchUsers = () => { mutate() }
 
   const uppdatera = async (id: string, patch: Partial<Profile>) => {
     const foregaende = users.find(u => u.id === id)
     setSavingId(id)
     setError('')
-    setUsers(u => u.map(x => x.id === id ? { ...x, ...patch } : x))
+    // Optimistisk uppdatering via SWR-cachen (utan revalidering) — samma beteende som tidigare setUsers.
+    mutate(u => (u ?? []).map(x => x.id === id ? { ...x, ...patch } : x), false)
     const { error: err } = await createClient().from('profiles').update(patch).eq('id', id)
     if (err) {
       setError(err.message)
-      if (foregaende) setUsers(u => u.map(x => x.id === id ? foregaende : x))
+      if (foregaende) mutate(u => (u ?? []).map(x => x.id === id ? foregaende : x), false)
     }
     setSavingId(null)
   }

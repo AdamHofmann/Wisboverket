@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo, Suspense } from 'react'
+import useSWR from 'swr'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useIsMobile } from '@/hooks/useMediaQuery'
@@ -23,8 +24,6 @@ export default function OrdrarPage() {
 function OrdrarInner() {
   const searchParams = useSearchParams()
   const isMobile = useIsMobile()
-  const [orders, setOrders] = useState<OrderRow[]>([])
-  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [katFilter, setKatFilter] = useState('Alla')
   const [statusFilter, setStatusFilter] = useState(() => {
@@ -33,36 +32,35 @@ function OrdrarInner() {
   })
   const [showNyOrder, setShowNyOrder] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(() => searchParams.get('order'))
-  // Map: order_id -> summerad kostnad (tid + inköp)
-  const [kostnadMap, setKostnadMap] = useState<Record<string, number>>({})
 
-  const fetchOrders = () => {
+  // SWR-cache: orders + summerade kostnader per order. Cachad data visas direkt
+  // vid återbesök och revalideras tyst i bakgrunden. fetchOrders() = revalidera.
+  const { data, isLoading, mutate } = useSWR('ordrar', async () => {
     const sb = createClient()
-    sb.from('orders')
-      // Bara fält som listan renderar — inte hela raden (beskrivning, anteckningar m.m.).
-      .select('id, status, kategori, titel, fastighet, ort, postnummer, order_number, bokad_datum, bokad_start, bokad_slut, tilldelad, fakturerat_belopp, fakturerat, faktureras_inte, created_at, lagenhet, customer:customers(id,namn,telefon)')
-      .order('created_at', { ascending: false })
-      .then(({ data }) => { setOrders((data ?? []) as unknown as OrderRow[]); setLoading(false) })
-
-    // Hämta ALLA kostnadsrader i två queries och summera per order_id client-side (undviker N+1)
-    Promise.all([
+    const [ordersRes, tidRes, inkopRes] = await Promise.all([
+      sb.from('orders')
+        // Bara fält som listan renderar — inte hela raden (beskrivning, anteckningar m.m.).
+        .select('id, status, kategori, titel, fastighet, ort, postnummer, order_number, bokad_datum, bokad_start, bokad_slut, tilldelad, fakturerat_belopp, fakturerat, faktureras_inte, created_at, lagenhet, customer:customers(id,namn,telefon)')
+        .order('created_at', { ascending: false }),
+      // Alla kostnadsrader i två queries, summeras per order_id client-side (undviker N+1)
       sb.from('order_tid_rader').select('order_id,total_kostnad'),
       sb.from('order_inkop').select('order_id,belopp'),
-    ]).then(([tidRes, inkopRes]) => {
-      const map: Record<string, number> = {}
-      for (const r of tidRes.data || []) {
-        if (!r.order_id) continue
-        map[r.order_id] = (map[r.order_id] || 0) + (r.total_kostnad || 0)
-      }
-      for (const i of inkopRes.data || []) {
-        if (!i.order_id) continue
-        map[i.order_id] = (map[i.order_id] || 0) + (i.belopp || 0)
-      }
-      setKostnadMap(map)
-    })
-  }
-
-  useEffect(() => { fetchOrders() }, [])
+    ])
+    const map: Record<string, number> = {}
+    for (const r of tidRes.data || []) {
+      if (!r.order_id) continue
+      map[r.order_id] = (map[r.order_id] || 0) + (r.total_kostnad || 0)
+    }
+    for (const i of inkopRes.data || []) {
+      if (!i.order_id) continue
+      map[i.order_id] = (map[i.order_id] || 0) + (i.belopp || 0)
+    }
+    return { orders: (ordersRes.data ?? []) as unknown as OrderRow[], kostnadMap: map }
+  })
+  const orders = data?.orders ?? []
+  const kostnadMap = data?.kostnadMap ?? {}
+  const loading = isLoading && !data
+  const fetchOrders = () => { mutate() }
 
   // Öppna panelen när man kommer hit via ?order=<id> (t.ex. från dashboarden)
   useEffect(() => {

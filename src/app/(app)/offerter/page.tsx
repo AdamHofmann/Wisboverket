@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useMemo } from 'react'
+import useSWR from 'swr'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import DatumValjare from '@/components/DatumValjare'
@@ -32,24 +33,24 @@ const revideradEfterUtskick = (o: Offert) =>
 export default function OfferterPage() {
   const isMobile = useIsMobile()
   const toast = useToast()
-  const [offerter, setOfferter] = useState<Offert[]>([])
-  const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('Alla')
   const [search, setSearch] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [editOffert, setEditOffert] = useState<Offert | null>(null)
   const [autoPdf, setAutoPdf] = useState(false)
 
-  const fetchOfferter = async () => {
+  // SWR-cache: cachad data visas direkt vid återbesök, revalideras tyst i bakgrunden.
+  // fetchOfferter() = revalidera (anropas från updateStatus + modalens onSaved).
+  const { data, isLoading, mutate } = useSWR('offerter', async () => {
     const { data } = await createClient()
       .from('offers')
       .select('*, customer:customers(namn)')
       .order('created_at', { ascending: false })
-    setOfferter((data || []).map((o: any) => ({ ...o, kund_namn: o.customer?.namn, rader: o.rader || [] })))
-    setLoading(false)
-  }
-
-  useEffect(() => { fetchOfferter() }, [])
+    return (data || []).map((o: any) => ({ ...o, kund_namn: o.customer?.namn, rader: o.rader || [] })) as Offert[]
+  })
+  const offerter = data ?? []
+  const loading = isLoading && !data
+  const fetchOfferter = () => { mutate() }
 
   const filtered = useMemo(() => offerter.filter(o => {
     if (statusFilter !== 'Alla' && o.status !== statusFilter) return false

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
+import useSWR from 'swr'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/Toast'
 import { useIsMobile } from '@/hooks/useMediaQuery'
@@ -31,20 +32,20 @@ function SynkBadge({ synkad }: { synkad: boolean }) {
 
 export default function KunderPage() {
   const isMobile = useIsMobile()
-  const [kunder, setKunder] = useState<Customer[]>([])
-  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [vald, setVald] = useState<Customer | null>(null)
   const [showModal, setShowModal] = useState(false)
   const [editKund, setEditKund] = useState<Customer | null>(null)
 
-  const fetchKunder = async () => {
+  // SWR-cache: cachad data visas direkt vid återbesök, revalideras tyst i bakgrunden.
+  // fetchKunder() = revalidera (anropas från modalens onSaved).
+  const { data, isLoading, mutate } = useSWR('kunder', async () => {
     const { data } = await createClient().from('customers').select('*').order('namn')
-    setKunder(data || [])
-    setLoading(false)
-  }
-
-  useEffect(() => { fetchKunder() }, [])
+    return (data || []) as Customer[]
+  })
+  const kunder = data ?? []
+  const loading = isLoading && !data
+  const fetchKunder = () => { mutate() }
 
   const filtered = useMemo(() => kunder.filter(k => {
     if (!search) return true

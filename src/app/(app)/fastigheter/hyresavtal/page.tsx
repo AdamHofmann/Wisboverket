@@ -11,6 +11,7 @@
 // Formulär-POST/PUT skickar camelCase → routernas parser översätter till snake_case.
 
 import { useEffect, useState } from 'react'
+import useSWR from 'swr'
 import SlideOver from '@/components/fastigheter/SlideOver'
 import { C, inp, lbl, fo, fb, btnPrimary, btnGhost, btnDanger } from '@/components/fastigheter/styles'
 import { useIsMobile } from '@/hooks/useMediaQuery'
@@ -98,8 +99,10 @@ const radInp: React.CSSProperties = { ...inp, background: C.panel, padding: '6px
 export default function HyresavtalPage() {
   const isMobile = useIsMobile()
   const confirm = useConfirm()
-  const [items, setItems] = useState<Hyresavtal[]>([])
-  const [loading, setLoading] = useState(true)
+  // SWR-cache: hyresavtal-listan visas direkt vid återbesök. load() = revalidera.
+  const { data: items = [], isLoading, mutate } = useSWR('hyresavtal', () =>
+    fetch('/api/fastigheter/hyresavtal').then(r => r.json()).then(d => (Array.isArray(d) ? d : []) as Hyresavtal[]))
+  const loading = isLoading && !items.length
   const [sagaUpAvtal, setSagaUpAvtal] = useState<Hyresavtal | null>(null)
   const [sagaUpSaving, setSagaUpSaving] = useState(false)
   const [sagaUpForm, setSagaUpForm] = useState({ uppsagningsdatum: '', slutdatum: '', kommentar: '' })
@@ -141,11 +144,7 @@ export default function HyresavtalPage() {
     { kod: 'TILLAGG', label: 'Övrigt tillägg' },
   ]
 
-  const load = () => {
-    fetch('/api/fastigheter/hyresavtal').then(r => r.json()).then(data => { if (Array.isArray(data)) setItems(data) }).finally(() => setLoading(false))
-  }
-
-  useEffect(() => { load() }, [])
+  const load = () => { mutate() }
 
   // Hämta aktiva artiklar ur artikelregistret för radväljaren (autofyller beskrivning/á-pris/moms).
   useEffect(() => {
@@ -229,8 +228,19 @@ export default function HyresavtalPage() {
     })
     setEditKpiInfo(null)
     setEditAktuellKpi(null)
-    // Ladda avtalsrader
-    const raderRes = await fetch(`/api/fastigheter/avtalsrader?hyresavtalId=${a.id}`)
+    // Alla oberoende hämtningar parallellt (avtalsrader, dokument, KPI bas + aktuell)
+    // istället för fyra sekventiella await → ~halverad öppningstid.
+    const manad = a.basindex_manad || 'Oktober'
+    const nu = new Date()
+    const senAr = nu.getMonth() >= 10 ? nu.getFullYear() : nu.getFullYear() - 1
+    const [raderRes, dokRes, basRes, akRes] = await Promise.all([
+      fetch(`/api/fastigheter/avtalsrader?hyresavtalId=${a.id}`),
+      fetch(`/api/fastigheter/avtalsdokument?hyresavtalId=${a.id}`),
+      (a.basindex_ar && !a.basindex_varde) ? fetch(`/api/fastigheter/kpi?year=${a.basindex_ar}&month=${manad}`) : Promise.resolve(null),
+      a.basindex_ar ? fetch(`/api/fastigheter/kpi?year=${senAr}&month=Oktober`) : Promise.resolve(null),
+    ])
+
+    // Avtalsrader
     const rader = raderRes.ok ? await raderRes.json() : []
     const mappedRader = (Array.isArray(rader) ? rader : []).map((r: { id: string; artikelkod: string; beskrivning: string; belopp: number; arsbelopp: number | null; moms: number }) => ({
       id: r.id, artikelkod: r.artikelkod, beskrivning: r.beskrivning,
@@ -241,29 +251,21 @@ export default function HyresavtalPage() {
       { artikelkod: 'HYR', beskrivning: 'Hyra lokal', belopp: hyra, arsbelopp: String(a.arshyra ?? Math.round(a.bashyra * 12 * 100) / 100), moms: '25' },
       ...mappedRader,
     ])
-    // Hämta KPI — basindex + aktuellt
-    if (a.basindex_ar) {
-      const manad = a.basindex_manad || 'Oktober'
-      if (!a.basindex_varde) {
-        const basRes = await fetch(`/api/fastigheter/kpi?year=${a.basindex_ar}&month=${manad}`)
-        if (basRes.ok) {
-          const bd = await basRes.json()
-          if (bd.value) {
-            setEditForm(prev => ({ ...prev, basindexVarde: String(bd.value) }))
-            setEditKpiInfo({ value: bd.value, period: `${manad} ${a.basindex_ar}` })
-          }
-        }
-      }
-      const nu = new Date()
-      const senAr = nu.getMonth() >= 10 ? nu.getFullYear() : nu.getFullYear() - 1
-      const akRes = await fetch(`/api/fastigheter/kpi?year=${senAr}&month=Oktober`)
-      if (akRes.ok) {
-        const ak = await akRes.json()
-        if (ak.value) setEditAktuellKpi({ value: ak.value, period: `Oktober ${senAr}` })
+
+    // KPI basindex (om avtalet saknar lagrat basindex-värde)
+    if (basRes && basRes.ok) {
+      const bd = await basRes.json()
+      if (bd.value) {
+        setEditForm(prev => ({ ...prev, basindexVarde: String(bd.value) }))
+        setEditKpiInfo({ value: bd.value, period: `${manad} ${a.basindex_ar}` })
       }
     }
-    // Ladda dokument
-    const dokRes = await fetch(`/api/fastigheter/avtalsdokument?hyresavtalId=${a.id}`)
+    // KPI aktuell
+    if (akRes && akRes.ok) {
+      const ak = await akRes.json()
+      if (ak.value) setEditAktuellKpi({ value: ak.value, period: `Oktober ${senAr}` })
+    }
+    // Dokument
     if (dokRes.ok) {
       const d = await dokRes.json()
       setDokument(Array.isArray(d) ? d : [])

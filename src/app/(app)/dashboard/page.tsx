@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import useSWR from 'swr'
 import { createClient } from '@/lib/supabase/client'
 import type { Order } from '@/types'
 import Link from 'next/link'
@@ -35,13 +35,10 @@ const fmtDate = (d: string) => new Date(d).toLocaleDateString('sv-SE', { day: 'n
 
 export default function DashboardPage() {
   const isMobile = useIsMobile()
-  const [orders, setOrders] = useState<DashOrder[]>([])
-  const [fakturor, setFakturor] = useState<DashFaktura[]>([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
+  // SWR-cache: cachad data visas direkt vid återbesök, revalideras tyst i bakgrunden.
+  const { data, isLoading } = useSWR('dashboard', async () => {
     const supabase = createClient()
-    Promise.all([
+    const [{ data: o }, { data: i }] = await Promise.all([
       // Bara de fält dashboarden renderar — undvik select('*') som drar hela raden.
       supabase.from('orders')
         .select('id, status, bokad_datum, fakturerat, faktureras_inte, tilldelad, titel, fastighet, pris, created_at')
@@ -49,12 +46,12 @@ export default function DashboardPage() {
       supabase.from('fakturor')
         .select('id, fakturanummer, totalt, created_at, status, typ, forfallodatum, order_id')
         .order('created_at', { ascending: false }),
-    ]).then(([{ data: o }, { data: i }]) => {
-      setOrders((o || []) as DashOrder[])
-      setFakturor((i || []) as DashFaktura[])
-      setLoading(false)
-    })
-  }, [])
+    ])
+    return { orders: (o || []) as DashOrder[], fakturor: (i || []) as DashFaktura[] }
+  })
+  const orders = data?.orders ?? []
+  const fakturor = data?.fakturor ?? []
+  const loading = isLoading && !data
 
   // En fakturerad/avbokad order är klar — räkna den aldrig som aktiv/ej planerad,
   // även om dess status-fält råkar stå kvar på 'ny' (t.ex. order omslagen från felanmälan).

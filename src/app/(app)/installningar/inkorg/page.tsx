@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import useSWR from 'swr'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/Toast'
@@ -24,16 +25,21 @@ const fmtDate = (d: string) => new Date(d).toLocaleDateString('sv-SE', { day: 'n
 
 export default function InkorgPage() {
   const [tab, setTab] = useState<'forfragningar' | 'felanmalan'>('forfragningar')
-  const [forfragningarCount, setForfragningarCount] = useState(0)
-  const [felanmalanCount, setFelanmalanCount] = useState(0)
 
   const G = '#E8C96A'
 
-  useEffect(() => {
+  // SWR-cache: badge-räknare för nya poster. Cachad data visas direkt vid återbesök,
+  // revalideras tyst i bakgrunden. onHandled dekrementerar respektive räknare optimistiskt.
+  const { data: counts, mutate: mutateCounts } = useSWR('inkorg-counts', async () => {
     const sb = createClient()
-    sb.from('forfragningar').select('id', { count: 'exact', head: true }).eq('status', 'ny').then(({ count }) => setForfragningarCount(count || 0))
-    sb.from('felanmalningar').select('id', { count: 'exact', head: true }).eq('status', 'ny').then(({ count }) => setFelanmalanCount(count || 0))
-  }, [])
+    const [{ count: f }, { count: fe }] = await Promise.all([
+      sb.from('forfragningar').select('id', { count: 'exact', head: true }).eq('status', 'ny'),
+      sb.from('felanmalningar').select('id', { count: 'exact', head: true }).eq('status', 'ny'),
+    ])
+    return { forfragningar: f || 0, felanmalan: fe || 0 }
+  })
+  const forfragningarCount = counts?.forfragningar ?? 0
+  const felanmalanCount = counts?.felanmalan ?? 0
 
   return (
     <div>
@@ -52,8 +58,8 @@ export default function InkorgPage() {
         </button>
       </div>
       {tab === 'forfragningar'
-        ? <ForfragningarTab onHandled={() => setForfragningarCount(c => Math.max(0, c - 1))} />
-        : <FelanmalanTab onHandled={() => setFelanmalanCount(c => Math.max(0, c - 1))} />}
+        ? <ForfragningarTab onHandled={() => mutateCounts(c => c ? { ...c, forfragningar: Math.max(0, c.forfragningar - 1) } : c, false)} />
+        : <FelanmalanTab onHandled={() => mutateCounts(c => c ? { ...c, felanmalan: Math.max(0, c.felanmalan - 1) } : c, false)} />}
     </div>
   )
 }
@@ -61,21 +67,21 @@ export default function InkorgPage() {
 function ForfragningarTab({ onHandled }: { onHandled: () => void }) {
   const toast = useToast()
   const m = useIsMobile()
-  const [items, setItems] = useState<Forfragan[]>([])
   const [flik, setFlik] = useState('alla')
   const [selected, setSelected] = useState<Forfragan | null>(null)
-  const [loading, setLoading] = useState(true)
 
-  const fetchItems = () => {
-    createClient().from('forfragningar').select('*').order('created_at', { ascending: false })
-      .then(({ data }) => { setItems(data || []); setLoading(false) })
-  }
-  useEffect(() => { fetchItems() }, [])
+  // SWR-cache: cachad lista visas direkt vid återbesök, revalideras tyst i bakgrunden.
+  const { data, isLoading, mutate } = useSWR('inkorg-forfragningar', async () => {
+    const { data } = await createClient().from('forfragningar').select('*').order('created_at', { ascending: false })
+    return (data || []) as Forfragan[]
+  })
+  const items = data ?? []
+  const loading = isLoading && !data
 
   const markHandled = async (item: Forfragan) => {
     const { error } = await createClient().from('forfragningar').update({ status: 'hanterad' }).eq('id', item.id)
     if (error) { toast.error('Kunde inte markera som hanterad: ' + error.message); return }
-    setItems(prev => prev.map(x => x.id === item.id ? { ...x, status: 'hanterad' } : x))
+    mutate(prev => (prev ?? []).map(x => x.id === item.id ? { ...x, status: 'hanterad' } : x), false)
     if (selected?.id === item.id) setSelected(s => s && { ...s, status: 'hanterad' })
     onHandled()
   }
@@ -163,22 +169,22 @@ function ForfragningarTab({ onHandled }: { onHandled: () => void }) {
 function FelanmalanTab({ onHandled }: { onHandled: () => void }) {
   const toast = useToast()
   const m = useIsMobile()
-  const [items, setItems] = useState<Felanmalan[]>([])
   const [selected, setSelected] = useState<Felanmalan | null>(null)
-  const [loading, setLoading] = useState(true)
   const [skaparOrder, setSkaparOrder] = useState(false)
   const router = useRouter()
 
-  const fetchItems = () => {
-    createClient().from('felanmalningar').select('*').order('created_at', { ascending: false })
-      .then(({ data }) => { setItems(data || []); setLoading(false) })
-  }
-  useEffect(() => { fetchItems() }, [])
+  // SWR-cache: cachad lista visas direkt vid återbesök, revalideras tyst i bakgrunden.
+  const { data, isLoading, mutate } = useSWR('inkorg-felanmalan', async () => {
+    const { data } = await createClient().from('felanmalningar').select('*').order('created_at', { ascending: false })
+    return (data || []) as Felanmalan[]
+  })
+  const items = data ?? []
+  const loading = isLoading && !data
 
   const markHandled = async (item: Felanmalan) => {
     const { error } = await createClient().from('felanmalningar').update({ status: 'hanterad' }).eq('id', item.id)
     if (error) { toast.error('Kunde inte markera som hanterad: ' + error.message); return }
-    setItems(prev => prev.map(x => x.id === item.id ? { ...x, status: 'hanterad' } : x))
+    mutate(prev => (prev ?? []).map(x => x.id === item.id ? { ...x, status: 'hanterad' } : x), false)
     if (selected?.id === item.id) setSelected(s => s && { ...s, status: 'hanterad' })
     onHandled()
   }

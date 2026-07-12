@@ -6,5 +6,7 @@
 		"url": "https://wisboverket.vercel.app/login",
 		"cleartext": false
 	},
-	"packageClassList": []
+	"packageClassList": [
+		"CDVPlugin"
+	]
 }

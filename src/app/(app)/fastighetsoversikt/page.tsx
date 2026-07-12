@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState, useEffect } from 'react'
+import useSWR from 'swr'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import type { Fastighet, FastighetUnderhall, Order } from '@/types'
@@ -21,51 +22,36 @@ type FastighetMedStats = Fastighet & { _ordrar: number; _underhall: number; _int
 
 export default function FastigheterPage() {
   const isMobile = useIsMobile()
-  const [fastigheter, setFastigheter] = useState<FastighetMedStats[]>([])
   const [vald, setVald] = useState<Fastighet | null>(null)
   const [showModal, setShowModal] = useState(false)
   const [editTarget, setEditTarget] = useState<Fastighet | null>(null)
-  const [loading, setLoading] = useState(true)
 
-  const fetchFastigheter = async () => {
+  // SWR + BULK: allt i 5 queries istället för ~4×N (N+1). Aggregeras per fastighet
+  // i klienten. Cachad data visas direkt vid återbesök. fetchFastigheter() = revalidera.
+  const { data: fastigheter = [], isLoading, mutate } = useSWR('fastighetsoversikt', async () => {
     const sb = createClient()
-    const { data: f } = await sb.from('fastigheter').select('*').order('namn')
-    if (!f) { setLoading(false); return }
-
-    const enriched = await Promise.all(f.map(async (fst) => {
-      const [{ data: fstOrdrar }, { count: underhall }] = await Promise.all([
-        sb.from('orders').select('id, fakturerat_belopp').eq('fastighet_id', fst.id),
-        sb.from('fastighet_underhall').select('*', { count: 'exact', head: true }).eq('fastighet_id', fst.id).neq('status', 'stängd'),
-      ])
-
-      const orderIds = (fstOrdrar || []).map(o => o.id)
-      const intakt = (fstOrdrar || []).reduce((s, o) => s + (o.fakturerat_belopp || 0), 0)
-
-      let kostnad = 0
-      if (orderIds.length > 0) {
-        const [{ data: tid }, { data: inkop }] = await Promise.all([
-          sb.from('order_tid_rader').select('total_kostnad').in('order_id', orderIds),
-          sb.from('order_inkop').select('belopp').in('order_id', orderIds),
-        ])
-        kostnad = (tid || []).reduce((s, r) => s + (r.total_kostnad || 0), 0)
-          + (inkop || []).reduce((s, r) => s + (r.belopp || 0), 0)
-      }
-
-      return {
-        ...fst,
-        _ordrar: orderIds.length,
-        _underhall: underhall || 0,
-        _intakt: intakt,
-        _kostnad: kostnad,
-        _tb: intakt - kostnad,
-      }
-    }))
-
-    setFastigheter(enriched)
-    setLoading(false)
-  }
-
-  useEffect(() => { fetchFastigheter() }, [])
+    const [fRes, ordersRes, underhallRes, tidRes, inkopRes] = await Promise.all([
+      sb.from('fastigheter').select('*').order('namn'),
+      sb.from('orders').select('id, fastighet_id, fakturerat_belopp'),
+      sb.from('fastighet_underhall').select('fastighet_id').neq('status', 'stängd'),
+      sb.from('order_tid_rader').select('order_id, total_kostnad'),
+      sb.from('order_inkop').select('order_id, belopp'),
+    ])
+    const orders = ordersRes.data ?? []
+    const kostnadPerOrder: Record<string, number> = {}
+    for (const t of tidRes.data ?? []) { if (t.order_id) kostnadPerOrder[t.order_id] = (kostnadPerOrder[t.order_id] || 0) + (t.total_kostnad || 0) }
+    for (const i of inkopRes.data ?? []) { if (i.order_id) kostnadPerOrder[i.order_id] = (kostnadPerOrder[i.order_id] || 0) + (i.belopp || 0) }
+    const underhallPerFast: Record<string, number> = {}
+    for (const u of underhallRes.data ?? []) { if (u.fastighet_id) underhallPerFast[u.fastighet_id] = (underhallPerFast[u.fastighet_id] || 0) + 1 }
+    return (fRes.data ?? []).map((fst): FastighetMedStats => {
+      const fstOrders = orders.filter(o => o.fastighet_id === fst.id)
+      const intakt = fstOrders.reduce((s, o) => s + (o.fakturerat_belopp || 0), 0)
+      const kostnad = fstOrders.reduce((s, o) => s + (kostnadPerOrder[o.id] || 0), 0)
+      return { ...fst, _ordrar: fstOrders.length, _underhall: underhallPerFast[fst.id] || 0, _intakt: intakt, _kostnad: kostnad, _tb: intakt - kostnad }
+    })
+  })
+  const loading = isLoading && !fastigheter.length
+  const fetchFastigheter = () => { mutate() }
 
   return (
     <div>

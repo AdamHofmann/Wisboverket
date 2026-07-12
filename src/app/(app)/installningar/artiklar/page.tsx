@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import useSWR from 'swr'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/Toast'
 import { useIsMobile } from '@/hooks/useMediaQuery'
@@ -16,19 +17,19 @@ const EMPTY = { artikelnummer: '', namn: '', enhet: 'tim', a_pris: 0, kostnad_pe
 export default function ArtikalarPage() {
   const toast = useToast()
   const m = useIsMobile()
-  const [artiklar, setArtiklar] = useState<Artikel[]>([])
-  const [loading, setLoading] = useState(true)
   const [edit, setEdit] = useState<Artikel | null>(null)
   const [showModal, setShowModal] = useState(false)
   const [newArtikel, setNewArtikel] = useState(false)
 
-  const fetch = async () => {
+  // SWR-cache: cachad data visas direkt vid återbesök, revalideras tyst i bakgrunden.
+  // fetch() = revalidera (anropas från toggleAktiv + modalens onSaved).
+  const { data, isLoading, mutate } = useSWR('artiklar', async () => {
     const { data } = await createClient().from('artiklar').select('*').order('kategori').order('namn')
-    setArtiklar(data || [])
-    setLoading(false)
-  }
-
-  useEffect(() => { fetch() }, [])
+    return (data || []) as Artikel[]
+  })
+  const artiklar = data ?? []
+  const loading = isLoading && !data
+  const fetch = () => { mutate() }
 
   const toggleAktiv = async (a: Artikel) => {
     const { error } = await createClient().from('artiklar').update({ aktiv: !a.aktiv }).eq('id', a.id)

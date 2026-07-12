@@ -3,6 +3,7 @@ import LoggProvider from '@/components/LoggProvider'
 import PullToRefresh from '@/components/PullToRefresh'
 import RefreshBoundary from '@/components/RefreshBoundary'
 import OneSignalInit from '@/components/OneSignalInit'
+import SWRProvider from '@/components/SWRProvider'
 import { ConfirmProvider } from '@/components/ConfirmDialog'
 import { ToastProvider } from '@/components/Toast'
 
@@ -10,6 +11,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <ConfirmProvider>
       <ToastProvider>
+        <SWRProvider>
         <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', background: '#111' }}>
           <LoggProvider />
           <OneSignalInit />
@@ -19,6 +21,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <RefreshBoundary>{children}</RefreshBoundary>
           </main>
         </div>
+        </SWRProvider>
       </ToastProvider>
     </ConfirmProvider>
   )

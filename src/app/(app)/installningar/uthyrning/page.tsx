@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
+import useSWR from 'swr'
 import { createClient } from '@/lib/supabase/client'
 import type { Hyresobjekt } from '@/types'
 import AdressInput from '@/components/AdressInput'
@@ -48,20 +49,20 @@ function completeness(o: Partial<Hyresobjekt>): number {
 }
 
 export default function UthyrningPage() {
-  const [objekt, setObjekt] = useState<Hyresobjekt[]>([])
-  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<'alla' | 'aktiva' | 'inaktiva'>('alla')
   const [vald, setVald] = useState<Hyresobjekt | null>(null)
   const [showModal, setShowModal] = useState(false)
 
-  const fetchObjekt = async () => {
+  // SWR-cache: cachad data visas direkt vid återbesök, revalideras tyst i bakgrunden.
+  // fetchObjekt() = revalidera (används av modalens onSaved).
+  const { data, isLoading, mutate } = useSWR('uthyrning-hyresobjekt', async () => {
     const { data } = await createClient().from('hyresobjekt').select('*').order('created_at', { ascending: false })
-    setObjekt((data as Hyresobjekt[]) || [])
-    setLoading(false)
-  }
-
-  useEffect(() => { fetchObjekt() }, [])
+    return (data as Hyresobjekt[]) || []
+  })
+  const objekt = data ?? []
+  const loading = isLoading && !data
+  const fetchObjekt = () => { mutate() }
 
   const filtered = useMemo(() => objekt.filter(o => {
     if (filter === 'aktiva' && !o.publicerad) return false
