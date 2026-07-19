@@ -832,10 +832,6 @@ function OvrigtTab() {
         <span style={{ color: C.muted2, flexShrink: 0 }}>→</span>
       </Link>
 
-      <div style={{ ...card, padding: 48, textAlign: 'center' }}>
-        <div style={{ fontSize: 40, marginBottom: 12 }}>⚙️</div>
-        <p style={{ color: C.muted, fontSize: 13 }}>Fler inställningar kommer snart</p>
-      </div>
     </div>
   )
 }

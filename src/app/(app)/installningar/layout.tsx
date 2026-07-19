@@ -9,8 +9,6 @@ const TABS = [
   { href: '/installningar/artiklar', label: 'Artiklar' },
   { href: '/installningar/anvandare', label: 'Användare' },
   { href: '/installningar/integration', label: 'Integration' },
-  { href: '/installningar/kontoplan', label: 'Kontoplan' },
-  { href: '/installningar/moms', label: 'Moms' },
   { href: '/installningar/systemlogg', label: 'Systemlogg' },
 ]
 
