@@ -42,7 +42,12 @@ Deno.serve(async (req) => {
     const { data: profile } = await supabase.from('profiles').select('namn').eq('id', user.id).maybeSingle()
     const name = profile?.namn ?? user.email ?? 'Okänd'
 
-    const at = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, { identity: user.id, name })
+    // LiveKit kräver UNIK identity per deltagare — två anslutningar med samma
+    // identity gör att den senare KICKAR den tidigare. En person ska kunna vara
+    // med från flera enheter (mobil + dator) samtidigt, så identity görs unik per
+    // anslutning medan `name` bär personens namn (det som visas i "vem pratar").
+    const identity = `${user.id}::${crypto.randomUUID().slice(0, 8)}`
+    const at = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, { identity, name })
     at.addGrant({ roomJoin: true, room: ROOM, canPublish: true, canSubscribe: true })
     const token = await at.toJwt()
 

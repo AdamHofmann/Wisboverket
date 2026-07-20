@@ -68,6 +68,9 @@ export default function PushToTalk() {
       })
 
       await room.connect(data.url, data.token)
+      // Webbläsares autoplay-policy blockerar annars fjärrljudet. startAudio()
+      // måste köras i en användargest — vi är i klick-kontexten från "Anslut".
+      try { await room.startAudio() } catch { /* redan tillåtet, eller nekas → ignoreras */ }
       await room.localParticipant.setMicrophoneEnabled(false) // börja tyst (lyssna)
       refreshParticipants(room)
       setStatus('connected')
