@@ -13,6 +13,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { withLogg } from '@/lib/withLogg'
+import { KOMBINERAD } from '@/lib/fastigheter/elKostnad'
 
 // GET — lista omgångar med nästlad fastighet, inkluderade fakturor och debiteringar.
 async function getHandler() {
@@ -99,7 +100,9 @@ async function postHandler(request: Request) {
     }
     let totalKwh = 0
     for (const grupp of perPeriod.values()) {
-      const nat = grupp.filter((f) => f.typ === 'nat')
+      // Nät OCH kombinerad (nät+handel på samma faktura) rapporterar den FAKTISKA
+      // förbrukningen. Handel upprepar samma kWh → får aldrig summeras ovanpå.
+      const nat = grupp.filter((f) => f.typ === 'nat' || f.typ === KOMBINERAD)
       totalKwh += nat.length > 0
         ? nat.reduce((s, f) => s + Number(f.total_kwh ?? 0), 0)
         : grupp.reduce((max, f) => Math.max(max, Number(f.total_kwh ?? 0)), 0)

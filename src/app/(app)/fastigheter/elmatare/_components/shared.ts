@@ -21,7 +21,7 @@ export interface LevFaktura {
   id: string; fastighet_id: string; period_fran: string; period_till: string
   total_kwh: number | null; total_belopp: number; pris_per_kwh: number | null
   fakturanummer: string | null; leverantor: string | null; status: string
-  typ: 'nat' | 'handel' | 'ovrigt' | null
+  typ: 'nat' | 'handel' | 'kombinerad' | 'ovrigt' | null
   fastighet: { id: string; namn: string }
   debiteringar: Debitering[]
 }
@@ -49,10 +49,12 @@ export type Sort = { key: string; dir: 'asc' | 'desc' }
 export interface MatareForm { matarnummer: string; fastighetId: string; lokalId: string; beskrivning: string; schablonKwh: string }
 export interface LevForm { fastighetId: string; periodFran: string; periodTill: string; totalKwh: string; totalBelopp: string; fakturanummer: string; leverantor: string; typ: string }
 
-export const TYP_LABELS: Record<string, string> = { nat: 'Nät', handel: 'Handel', ovrigt: 'Övrigt' }
+export const TYP_LABELS: Record<string, string> = { nat: 'Nät', handel: 'Handel', kombinerad: 'Nät + handel', ovrigt: 'Övrigt' }
 export const typPill = (typ: string | null): React.CSSProperties | null => {
   if (typ === 'nat') return { background: 'rgba(96,165,250,0.14)', color: '#60a5fa' }
   if (typ === 'handel') return { background: 'rgba(232,201,106,0.14)', color: '#E8C96A' }
+  // Kombinerad = täcker båda → grön, signalerar komplett kostnadsbas för perioden.
+  if (typ === 'kombinerad') return { background: 'rgba(74,222,128,0.14)', color: '#4ade80' }
   if (typ === 'ovrigt') return { background: 'rgba(136,136,136,0.14)', color: '#aaa' }
   return null
 }

@@ -81,9 +81,9 @@ export default function DashboardPage() {
     { label: 'Ej planerade', value: ejPlanerade.length, sub: 'saknar datum', color: '#f59e0b', href: '/ordrar?status=aktiva' },
     { label: 'Ej tilldelad', value: ejTilldelad.length, sub: 'planerat, saknar resurs', color: '#f87171', href: '/ordrar?status=aktiva' },
     { label: 'Att fakturera', value: attFakturera.length, sub: 'slutförda', color: '#e0e0e0', href: '/ordrar?status=klar' },
-    { label: 'Förfallna', value: forfallna.length, sub: forfallna.length ? fmt(forfallnaBelopp) + ' obetalt' : 'inga', color: forfallna.length ? '#f87171' : '#4ade80', href: '/fakturor' },
-    { label: 'Fakturerat idag', value: fmt(faktureratIdag), sub: 'ink. moms', color: '#4ade80', wide: true, href: '/fakturor' },
-    { label: manad, value: fmt(faktureratManad), sub: 'fakturerat', color: '#E8C96A', wide: true, href: '/fakturor' },
+    { label: 'Förfallna', value: forfallna.length, sub: forfallna.length ? fmt(forfallnaBelopp) + ' obetalt' : 'inga', color: forfallna.length ? '#f87171' : '#4ade80', href: '/fakturering' },
+    { label: 'Fakturerat idag', value: fmt(faktureratIdag), sub: 'ink. moms', color: '#4ade80', wide: true, href: '/fakturering' },
+    { label: manad, value: fmt(faktureratManad), sub: 'fakturerat', color: '#E8C96A', wide: true, href: '/fakturering' },
   ]
 
   if (loading) return <div style={{ color: '#555', padding: 40, textAlign: 'center' }}>Laddar...</div>

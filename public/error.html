@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>Wisboverket</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      background: #0d0d0d; color: #e0e0e0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex; align-items: center; justify-content: center;
+      padding: calc(24px + env(safe-area-inset-top)) 24px calc(24px + env(safe-area-inset-bottom));
+      text-align: center;
+    }
+    .wrap { max-width: 340px; }
+    .logo { font-size: 40px; margin-bottom: 20px; }
+    h1 { font-size: 20px; font-weight: 800; margin: 0 0 10px; color: #E8C96A; }
+    p { font-size: 14px; line-height: 1.6; color: #999; margin: 0 0 24px; }
+    button {
+      appearance: none; border: none; cursor: pointer;
+      background: #E8C96A; color: #111; font-weight: 700; font-size: 15px;
+      border-radius: 10px; padding: 14px 28px; width: 100%;
+    }
+    button:active { opacity: 0.85; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="logo">📡</div>
+    <h1>Ingen anslutning</h1>
+    <p>Appen kunde inte nå servern just nu. Kontrollera din internetanslutning och försök igen.</p>
+    <button onclick="location.href='https://wisboverket.vercel.app/login'">Försök igen</button>
+  </div>
+</body>
+</html>

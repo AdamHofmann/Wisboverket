@@ -48,7 +48,7 @@ export default function IntegrationPage() {
     <div>
       <div style={{ fontSize: 16, fontWeight: 700, color: '#e0e0e0', marginBottom: 4 }}>Hogia OpenBusiness</div>
       <div style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: 10, padding: '14px 16px', marginTop: 12, marginBottom: 20, fontSize: 12, color: '#888', lineHeight: 1.7 }}>
-        Synk aktiveras i <strong style={{ color: '#E8C96A' }}>Fas 2</strong> när API-nyckeln är på plats. Synkloggen nedan fylls då automatiskt vid varje synkförsök.
+        Synk mot Hogia OpenBusiness aktiveras när API-nyckeln lagts in. Synkloggen nedan fylls automatiskt vid varje synkförsök.
       </div>
 
       <div style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: 10, overflow: 'hidden', marginBottom: 28 }}>

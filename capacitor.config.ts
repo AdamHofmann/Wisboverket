@@ -13,6 +13,9 @@ const config: CapacitorConfig = {
     // Öppna direkt i appens inloggning, inte på publika marknadsförings-hemsidan.
     url: 'https://wisboverket.vercel.app/login',
     cleartext: false,
+    // Lokal fallback-sida om servern inte går att nå (nät nere / Vercel-strul) —
+    // annars visar WebViewen en blank/trasig sida. Ligger i webDir (public/).
+    errorPath: 'error.html',
   },
 }
 

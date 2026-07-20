@@ -235,7 +235,9 @@ export async function POST(request: Request) {
 
     // Dublettspärr: hämta befintliga (hyresavtal_id, period) för dessa avtal.
     const allaIds = aktivaAvtal.map((a) => a.id)
-    const existingSet = new Set<string>()
+    const avtalToHg = new Map<string, string>(aktivaAvtal.map((a) => [a.id, a.hyresgast_id] as [string, string]))
+    const existingSet = new Set<string>()   // per avtal:     hyresavtal_id::period
+    const existingHgSet = new Set<string>() // per hyresgäst: hyresgast_id::period (för samfakturering)
     if (allaIds.length > 0) {
       const { data: befintliga, error: bErr } = await sb
         .from('f_faktura')
@@ -244,6 +246,8 @@ export async function POST(request: Request) {
       if (bErr) throw bErr
       for (const f of befintliga ?? []) {
         existingSet.add(`${f.hyresavtal_id}::${f.period}`)
+        const hg = avtalToHg.get(f.hyresavtal_id as string)
+        if (hg) existingHgSet.add(`${hg}::${f.period}`)
       }
     }
 
@@ -281,9 +285,16 @@ export async function POST(request: Request) {
         const avtalsrader = avtal.avtalsrader ?? []
         const hyresgastNamn = avtal.hyresgast?.namn ?? ''
 
+        // Samfakturerade hyresgäster slås ihop till EN faktura per period (mergen
+        // raderar sekundär-avtalens egna fakturor). Därför måste dublettspärren för
+        // dem gälla per HYRESGÄST+period — annars återskapas sekundär-avtalen varje
+        // generering och remergas (dubblettrader + falskt "kunde ej sparas").
+        const samfaktura = samfaktureringMap.get(avtal.hyresgast_id) === true
         for (const batch of fakturaBatcher) {
           // Dublettkontroll (mot befintliga i DB)
-          if (existingSet.has(`${avtal.id}::${batch.periodLabel}`)) {
+          const redanFakturerad = existingSet.has(`${avtal.id}::${batch.periodLabel}`)
+            || (samfaktura && existingHgSet.has(`${avtal.hyresgast_id}::${batch.periodLabel}`))
+          if (redanFakturerad) {
             skippadePgaDublett.push(`${hyresgastNamn} – ${batch.periodLabel}`)
             continue
           }

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Release/arkiv (TestFlight + App Store) måste använda PRODUCTION-APNs.
+	     Med 'development' får enheten en sandbox-token som production-APNs
+	     avvisar → OneSignal visar "Apns Bad Device Token" / Never Subscribed.
+	     Debug-bygget använder App.entitlements (development) så att lokala
+	     Xcode-körningar fortsätter signera mot development-profilen. -->
+	<key>aps-environment</key>
+	<string>production</string>
+</dict>
+</plist>

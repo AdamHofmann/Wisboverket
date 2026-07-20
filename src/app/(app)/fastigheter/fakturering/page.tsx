@@ -785,6 +785,21 @@ export default function FaktureringPage() {
           <option value="">Alla hyresgäster</option>
           {uniqueHyresgaster.map(h => <option key={h} value={h}>{h}</option>)}
         </select>
+        {/* Sorterings-väljare (mobil) — desktop sorterar via tabellhuvudena */}
+        {isMobile && (
+          <select
+            value={`${sortCol}:${sortDir}`}
+            onChange={e => { const [c, d] = e.target.value.split(':'); setSortCol(c); setSortDir(Number(d) as 1 | -1) }}
+            onFocus={fo} onBlur={fb}
+            style={{ ...selStyle, width: '100%' }}
+          >
+            <option value="hyresgast:1">↕ Sortera: Hyresgäst (A–Ö)</option>
+            <option value="period:-1">↕ Sortera: Period (nyast först)</option>
+            <option value="belopp:-1">↕ Sortera: Belopp (störst först)</option>
+            <option value="forfall:1">↕ Sortera: Förfallodatum</option>
+            <option value="status:1">↕ Sortera: Status</option>
+          </select>
+        )}
       </div>
 
       {/* Sticky bulk-rad (visas när något är valt) */}
@@ -811,6 +826,10 @@ export default function FaktureringPage() {
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingBottom: selected.size > 0 ? 96 : 0 }}>
+            {/* Markera alla (mobil) — motsvarar kryssrutan i desktop-tabellhuvudet */}
+            <button onClick={toggleSelectAll} style={{ ...btnGhost, width: '100%', textAlign: 'center' }}>
+              {allVisibleSelected ? '☑ Avmarkera alla' : `☐ Markera alla (${sorted.length})`}
+            </button>
             {sorted.map((f) => {
               const sc = statusConfig[f.status] || statusConfig.ej_skickad
               const expanded = expandedRows.has(f.id)
