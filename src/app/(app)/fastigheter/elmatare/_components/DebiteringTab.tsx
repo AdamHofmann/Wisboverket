@@ -35,15 +35,26 @@ export default function DebiteringTab({
   })
   // Respektera bolagsväljaren (omgång bär fastighet_id)
   const synligaOmgangar = omgangar.filter(o => bolagMatch(o.fastighet_id))
+
+  // Urvalet ligger i en Set som INTE rensas när omgångar ändras, tas bort eller
+  // döljs av bolagsväljaren. Utan avstämning kunde kvarvarande markeringar både
+  // blåsa upp räknaren ("4 valda" när 2 syns) OCH faktureras oavsiktligt.
+  // Därför: räkna och fakturera BARA markeringar som hör till en hyresgäst som
+  // faktiskt visas just nu → siffran matchar alltid kryssrutorna på skärmen.
+  const giltigaNycklar = new Set<string>()
+  for (const o of synligaOmgangar) {
+    for (const d of o.debiteringar ?? []) giltigaNycklar.add(hgKey(o.id, d.hyresgast_namn))
+  }
+  const valdaSynliga = new Set([...valdaHyresgaster].filter(k => giltigaNycklar.has(k)))
   return (
   <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, flexWrap: 'wrap' }}>
-      {valdaHyresgaster.size > 0 && (
+      {valdaSynliga.size > 0 && (
         <button
           onClick={() => {
             // Gruppera valda hyresgäster per omgång (nyckel: "omgangId::namn").
             const perOmgang: { omgangId: string; hyresgaster: string[] }[] = []
-            for (const k of valdaHyresgaster) {
+            for (const k of valdaSynliga) {
               const i = k.indexOf('::'); const omgangId = k.slice(0, i); const namn = k.slice(i + 2)
               let g = perOmgang.find(x => x.omgangId === omgangId)
               if (!g) { g = { omgangId, hyresgaster: [] }; perOmgang.push(g) }
@@ -54,7 +65,7 @@ export default function DebiteringTab({
           }}
           style={{ padding: '10px 18px', borderRadius: 8, background: C.gold, border: 'none', color: '#1a1a1a', fontSize: 13, fontWeight: 700, cursor: 'pointer', ...(isMobile ? { width: '100%' } : {}) }}
         >
-          Skapa el-fakturor för {valdaHyresgaster.size} vald{valdaHyresgaster.size === 1 ? '' : 'a'} hyresgäst{valdaHyresgaster.size === 1 ? '' : 'er'}
+          Skapa el-fakturor för {valdaSynliga.size} vald{valdaSynliga.size === 1 ? '' : 'a'} hyresgäst{valdaSynliga.size === 1 ? '' : 'er'}
         </button>
       )}
       <button
