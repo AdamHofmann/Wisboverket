@@ -4,7 +4,8 @@
 	"webDir": "public",
 	"server": {
 		"url": "https://wisboverket.vercel.app/login",
-		"cleartext": false
+		"cleartext": false,
+		"errorPath": "error.html"
 	},
 	"packageClassList": [
 		"CDVPlugin"
