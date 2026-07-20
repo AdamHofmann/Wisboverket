@@ -40,7 +40,7 @@ VIKTIGT 2 — exkl moms: totalBelopp ska vara EXKLUSIVE moms (nettobeloppet för
   "prisPerKwh": number,
   "leverantor": "string, elleverantörens/nätbolagets namn (avsändaren)",
   "anlaggningsadress": "string, ANLÄGGNINGSADRESSEN / leveransadressen där elen förbrukas (den fysiska fastighetens gatuadress, INTE fakturamottagarens fakturaadress). Format: gata nr, postnr ort. null om saknas.",
-  "typ": "string, klassa fakturan: 'nat' om den avser elnät/överföring/nätavgift/abonnemang (nätbolaget); 'handel' om den avser elhandel/spotpris/energipris/förbrukning (elhandelsbolaget); 'ovrigt' om varken passar. null om oklart."
+  "typ": "string, klassa fakturan: 'nat' om den ENBART avser elnät/överföring/nätavgift/abonnemang (nätbolaget); 'handel' om den ENBART avser elhandel/spotpris/energipris/förbrukning (elhandelsbolaget); 'kombinerad' om fakturan innehåller BÅDE nät- OCH handelsdelar (vanligt när samma bolag, t.ex. Vattenfall, levererar båda — leta efter både nätavgift/överföring OCH energipris/elhandel på samma faktura); 'ovrigt' om varken passar. null om oklart."
 }
 Returnera BARA JSON, inget annat.`
 

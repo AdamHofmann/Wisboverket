@@ -85,6 +85,7 @@ export default function LeverantorTab({
           <option value="">Alla typer</option>
           <option value="nat">Nät</option>
           <option value="handel">Handel</option>
+          <option value="kombinerad">Nät + handel</option>
           <option value="ovrigt">Övrigt</option>
         </select>
         <select style={selStyle} value={levFilterStatus} onChange={e => setLevFilterStatus(e.target.value)} onFocus={fo} onBlur={fb}>

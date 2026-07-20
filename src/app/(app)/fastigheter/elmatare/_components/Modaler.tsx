@@ -1,7 +1,7 @@
 import React from 'react'
 import SlideOver from '@/components/fastigheter/SlideOver'
 import { C, inp, lbl, fo, fb, btnPrimary, btnGhost } from '@/components/fastigheter/styles'
-import { elKvartalKostnadsGap, elMatpunkterUtanAvlasning } from '@/lib/fastigheter/elKostnad'
+import { elKvartalKostnadsGap, elMatpunkterUtanAvlasning, KOMBINERAD } from '@/lib/fastigheter/elKostnad'
 import {
   Matare, Fastighet, Lokal, LevFaktura, MatareForm, LevForm,
   TYP_LABELS, typPill, formatSEK, formatDate, fmtKwh, pill,
@@ -281,6 +281,7 @@ export default function Modaler(props: Props) {
               <option value="">Ej angiven</option>
               <option value="nat">Nät</option>
               <option value="handel">Handel</option>
+              <option value={KOMBINERAD}>Nät + handel (kombinerad)</option>
               <option value="ovrigt">Övrigt</option>
             </select>
           </div>
@@ -328,7 +329,8 @@ export default function Modaler(props: Props) {
         }
         let totalKwh = 0
         for (const grupp of perPeriod.values()) {
-          const nat = grupp.filter(f => f.typ === 'nat')
+          // Nät OCH kombinerad rapporterar faktisk förbrukning; handel upprepar samma kWh.
+          const nat = grupp.filter(f => f.typ === 'nat' || f.typ === KOMBINERAD)
           totalKwh += nat.length > 0
             ? nat.reduce((s, f) => s + (f.total_kwh ?? 0), 0)
             : grupp.reduce((max, f) => Math.max(max, f.total_kwh ?? 0), 0)

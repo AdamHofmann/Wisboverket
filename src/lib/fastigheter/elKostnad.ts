@@ -12,13 +12,22 @@ type KostFaktura = { typ?: string | null; period_fran?: string | null; period_ti
 const MANADER = ['jan', 'feb', 'mar', 'apr', 'maj', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec']
 const TYP_NAMN: Record<string, string> = { nat: 'nät', handel: 'handel' }
 
+// Vissa leverantörer (t.ex. Vattenfall) fakturerar BÅDE nät och handel på samma
+// faktura. En sådan faktura täcker båda typerna för sin period.
+export const KOMBINERAD = 'kombinerad'
+const tacker = (f: KostFaktura, typ: string) => f.typ === typ || f.typ === KOMBINERAD
+
 // Returnerar en lista på det som saknas, t.ex. ['nät jun'] eller ['maj', 'jun'].
 // Tom lista = kostnadsbasen täcker hela kvartalet.
 export function elKvartalKostnadsGap(valda: KostFaktura[], ar: number, kvartal: number): string[] {
   if (valda.length === 0) return []
   const pad2 = (n: number) => String(n).padStart(2, '0')
   const manadIdx = [(kvartal - 1) * 3, (kvartal - 1) * 3 + 1, (kvartal - 1) * 3 + 2]
-  const typer = [...new Set(valda.map(f => f.typ).filter((t): t is string => t === 'nat' || t === 'handel'))]
+  // En kombinerad faktura innebär att BÅDA typerna är i spel för fastigheten.
+  const typer = [...new Set(valda.flatMap(f =>
+    f.typ === KOMBINERAD ? ['nat', 'handel']
+      : (f.typ === 'nat' || f.typ === 'handel' ? [f.typ] : [])
+  ))]
 
   const overlaps = (f: KostFaktura, mStart: string, mSlut: string) =>
     (f.period_fran ?? '') <= mSlut && (f.period_till ?? '') >= mStart
@@ -31,7 +40,7 @@ export function elKvartalKostnadsGap(valda: KostFaktura[], ar: number, kvartal: 
       if (!valda.some(f => overlaps(f, mStart, mSlut))) gaps.push(MANADER[mi])
     } else {
       for (const typ of typer) {
-        if (!valda.some(f => f.typ === typ && overlaps(f, mStart, mSlut))) {
+        if (!valda.some(f => tacker(f, typ) && overlaps(f, mStart, mSlut))) {
           gaps.push(`${TYP_NAMN[typ] || typ} ${MANADER[mi]}`)
         }
       }
