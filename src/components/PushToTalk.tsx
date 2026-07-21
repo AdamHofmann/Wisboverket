@@ -90,8 +90,15 @@ export default function PushToTalk() {
   const setMic = useCallback(async (on: boolean) => {
     const room = roomRef.current
     if (!room || status !== 'connected') return
-    await room.localParticipant.setMicrophoneEnabled(on)
-    setTalking(on)
+    try {
+      await room.localParticipant.setMicrophoneEnabled(on)
+      setTalking(on)
+      setErr(null)
+    } catch (e) {
+      // Synliggör fel (t.ex. om WKWebView nekar mikrofonen) istället för tyst miss.
+      setErr('Mikrofon: ' + (e instanceof Error ? e.message : String(e)))
+      setTalking(false)
+    }
   }, [status])
 
   // Städa upp vid unmount.
@@ -139,16 +146,18 @@ export default function PushToTalk() {
             </>
           ) : (
             <>
-              {/* PRATA-toggle (öppen mik) + håll-för-att-prata */}
+              {/* PRATA — ren toggle: tryck på för att prata fritt, tryck igen för att stänga.
+                  (Tidigare dubbel onClick+onPointerDown togglade på/av vid samma touch-tryck.) */}
               <button
                 onClick={() => setMic(!talking)}
-                onPointerDown={() => { if (!talking) setMic(true) }}
                 style={{
                   width: '100%', padding: '16px', borderRadius: 10, border: 'none', marginBottom: 10,
                   background: talking ? C.live : C.off, color: talking ? '#111' : C.text,
                   fontWeight: 800, fontSize: 15, cursor: 'pointer', transition: 'background 0.1s',
+                  touchAction: 'manipulation',
                 }}
               >{talking ? '🎙️ LIVE – tryck för att stänga' : 'PRATA'}</button>
+              {err && <div style={{ fontSize: 11, color: '#f87171', marginBottom: 10 }}>{err}</div>}
 
               <div style={{ fontSize: 10, fontWeight: 700, color: C.muted, letterSpacing: 1, marginBottom: 6 }}>
                 I RUMMET ({participants.length})
