@@ -6,20 +6,25 @@ import { withLogg } from '@/lib/withLogg'
 // Skapar en ny användare (e-post + lösenord som admin sätter och delar ut).
 // Kräver att anroparen är admin, och service role-nyckeln server-side.
 async function postHandler(req: Request) {
-  // 1. Verifiera att anroparen är inloggad admin
+  // 1. Verifiera inloggning
   const sb = await createServerClient()
   const { data: { user } } = await sb.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Ej inloggad' }, { status: 401 })
-  const { data: profil } = await sb.from('profiles').select('roll').eq('id', user.id).single()
-  if (profil?.roll !== 'admin') return NextResponse.json({ error: 'Endast admin får skapa användare' }, { status: 403 })
 
-  // 2. Service role-klient (server-only)
+  // 2. Service role-klient (server-only) — används både för admin-kollen och för
+  //    att skapa användaren.
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!url || !serviceKey) {
     return NextResponse.json({ error: 'Service role-nyckel saknas på servern. Lägg SUPABASE_SERVICE_ROLE_KEY i .env.local och starta om.' }, { status: 500 })
   }
   const admin = createAdminClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } })
+
+  // 3. Verifiera att den inloggade är admin. Läses med SERVICE ROLE (inte
+  //    användar-sessionen) — annars kan RLS/session-propagering i vissa klienter
+  //    (t.ex. appens WKWebView) ge en tom profil-läsning → felaktigt 403.
+  const { data: profil } = await admin.from('profiles').select('roll').eq('id', user.id).single()
+  if (profil?.roll !== 'admin') return NextResponse.json({ error: 'Endast admin får skapa användare' }, { status: 403 })
 
   // 3. Validera indata
   const body = await req.json().catch(() => null)
