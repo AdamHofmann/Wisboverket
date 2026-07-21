@@ -25,20 +25,20 @@ export async function GET(request: Request) {
     let query = sb
       .from('f_lokal')
       .select(`
-        *,
+        id, namn, typ, yta, vaning, status, bashyra, moms, fastighet_id, byggnad_id, beteckning_id,
         fastighet:f_fastighet (
-          *,
-          bolag:f_bolag (*),
-          byggnader:f_byggnad (*),
-          beteckningar:f_fastighetsbeteckning (*)
+          id, namn, taxeringsvarde,
+          bolag:f_bolag ( id, fastighetsskattesats ),
+          byggnader:f_byggnad ( id, namn, uthyrbar_yta ),
+          beteckningar:f_fastighetsbeteckning ( id, beteckning, taxeringsvarde )
         ),
-        beteckning:f_fastighetsbeteckning (*),
-        byggnad:f_byggnad (*),
+        beteckning:f_fastighetsbeteckning ( id, beteckning ),
+        byggnad:f_byggnad ( id, namn ),
         hyresavtal:f_hyresavtal_lokal (
-          *,
+          id,
           hyresavtal:f_hyresavtal (
-            *,
-            hyresgast:f_hyresgast (*)
+            id, status,
+            hyresgast:f_hyresgast ( id, namn )
           )
         )
       `)

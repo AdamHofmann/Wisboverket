@@ -36,10 +36,10 @@ export async function GET(request: Request) {
       .from('f_fastighet')
       .select(`
         *,
-        lokaler:f_lokal (*),
+        lokaler:f_lokal ( id ),
         bolag:f_bolag ( id, namn ),
         byggnader:f_byggnad (*),
-        beteckningar:f_fastighetsbeteckning (*)
+        beteckningar:f_fastighetsbeteckning ( id, beteckning, taxeringsvarde )
       `)
       .order('namn', { ascending: true })
       .order('namn', { ascending: true, foreignTable: 'f_byggnad' })

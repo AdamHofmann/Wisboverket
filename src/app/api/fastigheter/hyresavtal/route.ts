@@ -32,19 +32,19 @@ export async function GET() {
       .select(`
         *,
         lokaler:f_hyresavtal_lokal (
-          *,
+          id,
           lokal:f_lokal (
-            *,
+            id, namn, yta,
             fastighet:f_fastighet (
-              *,
-              byggnader:f_byggnad (*),
-              bolag:f_bolag (*),
-              beteckningar:f_fastighetsbeteckning (*)
+              id, namn, taxeringsvarde,
+              byggnader:f_byggnad ( id, uthyrbar_yta ),
+              bolag:f_bolag ( id, fastighetsskattesats ),
+              beteckningar:f_fastighetsbeteckning ( id, taxeringsvarde )
             )
           )
         ),
-        hyresgast:f_hyresgast (*),
-        indexhojningar:f_indexhojning (*)
+        hyresgast:f_hyresgast ( id, namn ),
+        indexhojningar:f_indexhojning ( id, datum, procent, bashyra_gammal, bashyra_ny, skapad_av )
       `)
       .order('created_at', { ascending: false })
       .order('datum', { ascending: false, foreignTable: 'f_indexhojning' })

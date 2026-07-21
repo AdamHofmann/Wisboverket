@@ -13,7 +13,7 @@ export async function GET() {
     // Aktiva först, därefter alfabetiskt på kod.
     const { data, error } = await sb
       .from('f_artikel')
-      .select('*')
+      .select('id, kod, benamning, apris, moms, konto, momskod, aktiv')
       .order('aktiv', { ascending: false })
       .order('kod', { ascending: true })
     if (error) throw error

@@ -22,16 +22,16 @@ export async function GET() {
       .select(`
         *,
         hyresavtal:f_hyresavtal (
-          *,
+          id, status, bashyra,
           lokaler:f_hyresavtal_lokal (
-            *,
+            id,
             lokal:f_lokal (
-              *,
-              fastighet:f_fastighet (*)
+              id, namn, fastighet_id,
+              fastighet:f_fastighet ( id, namn, bolag_id )
             )
           )
         ),
-        kontaktpersoner:f_kontaktperson (*)
+        kontaktpersoner:f_kontaktperson ( id, namn, roll, telefon, epost, created_at )
       `)
       .order('namn', { ascending: true })
       .order('created_at', { ascending: true, foreignTable: 'f_kontaktperson' })

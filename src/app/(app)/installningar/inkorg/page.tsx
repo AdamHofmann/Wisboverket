@@ -72,7 +72,7 @@ function ForfragningarTab({ onHandled }: { onHandled: () => void }) {
 
   // SWR-cache: cachad lista visas direkt vid återbesök, revalideras tyst i bakgrunden.
   const { data, isLoading, mutate } = useSWR('inkorg-forfragningar', async () => {
-    const { data } = await createClient().from('forfragningar').select('*').order('created_at', { ascending: false })
+    const { data } = await createClient().from('forfragningar').select('id, typ, namn, telefon, epost, meddelande, objekt_titel, tjanst, amne, fastighet, status, created_at').order('created_at', { ascending: false })
     return (data || []) as Forfragan[]
   })
   const items = data ?? []
@@ -175,7 +175,7 @@ function FelanmalanTab({ onHandled }: { onHandled: () => void }) {
 
   // SWR-cache: cachad lista visas direkt vid återbesök, revalideras tyst i bakgrunden.
   const { data, isLoading, mutate } = useSWR('inkorg-felanmalan', async () => {
-    const { data } = await createClient().from('felanmalningar').select('*').order('created_at', { ascending: false })
+    const { data } = await createClient().from('felanmalningar').select('id, nummer, kategori, prioritet, namn, telefon, epost, fastighet, lagenhet, beskrivning, status, order_id, created_at').order('created_at', { ascending: false })
     return (data || []) as Felanmalan[]
   })
   const items = data ?? []
