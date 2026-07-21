@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { Room, RoomEvent, Track, type RemoteTrack, type RemoteParticipant, type LocalAudioTrack } from 'livekit-client'
 import { createClient } from '@/lib/supabase/client'
+import { WalkieAudio, isNativeApp } from '@/lib/walkieNative'
 
 /**
  * Push-to-talk / walkie-talkie (MVP).
@@ -29,11 +30,11 @@ export default function PushToTalk() {
   const [speakingIds, setSpeakingIds] = useState<Set<string>>(new Set())
   const [vox, setVox] = useState(false)          // röststyrt läge på/av
   const [voxSending, setVoxSending] = useState(false) // sänder just nu (röst upptäckt)
-  const [diag, setDiag] = useState('')           // WebView-diagnostik (secure context / mediaDevices)
 
   const roomRef = useRef<Room | null>(null)
   const audioElsRef = useRef<HTMLAudioElement[]>([])
   const voxRef = useRef<{ ac: AudioContext; interval: number; track: LocalAudioTrack } | null>(null)
+  const talkingRef = useRef(false) // spegel av `talking` för headset-handlern (färsk state)
 
   const refreshParticipants = useCallback((room: Room) => {
     const list = [
@@ -164,12 +165,34 @@ export default function PushToTalk() {
   // Städa upp vid unmount.
   useEffect(() => () => { void disconnect() }, [disconnect])
 
-  // Diagnostik (klient-only för att undvika hydration-mismatch): varför saknas mic?
+  // Håll talkingRef i synk så headset-handlern läser färskt värde (inte en stale closure).
+  useEffect(() => { talkingRef.current = talking }, [talking])
+
+  // Native (iOS): när vi är anslutna, aktivera AVAudioSession (→ bakgrundsljud, hör
+  // teamet även när appen ligger i bakgrunden) och lyssna på headset-knappen (togglar
+  // sändning). Städas när vi kopplar från. No-op i webbläsare.
   useEffect(() => {
-    const sec = typeof window !== 'undefined' && window.isSecureContext
-    const md = typeof navigator !== 'undefined' && !!navigator.mediaDevices
-    setDiag(`kontext: secure ${sec ? '✓' : '✗'} · mediaDevices ${md ? '✓' : '✗'}`)
-  }, [])
+    if (!isNativeApp || status !== 'connected') return
+    let sub: { remove: () => void } | undefined
+    let cancelled = false
+    ;(async () => {
+      // Allt i en try: äldre app-byggen (utan WalkieAudio-plugin:en) saknar den
+      // native-modulen → anropen kastar. Fångas här så inget läcker som ohanterat fel.
+      try {
+        await WalkieAudio.startSession()
+        const s = await WalkieAudio.addListener('headsetToggle', () => {
+          if (voxRef.current) return         // röststyrt sköter mic automatiskt
+          void setMic(!talkingRef.current)   // headset togglar sändning
+        })
+        if (cancelled) s.remove(); else sub = s
+      } catch { /* plugin saknas eller ljudsession nekad — ignoreras */ }
+    })()
+    return () => {
+      cancelled = true
+      sub?.remove()
+      void WalkieAudio.stopSession()
+    }
+  }, [status, setMic])
 
   const myId = roomRef.current?.localParticipant.identity
 
@@ -202,8 +225,6 @@ export default function PushToTalk() {
               {status === 'connected' ? '● Ansluten' : status === 'connecting' ? 'Ansluter…' : status === 'error' ? 'Fel' : 'Frånkopplad'}
             </span>
           </div>
-
-          {diag && <div style={{ fontSize: 9, color: C.muted, marginBottom: 10, opacity: 0.7 }}>{diag}</div>}
 
           {status !== 'connected' ? (
             <>
