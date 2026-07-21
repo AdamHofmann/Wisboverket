@@ -51,6 +51,7 @@ async function postHandler(req: Request) {
     const { error: profilErr } = await admin.from('profiles').upsert({
       id: data.user.id,
       namn: namn || null,
+      epost: epost,
       roll: 'användare',
       modul_order: false,
       modul_fastighet: false,
