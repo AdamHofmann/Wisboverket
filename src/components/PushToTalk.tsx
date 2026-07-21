@@ -29,6 +29,7 @@ export default function PushToTalk() {
   const [speakingIds, setSpeakingIds] = useState<Set<string>>(new Set())
   const [vox, setVox] = useState(false)          // röststyrt läge på/av
   const [voxSending, setVoxSending] = useState(false) // sänder just nu (röst upptäckt)
+  const [diag, setDiag] = useState('')           // WebView-diagnostik (secure context / mediaDevices)
 
   const roomRef = useRef<Room | null>(null)
   const audioElsRef = useRef<HTMLAudioElement[]>([])
@@ -163,6 +164,13 @@ export default function PushToTalk() {
   // Städa upp vid unmount.
   useEffect(() => () => { void disconnect() }, [disconnect])
 
+  // Diagnostik (klient-only för att undvika hydration-mismatch): varför saknas mic?
+  useEffect(() => {
+    const sec = typeof window !== 'undefined' && window.isSecureContext
+    const md = typeof navigator !== 'undefined' && !!navigator.mediaDevices
+    setDiag(`kontext: secure ${sec ? '✓' : '✗'} · mediaDevices ${md ? '✓' : '✗'}`)
+  }, [])
+
   const myId = roomRef.current?.localParticipant.identity
 
   return (
@@ -194,6 +202,8 @@ export default function PushToTalk() {
               {status === 'connected' ? '● Ansluten' : status === 'connecting' ? 'Ansluter…' : status === 'error' ? 'Fel' : 'Frånkopplad'}
             </span>
           </div>
+
+          {diag && <div style={{ fontSize: 9, color: C.muted, marginBottom: 10, opacity: 0.7 }}>{diag}</div>}
 
           {status !== 'connected' ? (
             <>
