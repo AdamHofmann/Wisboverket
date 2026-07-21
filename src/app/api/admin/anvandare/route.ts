@@ -43,9 +43,19 @@ async function postHandler(req: Request) {
   })
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
-  // 5. Best-effort: sätt namn på profilen (om den skapats av trigger)
-  if (data.user && namn) {
-    await admin.from('profiles').update({ namn }).eq('id', data.user.id)
+  // 5. Skapa profil-raden EXPLICIT. Ingen databas-trigger gör det, så utan detta
+  //    får den nya användaren ingen profil → osynlig i listan + ingen roll/modul.
+  //    Ny användare: roll 'användare', ingen modulåtkomst → visas som INAKTIV tills
+  //    admin aktiverar moduler i listan. upsert så det är idempotent.
+  if (data.user) {
+    const { error: profilErr } = await admin.from('profiles').upsert({
+      id: data.user.id,
+      namn: namn || null,
+      roll: 'användare',
+      modul_order: false,
+      modul_fastighet: false,
+    }, { onConflict: 'id' })
+    if (profilErr) return NextResponse.json({ error: 'Användaren skapades men profilen kunde inte sättas upp: ' + profilErr.message }, { status: 500 })
   }
 
   return NextResponse.json({ ok: true, id: data.user?.id })
