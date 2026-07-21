@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { Room, RoomEvent, Track, type RemoteTrack, type RemoteParticipant } from 'livekit-client'
+import { Room, RoomEvent, Track, type RemoteTrack, type RemoteParticipant, type LocalAudioTrack } from 'livekit-client'
 import { createClient } from '@/lib/supabase/client'
 
 /**
@@ -27,9 +27,12 @@ export default function PushToTalk() {
   const [talking, setTalking] = useState(false)
   const [participants, setParticipants] = useState<{ id: string; name: string }[]>([])
   const [speakingIds, setSpeakingIds] = useState<Set<string>>(new Set())
+  const [vox, setVox] = useState(false)          // röststyrt läge på/av
+  const [voxSending, setVoxSending] = useState(false) // sänder just nu (röst upptäckt)
 
   const roomRef = useRef<Room | null>(null)
   const audioElsRef = useRef<HTMLAudioElement[]>([])
+  const voxRef = useRef<{ ac: AudioContext; interval: number; track: LocalAudioTrack } | null>(null)
 
   const refreshParticipants = useCallback((room: Room) => {
     const list = [
@@ -81,6 +84,10 @@ export default function PushToTalk() {
   }, [refreshParticipants])
 
   const disconnect = useCallback(async () => {
+    // Städa VOX-loopen (inlineat för att slippa beroende på stopVox som def:as senare).
+    const v = voxRef.current
+    if (v) { clearInterval(v.interval); try { await v.ac.close() } catch { /* redan stängd */ } voxRef.current = null }
+    setVox(false); setVoxSending(false)
     await roomRef.current?.disconnect()
     roomRef.current = null
     audioElsRef.current.forEach((el) => el.remove())
@@ -100,6 +107,58 @@ export default function PushToTalk() {
       setTalking(false)
     }
   }, [status])
+
+  // Röststyrt (VOX): mikrofonen är publicerad men mutad; en AnalyserNode mäter
+  // ljudnivån och avmutar automatiskt när du pratar (mutar igen efter en kort
+  // "hang" så slutet av meningar inte klipps). Ingen knapptryckning behövs.
+  const stopVox = useCallback(async () => {
+    const v = voxRef.current
+    if (v) { clearInterval(v.interval); try { await v.ac.close() } catch { /* redan stängd */ } voxRef.current = null }
+    setVoxSending(false)
+    try { await roomRef.current?.localParticipant.setMicrophoneEnabled(false) } catch { /* ej ansluten */ }
+  }, [])
+
+  const startVox = useCallback(async () => {
+    const room = roomRef.current
+    if (!room || status !== 'connected') return
+    try {
+      await room.localParticipant.setMicrophoneEnabled(true)
+      const track = room.localParticipant.getTrackPublication(Track.Source.Microphone)?.audioTrack
+      const mst = track?.mediaStreamTrack
+      if (!track || !mst) throw new Error('Ingen mikrofon-track')
+      await track.mute() // börja tyst — VOX avmutar vid tal
+      const ac = new AudioContext()
+      const analyser = ac.createAnalyser()
+      analyser.fftSize = 512
+      ac.createMediaStreamSource(new MediaStream([mst])).connect(analyser)
+      const buf = new Uint8Array(analyser.fftSize)
+      const THRESHOLD = 0.06, HANG_MS = 800
+      let lastSpeech = 0, sending = false
+      const interval = window.setInterval(() => {
+        analyser.getByteTimeDomainData(buf)
+        let sum = 0
+        for (let i = 0; i < buf.length; i++) { const x = (buf[i] - 128) / 128; sum += x * x }
+        const rms = Math.sqrt(sum / buf.length)
+        const now = Date.now()
+        if (rms > THRESHOLD) lastSpeech = now
+        const shouldSend = now - lastSpeech < HANG_MS
+        if (shouldSend && !sending) { sending = true; void track.unmute(); setVoxSending(true) }
+        else if (!shouldSend && sending) { sending = false; void track.mute(); setVoxSending(false) }
+      }, 100)
+      voxRef.current = { ac, interval, track }
+      setErr(null)
+    } catch (e) {
+      setErr('Röststyrt: ' + (e instanceof Error ? e.message : String(e)))
+      setVox(false)
+      void stopVox()
+    }
+  }, [status, stopVox])
+
+  const toggleVox = useCallback((on: boolean) => {
+    setVox(on)
+    if (on) { setTalking(false); void startVox() } // VOX ersätter manuell toggle
+    else { void stopVox() }
+  }, [startVox, stopVox])
 
   // Städa upp vid unmount.
   useEffect(() => () => { void disconnect() }, [disconnect])
@@ -146,17 +205,31 @@ export default function PushToTalk() {
             </>
           ) : (
             <>
-              {/* PRATA — ren toggle: tryck på för att prata fritt, tryck igen för att stänga.
-                  (Tidigare dubbel onClick+onPointerDown togglade på/av vid samma touch-tryck.) */}
-              <button
-                onClick={() => setMic(!talking)}
-                style={{
-                  width: '100%', padding: '16px', borderRadius: 10, border: 'none', marginBottom: 10,
-                  background: talking ? C.live : C.off, color: talking ? '#111' : C.text,
-                  fontWeight: 800, fontSize: 15, cursor: 'pointer', transition: 'background 0.1s',
-                  touchAction: 'manipulation',
-                }}
-              >{talking ? '🎙️ LIVE – tryck för att stänga' : 'PRATA'}</button>
+              {/* Läge: manuell toggle eller röststyrt (VOX) */}
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: C.muted, marginBottom: 10, cursor: 'pointer', userSelect: 'none' }}>
+                <input type="checkbox" checked={vox} onChange={(e) => toggleVox(e.target.checked)} style={{ accentColor: C.gold, width: 16, height: 16 }} />
+                🎤 Röststyrt — prata utan att trycka
+              </label>
+
+              {vox ? (
+                /* Röststyrt: mikrofonen sköts automatiskt, ingen knapp att trycka. */
+                <div style={{
+                  width: '100%', padding: '16px', borderRadius: 10, marginBottom: 10, textAlign: 'center',
+                  fontWeight: 800, fontSize: 15, transition: 'background 0.12s',
+                  background: voxSending ? C.live : C.off, color: voxSending ? '#111' : C.text,
+                }}>{voxSending ? '🔊 SÄNDER' : '🎧 Lyssnar…'}</div>
+              ) : (
+                /* Ren toggle: tryck på för att prata fritt, tryck igen för att stänga. */
+                <button
+                  onClick={() => setMic(!talking)}
+                  style={{
+                    width: '100%', padding: '16px', borderRadius: 10, border: 'none', marginBottom: 10,
+                    background: talking ? C.live : C.off, color: talking ? '#111' : C.text,
+                    fontWeight: 800, fontSize: 15, cursor: 'pointer', transition: 'background 0.1s',
+                    touchAction: 'manipulation',
+                  }}
+                >{talking ? '🎙️ LIVE – tryck för att stänga' : 'PRATA'}</button>
+              )}
               {err && <div style={{ fontSize: 11, color: '#f87171', marginBottom: 10 }}>{err}</div>}
 
               <div style={{ fontSize: 10, fontWeight: 700, color: C.muted, letterSpacing: 1, marginBottom: 6 }}>
