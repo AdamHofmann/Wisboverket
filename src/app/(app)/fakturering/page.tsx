@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/client'
 import { FakturaVy } from '@/components/order-tabs/FakturorTab'
 import { useIsMobile } from '@/hooks/useMediaQuery'
 import { fmtKr } from '@/lib/format'
+import ListTakNotis from '@/components/ListTakNotis'
+import { LISTA_MAX } from '@/lib/listor'
 
 type Faktura = {
   id: string; fakturanummer: string; typ: string; status: string; fakturadatum: string
@@ -29,6 +31,7 @@ export default function FaktureringPage() {
   useEffect(() => {
     createClient().from('fakturor').select('*')
       .order('fakturadatum', { ascending: false })
+      .limit(LISTA_MAX)
       .then(({ data }) => { setFakturor(data || []); setLoading(false) })
   }, [])
 
@@ -73,6 +76,8 @@ export default function FaktureringPage() {
           ))}
         </div>
       </div>
+
+      <ListTakNotis antal={fakturor.length} enhet="fakturor" />
 
       <div style={{ background: isMobile ? 'transparent' : '#141414', border: isMobile ? 'none' : '1px solid #1e1e1e', borderRadius: 10, overflow: 'hidden' }}>
         {loading ? (

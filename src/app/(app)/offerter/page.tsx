@@ -8,6 +8,8 @@ import DatumValjare from '@/components/DatumValjare'
 import { useKundPrisavtal } from '@/hooks/useKundPrisavtal'
 import { useIsMobile } from '@/hooks/useMediaQuery'
 import Sokfalt from '@/components/Sokfalt'
+import ListTakNotis from '@/components/ListTakNotis'
+import { LISTA_MAX } from '@/lib/listor'
 import { useToast } from '@/components/Toast'
 import { fmtKr } from '@/lib/format'
 
@@ -46,6 +48,7 @@ export default function OfferterPage() {
       .from('offers')
       .select('*, customer:customers(namn)')
       .order('created_at', { ascending: false })
+      .limit(LISTA_MAX)
     return (data || []).map((o: any) => ({ ...o, kund_namn: o.customer?.namn, rader: o.rader || [] })) as Offert[]
   })
   const offerter = data ?? []
@@ -98,6 +101,8 @@ export default function OfferterPage() {
           ))}
         </div>
       </div>
+
+      <ListTakNotis antal={offerter.length} enhet="offerter" />
 
       <div style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: 10, overflow: 'hidden' }}>
         {loading ? (

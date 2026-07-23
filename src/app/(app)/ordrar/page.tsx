@@ -9,6 +9,8 @@ import type { Order, Customer } from '@/types'
 import NyOrderModal from '@/components/NyOrderModal'
 import OrderPanel from '@/components/OrderPanel'
 import Sokfalt from '@/components/Sokfalt'
+import ListTakNotis from '@/components/ListTakNotis'
+import { LISTA_MAX } from '@/lib/listor'
 import { STATUS_LABEL, STATUS_COLOR, KAT_ICON, KATEGORIER as KATEGORIER_BAS, fmtKr } from '@/components/order-tabs/shared'
 
 const KATEGORIER = ['Alla', ...KATEGORIER_BAS]
@@ -41,7 +43,8 @@ function OrdrarInner() {
       sb.from('orders')
         // Bara fält som listan renderar — inte hela raden (beskrivning, anteckningar m.m.).
         .select('id, status, kategori, titel, fastighet, ort, postnummer, order_number, bokad_datum, bokad_start, bokad_slut, tilldelad, fakturerat_belopp, fakturerat, faktureras_inte, created_at, lagenhet, customer:customers(id,namn,telefon)')
-        .order('created_at', { ascending: false }),
+        .order('created_at', { ascending: false })
+        .limit(LISTA_MAX),
       // Alla kostnadsrader i två queries, summeras per order_id client-side (undviker N+1)
       sb.from('order_tid_rader').select('order_id,total_kostnad'),
       sb.from('order_inkop').select('order_id,belopp'),
@@ -135,6 +138,8 @@ function OrdrarInner() {
           </select>
         </div>
       )}
+
+      <ListTakNotis antal={orders.length} enhet="ordrar" />
 
       {/* Tabell / kortvy */}
       {isMobile ? (
